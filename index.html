@@ -1133,12 +1133,18 @@ async function doLogout() {
   await sb.auth.signOut();
 }
 window.addEventListener('DOMContentLoaded', async () => {
+  // Register auth state listener first
   sb.auth.onAuthStateChange(async(event,session)=>{
     if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
     else if(event==='SIGNED_OUT'){currentUser=null;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
   });
+  // Then check for existing session explicitly
   const {data}=await sb.auth.getSession();
-  if(!data?.session){
+  if(data?.session?.user && !currentUser){
+    // Already logged in — start game directly
+    await startGame(data.session.user);
+  } else {
+    // No session — show login screen
     showAuthLayer('screen-login');
     const e=localStorage.getItem('bf_saved_email');
     if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
@@ -1272,20 +1278,16 @@ function showOfflineBanner(ts,lines){
   slot.innerHTML=`<div class="offline-banner"><div><div style="color:var(--green);font-weight:600;margin-bottom:4px;">⏰ Offline ${ts} — gathered while away:</div><div style="color:var(--text2);font-size:11px;line-height:1.7;">${lines.join('<br>')}</div></div><button class="offline-banner-close" onclick="this.closest('.offline-banner').remove()">✕</button></div>`;
 }
 
-window.addEventListener('visibilitychange', async () => {
+window.addEventListener('visibilitychange', () => {
   if (!currentUser) return;
   if (document.visibilityState === 'hidden') {
-    // Record when we left so offline progress can be calculated
-    saveToDB();
     lastHiddenAt = Date.now();
-  } else {
-    // Tab became visible again — apply progress for time away
-    if (lastHiddenAt) {
-      applyOfflineProgress(lastHiddenAt);
-      lastHiddenAt = null;
-      updateResourcePills();
-      updateNodeCards();
-    }
+    saveToDB();
+  } else if (lastHiddenAt) {
+    applyOfflineProgress(lastHiddenAt);
+    lastHiddenAt = null;
+    updateResourcePills();
+    updateNodeCards();
   }
 });
 window.addEventListener('beforeunload',()=>{ if(currentUser) saveToDB(); });
@@ -1295,35 +1297,26 @@ window.addEventListener('beforeunload',()=>{ if(currentUser) saveToDB(); });
 // ═══════════════════════════════════════════════
 function startLoop(){
   stopLoop();
-  lastStructuralRender=0;
-
-  // ── Resource tick: runs every second via setInterval, works in any tab ──
+  lastStructuralRender = 0;
+  // setInterval ticks resources every second — works even when tab is hidden
   intervalId = setInterval(tickResources, 1000);
-
-  // ── RAF loop: only handles animations/bars, no resource math ──
-  function rafLoop(){
-    updateUpgradeBars();
-    updateProgressBars();
-    updateResearchBars();
-    rafId = requestAnimationFrame(rafLoop);
-  }
+  // RAF only handles visual bars/animations
+  function rafLoop(){ updateUpgradeBars(); updateProgressBars(); updateResearchBars(); rafId=requestAnimationFrame(rafLoop); }
   rafId = requestAnimationFrame(rafLoop);
 }
-
 function stopLoop(){
   if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
   if(intervalId){ clearInterval(intervalId); intervalId=null; }
 }
 
-// Resource production — runs every 1 second via setInterval regardless of tab focus
+// Runs every 1 second via setInterval — works in any tab, any focus state
 function tickResources(){
   const now = Date.now();
-  const dt = 1000; // fixed 1 second per tick in ms
   let changed = false;
 
   RESOURCE_DEFS.forEach(r=>{
     r.tiers.forEach((_,ti)=>{
-      const ns = nodeState[r.id][ti];
+      const ns=nodeState[r.id][ti];
       if(!ns.unlocked) return;
 
       if(ns.upgrading){
@@ -1342,7 +1335,8 @@ function tickResources(){
       const ph  = nodeProdPerHour(r,ti,ns.upgradeLevel);
       const cap = nodeStorageCap(r,ti,ns.upgradeLevel);
       const prev = Math.floor(ns.storedAmount);
-      ns.storedAmount = Math.min(ns.storedAmount + ph*(dt/3600000), cap);
+      // 1 second worth of production (ph is per hour)
+      ns.storedAmount = Math.min(ns.storedAmount + ph/3600, cap);
       if(Math.floor(ns.storedAmount) !== prev) changed=true;
     });
   });
@@ -1355,10 +1349,8 @@ function tickResources(){
   }
 }
 
-// tickAll kept for any legacy calls but no longer used by main loop
-function tickAll(){
-  tickResources();
-}
+// Keep tickAll for any legacy calls
+function tickAll(){ tickResources(); }
 
 // ═══════════════════════════════════════════════
 // PLAYER LEVEL UI
@@ -3008,7 +3000,7 @@ async function startBattle() {
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
   canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
   startBattleLoop();
-  showToast('Battle started! Good luck Commander.');
+  showToast('Battle started by server');
 }
 
 function updatePendingTowersBar() {
@@ -3477,7 +3469,6 @@ function battleLoop(ts) {
 function startBattleLoop() {
   stopBattleLoop();
   battleRaf = requestAnimationFrame(battleLoop);
-  // Keep battle running when tab is hidden (RAF gets throttled by browser)
   battleIntervalId = setInterval(() => {
     if (document.hidden && bs && !bs.gameOver && !bs.victory) {
       const now = performance.now();
@@ -3485,16 +3476,11 @@ function startBattleLoop() {
       const rawDt = Math.min((now - bs.lastTime) / 1000, 0.25);
       bs.lastTime = now;
       const dt = rawDt * battleSpeed;
-      updateSpawn(dt);
-      updateEnemies(dt);
-      updateTowers(dt);
-      updateProjectiles(dt);
-      updateExplosions(dt);
-      checkWaveEnd();
+      updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
+      updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
     }
-  }, 100); // 10fps in background — enough to keep battle progressing
+  }, 100);
 }
-
 function stopBattleLoop() {
   if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; }
   if (battleIntervalId) { clearInterval(battleIntervalId); battleIntervalId = null; }
