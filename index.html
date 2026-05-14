@@ -1198,7 +1198,11 @@ function resetState() {
 
 async function loadFromDB() {
   try {
-    await refreshFromServer();
+    const payload = await serverRpc('idw_get_state');
+    const s = payload?.v2 || payload;
+    // Show offline banner if player has been away — only on login
+    if (s?.lastSeen) applyOfflineProgress(s.lastSeen);
+    applyServerPayload(payload);
   } catch (e) {
     console.warn('server load failed, falling back to old game_saves:', e);
     // Old fallback kept so a bad SQL install does not freeze the login screen.
@@ -1609,16 +1613,22 @@ async function collectAll(){
   });
   if(toCollect.length === 0){ showToast('Nothing to collect yet'); return; }
 
-  showToast('Collecting...');
-  // Call server RPC for each node — server is source of truth for resources
+  // Call server RPC for each node
   for(const {r, ti} of toCollect){
     try {
       await serverRpc('idw_collect_resource', {p_res_id: r.id, p_tier_idx: ti});
     } catch(e) { /* individual failure — continue collecting others */ }
   }
-  // Single refresh after all collects
+  // Snapshot resources before refresh so we can show the diff
+  const before = {};
+  RESOURCE_DEFS.forEach(r => { before[r.id] = resources[r.id] || 0; });
   await refreshFromServer();
-  showToast('All resources collected!');
+  // Build itemised summary from the diff
+  const parts = RESOURCE_DEFS
+    .map(r => ({ r, gained: (resources[r.id]||0) - (before[r.id]||0) }))
+    .filter(x => x.gained > 0)
+    .map(x => `${x.r.icon} +${x.gained.toLocaleString()}`);
+  if (parts.length) showToast(parts.join('  '));
 }
 
 // ═══════════════════════════════════════════════
@@ -3012,7 +3022,12 @@ async function startBattle() {
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
   canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
   startBattleLoop();
-  showToast('⚔️ Battle started! Good luck Commander.');
+  // Show pending towers bar so player knows to place their armory towers
+  updatePendingTowersBar();
+  if (pendingTowersQueue.length > 0) {
+    startPlacingPendingTower(0); // auto-select first tower to place
+  }
+  showToast('⚔️ Place your towers then send waves!');
 }
 
 function updatePendingTowersBar() {
@@ -3543,6 +3558,7 @@ function updateEnemies(dt) {
 
   bs.enemies = bs.enemies.filter(e => !e.isDead && !e.isReached);
 
+  updateBattleHUD(); // update lives counter in real time
   if (bs.lives <= 0) {
     bs.gameOver = true;
     showResultScreen(false);
@@ -3790,14 +3806,37 @@ function drawPath(ctx) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('▶', wps[0].x, wps[0].y);
 
-  // End marker
+  // End marker — finish line
   const last = wps[wps.length-1];
-  ctx.fillStyle = '#f55a5a';
-  ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 8;
-  ctx.beginPath(); ctx.arc(last.x, last.y, 13, 0, Math.PI*2); ctx.fill();
+  const prev = wps[wps.length-2];
+  // Draw a finish line across the path perpendicular to direction
+  const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
+  const perp = ang + Math.PI/2;
+  const lineLen = bs.tw * 1.8;
+  ctx.save();
+  ctx.strokeStyle = '#f55a5a';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([6, 4]);
+  ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(last.x + Math.cos(perp)*lineLen, last.y + Math.sin(perp)*lineLen);
+  ctx.lineTo(last.x - Math.cos(perp)*lineLen, last.y - Math.sin(perp)*lineLen);
+  ctx.stroke();
+  ctx.setLineDash([]);
   ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Inter';
-  ctx.fillText('■', last.x, last.y);
+  ctx.restore();
+  // End circle
+  ctx.fillStyle = '#f55a5a';
+  ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(last.x, last.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Inter';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('✕', last.x, last.y);
+  // "BASE" label above end marker
+  ctx.fillStyle = '#f55a5a';
+  ctx.font = 'bold 9px Inter';
+  ctx.fillText('BASE', last.x, last.y - 22);
 
   ctx.restore();
 }
