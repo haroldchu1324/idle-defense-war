@@ -72,14 +72,14 @@ sb.auth.onAuthStateChange(async(event,session)=>{
   if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
   else if(event==='SIGNED_OUT'){currentUser=null;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
 });
-(async()=>{
+window.addEventListener('DOMContentLoaded', async () => {
   const {data}=await sb.auth.getSession();
   if(!data?.session){
     showAuthLayer('screen-login');
     const e=localStorage.getItem('bf_saved_email');
     if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
   }
-})();
+});
 
 // ═══════════════════════════════════════════════
 // GAME START
