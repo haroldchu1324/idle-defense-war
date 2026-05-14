@@ -1133,22 +1133,19 @@ async function doLogout() {
   await sb.auth.signOut();
 }
 window.addEventListener('DOMContentLoaded', async () => {
-  // Register auth state listener first
+  // Always sign out any existing session so login screen is always shown
+  await sb.auth.signOut();
+
+  // Auth state listener — only fires after user explicitly logs in
   sb.auth.onAuthStateChange(async(event,session)=>{
     if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
     else if(event==='SIGNED_OUT'){currentUser=null;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
   });
-  // Then check for existing session explicitly
-  const {data}=await sb.auth.getSession();
-  if(data?.session?.user && !currentUser){
-    // Already logged in — start game directly
-    await startGame(data.session.user);
-  } else {
-    // No session — show login screen
-    showAuthLayer('screen-login');
-    const e=localStorage.getItem('bf_saved_email');
-    if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
-  }
+
+  // Always show login screen on page load
+  showAuthLayer('screen-login');
+  const e=localStorage.getItem('bf_saved_email');
+  if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
 });
 
 // ═══════════════════════════════════════════════
