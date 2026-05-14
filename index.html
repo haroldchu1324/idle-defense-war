@@ -1049,6 +1049,7 @@ RESOURCE_DEFS.forEach(r => {
 });
 
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
+let modalResId = null, modalTierIdx = null;
 let lastTick = Date.now(), lastStructuralRender = 0;
 
 // ═══════════════════════════════════════════════
@@ -1633,7 +1634,6 @@ function collectAll(){
 // ═══════════════════════════════════════════════
 // NODE MODAL
 // ═══════════════════════════════════════════════
-let modalResId=null, modalTierIdx=null;
 
 function openNodeModal(resId,tierIdx){
   modalResId=resId; modalTierIdx=tierIdx;
