@@ -2417,20 +2417,31 @@ function disenchantTower(slotIdx) {
   scheduleSave();
 }
 
-function upgradeTowerInArmory(slotIdx) {
+async function upgradeTowerInArmory(slotIdx) {
   const entry = armoryTowers[slotIdx];
   if (!entry) return;
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
   const upgCost = towerUpgradeCost(td, entry.level);
   const canAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
   if (!canAfford) { showToast('Not enough resources!'); return; }
+  // Deduct resources and increment level locally
   Object.entries(upgCost).forEach(([k,v]) => { resources[k] -= v; });
   entry.level++;
   closeItemModal();
   renderArmoryGrid();
   updateResourcePills();
   showToast(`${td.icon} ${td.name} upgraded to Lv ${entry.level}!`);
-  scheduleSave();
+  // Persist armory level to server so battle uses correct level
+  try {
+    await sb.from('game_saves').upsert({
+      id: currentUser.id,
+      save_data: { armory: armoryTowers },
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) {
+    // Fallback: save via idw_touch to at least keep session alive
+    try { await serverRpc('idw_touch'); } catch(_) {}
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -3489,36 +3500,29 @@ function battleLoop(ts) {
     checkWaveEnd();
   }
 
-  drawBattle();
-  battleRaf = requestAnimationFrame(battleLoop);
+  // Drawing now handled by startBattleLoop setInterval
 }
 
 function startBattleLoop() {
   stopBattleLoop();
-  battleRaf = requestAnimationFrame(battleLoop);
-
-  // setInterval runs battle logic when tab is hidden (RAF freezes on hidden tabs)
-  // Interval tracks its own lastTime independently of RAF
-  let bgLastTime = performance.now();
+  // Use setInterval as the PRIMARY loop — works in all tab states
+  // RAF only used for drawing when visible
+  let lastTime = performance.now();
   battleIntervalId = setInterval(() => {
+    if (!bs || bs.gameOver || bs.victory) return;
     const now = performance.now();
-    const elapsed = now - bgLastTime;
-    bgLastTime = now;
-
-    if (!document.hidden) return; // tab visible — RAF handles it
-    if (!bs || bs.gameOver || bs.victory) return; // no active battle
-
-    // Update bs.lastTime so RAF doesn't spike when tab becomes visible again
+    const rawDt = Math.min((now - lastTime) / 1000, 0.25);
+    lastTime = now;
     bs.lastTime = now;
-
-    const rawDt = Math.min(elapsed / 1000, 0.25);
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
     updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
-  }, 50); // 20fps in background — smooth enough for battle logic
+    // Only draw when tab is visible (RAF is gone — draw inline)
+    if (!document.hidden) drawBattle();
+  }, 50); // 20fps — smooth enough for game logic and visible rendering
 }
 function stopBattleLoop() {
-  if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; }
+  if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; } // kept for safety
   if (battleIntervalId) { clearInterval(battleIntervalId); battleIntervalId = null; }
 }
 
@@ -3806,37 +3810,15 @@ function drawPath(ctx) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('▶', wps[0].x, wps[0].y);
 
-  // End marker — finish line
+  // End marker — red circle matching style of green start circle
   const last = wps[wps.length-1];
-  const prev = wps[wps.length-2];
-  // Draw a finish line across the path perpendicular to direction
-  const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
-  const perp = ang + Math.PI/2;
-  const lineLen = bs.tw * 1.8;
-  ctx.save();
-  ctx.strokeStyle = '#f55a5a';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([6, 4]);
-  ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 6;
-  ctx.beginPath();
-  ctx.moveTo(last.x + Math.cos(perp)*lineLen, last.y + Math.sin(perp)*lineLen);
-  ctx.lineTo(last.x - Math.cos(perp)*lineLen, last.y - Math.sin(perp)*lineLen);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.shadowBlur = 0;
-  ctx.restore();
-  // End circle
   ctx.fillStyle = '#f55a5a';
-  ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.arc(last.x, last.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.arc(last.x, last.y, 13, 0, Math.PI*2); ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Inter';
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Inter';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('✕', last.x, last.y);
-  // "BASE" label above end marker
-  ctx.fillStyle = '#f55a5a';
-  ctx.font = 'bold 9px Inter';
-  ctx.fillText('BASE', last.x, last.y - 22);
+  ctx.fillText('🏰', last.x, last.y);
 
   ctx.restore();
 }
