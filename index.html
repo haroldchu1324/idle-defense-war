@@ -1048,7 +1048,7 @@ RESOURCE_DEFS.forEach(r => {
   }));
 });
 
-let currentUser = null, saveTimer = null, rafId = null, intervalId = null;
+let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 let lastTick = Date.now(), lastStructuralRender = 0;
 
 // ═══════════════════════════════════════════════
@@ -1271,32 +1271,58 @@ function showOfflineBanner(ts,lines){
   slot.innerHTML=`<div class="offline-banner"><div><div style="color:var(--green);font-weight:600;margin-bottom:4px;">⏰ Offline ${ts} — gathered while away:</div><div style="color:var(--text2);font-size:11px;line-height:1.7;">${lines.join('<br>')}</div></div><button class="offline-banner-close" onclick="this.closest('.offline-banner').remove()">✕</button></div>`;
 }
 
-window.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&currentUser) saveToDB(); });
+window.addEventListener('visibilitychange', async () => {
+  if (!currentUser) return;
+  if (document.visibilityState === 'hidden') {
+    // Record when we left so offline progress can be calculated
+    saveToDB();
+    lastHiddenAt = Date.now();
+  } else {
+    // Tab became visible again — apply progress for time away
+    if (lastHiddenAt) {
+      applyOfflineProgress(lastHiddenAt);
+      lastHiddenAt = null;
+      updateResourcePills();
+      updateNodeCards();
+    }
+  }
+});
 window.addEventListener('beforeunload',()=>{ if(currentUser) saveToDB(); });
 
 // ═══════════════════════════════════════════════
 // RAF LOOP
 // ═══════════════════════════════════════════════
 function startLoop(){
-  stopLoop(); lastTick=Date.now(); lastStructuralRender=0;
-  function rafLoop(){ tickAll(); rafId=requestAnimationFrame(rafLoop); }
-  rafId=requestAnimationFrame(rafLoop);
-  // Keep ticking in background tabs (browsers throttle RAF when tab is hidden)
-  intervalId=setInterval(()=>{ if(document.hidden) tickAll(); }, 1000);
+  stopLoop();
+  lastStructuralRender=0;
+
+  // ── Resource tick: runs every second via setInterval, works in any tab ──
+  intervalId = setInterval(tickResources, 1000);
+
+  // ── RAF loop: only handles animations/bars, no resource math ──
+  function rafLoop(){
+    updateUpgradeBars();
+    updateProgressBars();
+    updateResearchBars();
+    rafId = requestAnimationFrame(rafLoop);
+  }
+  rafId = requestAnimationFrame(rafLoop);
 }
+
 function stopLoop(){
   if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
   if(intervalId){ clearInterval(intervalId); intervalId=null; }
 }
 
-function tickAll(){
-  const now=Date.now(), dt=Math.min(now-lastTick,200);
-  lastTick=now;
-  let changed=false;
+// Resource production — runs every 1 second via setInterval regardless of tab focus
+function tickResources(){
+  const now = Date.now();
+  const dt = 1000; // fixed 1 second per tick in ms
+  let changed = false;
 
   RESOURCE_DEFS.forEach(r=>{
     r.tiers.forEach((_,ti)=>{
-      const ns=nodeState[r.id][ti];
+      const ns = nodeState[r.id][ti];
       if(!ns.unlocked) return;
 
       if(ns.upgrading){
@@ -1320,17 +1346,17 @@ function tickAll(){
     });
   });
 
-  updateUpgradeBars();
-  updateProgressBars();
-  updateResearchBars();
-
-  if(changed && now-lastStructuralRender>1000){
-    lastStructuralRender=now;
+  if(changed){
     updateResourcePills();
     updateNodeCards();
     if(document.getElementById('craft-towers')?.classList.contains('active')) renderTowerGrid();
     scheduleSave();
   }
+}
+
+// tickAll kept for any legacy calls but no longer used by main loop
+function tickAll(){
+  tickResources();
 }
 
 // ═══════════════════════════════════════════════
@@ -2842,7 +2868,7 @@ function getWaveConfig(stageId, wave) {
 }
 
 let bs = null; 
-let battleRaf = null;
+let battleRaf = null, battleIntervalId = null;
 let battleSetupStageId = null;
 let battleSelectedTowers = []; 
 let placingTower = null; 
@@ -2982,7 +3008,7 @@ async function startBattle() {
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
   canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
   startBattleLoop();
-  showToast('Battle started by server');
+  showToast('Battle started! Good luck Commander.');
 }
 
 function updatePendingTowersBar() {
@@ -3448,8 +3474,30 @@ function battleLoop(ts) {
   battleRaf = requestAnimationFrame(battleLoop);
 }
 
+function startBattleLoop() {
+  stopBattleLoop();
+  battleRaf = requestAnimationFrame(battleLoop);
+  // Keep battle running when tab is hidden (RAF gets throttled by browser)
+  battleIntervalId = setInterval(() => {
+    if (document.hidden && bs && !bs.gameOver && !bs.victory) {
+      const now = performance.now();
+      if (!bs.lastTime) bs.lastTime = now;
+      const rawDt = Math.min((now - bs.lastTime) / 1000, 0.25);
+      bs.lastTime = now;
+      const dt = rawDt * battleSpeed;
+      updateSpawn(dt);
+      updateEnemies(dt);
+      updateTowers(dt);
+      updateProjectiles(dt);
+      updateExplosions(dt);
+      checkWaveEnd();
+    }
+  }, 100); // 10fps in background — enough to keep battle progressing
+}
+
 function stopBattleLoop() {
   if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; }
+  if (battleIntervalId) { clearInterval(battleIntervalId); battleIntervalId = null; }
 }
 
 // ── UPDATE FUNCTIONS ──
