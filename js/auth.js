@@ -68,11 +68,14 @@ async function doLogout() {
   sessionChannel.postMessage('logout'); currentUser=null;
   await sb.auth.signOut();
 }
-sb.auth.onAuthStateChange(async(event,session)=>{
-  if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
-  else if(event==='SIGNED_OUT'){currentUser=null;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
-});
+
+// ── Wait for all scripts to load before wiring up auth ──
 window.addEventListener('DOMContentLoaded', async () => {
+  sb.auth.onAuthStateChange(async(event,session)=>{
+    if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
+    else if(event==='SIGNED_OUT'){currentUser=null;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
+  });
+
   const {data}=await sb.auth.getSession();
   if(!data?.session){
     showAuthLayer('screen-login');
@@ -132,7 +135,6 @@ async function loadFromDB() {
     await refreshFromServer();
   } catch (e) {
     console.warn('server load failed, falling back to old game_saves:', e);
-    // Old fallback kept so a bad SQL install does not freeze the login screen.
     let data,error;
     try{
       const result=await Promise.race([
@@ -145,11 +147,8 @@ async function loadFromDB() {
   }
 }
 
-
 async function saveToDB() {
   if(!currentUser) return;
-  // Server authoritative mode: do not upload browser-owned game state.
-  // This only updates last_seen so the backend can calculate offline progress.
   try { await serverRpc('idw_touch'); } catch(e) { console.warn('touch failed', e); }
 }
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveToDB,5000);}
@@ -210,4 +209,3 @@ function showOfflineBanner(ts,lines){
 
 window.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&currentUser) saveToDB(); });
 window.addEventListener('beforeunload',()=>{ if(currentUser) saveToDB(); });
-
