@@ -3477,16 +3477,23 @@ function battleLoop(ts) {
 function startBattleLoop() {
   stopBattleLoop();
   battleRaf = requestAnimationFrame(battleLoop);
+  // Background interval: keeps battle running when tab is hidden
+  // Uses its own time tracking separate from RAF to avoid conflicts
+  let bgLastTime = null;
   battleIntervalId = setInterval(() => {
-    if (document.hidden && bs && !bs.gameOver && !bs.victory) {
-      const now = performance.now();
-      if (!bs.lastTime) bs.lastTime = now;
-      const rawDt = Math.min((now - bs.lastTime) / 1000, 0.25);
-      bs.lastTime = now;
-      const dt = rawDt * battleSpeed;
-      updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-      updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
+    if (!document.hidden || !bs || bs.gameOver || bs.victory) {
+      bgLastTime = null; // reset when tab is visible — RAF takes over
+      return;
     }
+    const now = performance.now();
+    if (bgLastTime === null) bgLastTime = now;
+    const rawDt = Math.min((now - bgLastTime) / 1000, 0.25);
+    bgLastTime = now;
+    // Also update bs.lastTime so when RAF resumes it doesn't get a huge spike
+    bs.lastTime = now;
+    const dt = rawDt * battleSpeed;
+    updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
+    updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
   }, 100);
 }
 function stopBattleLoop() {
