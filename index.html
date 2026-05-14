@@ -599,6 +599,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .pending-tower-chip:hover{background:#20243a;transform:scale(1.08);}
 .pending-tower-chip.active-placing{border-color:#3ecf8e;background:rgba(62,207,142,0.1);}
 .pending-chip-lvl{position:absolute;top:2px;right:2px;font-size:7px;font-weight:700;color:#f0c040;background:rgba(0,0,0,0.8);border-radius:3px;padding:0 2px;}
+.pending-chip-tooltip{
+  display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:#13151c;border:1px solid #353a55;border-radius:10px;padding:8px 10px;
+  min-width:160px;z-index:50;pointer-events:none;white-space:nowrap;
+  box-shadow:0 4px 16px rgba(0,0,0,0.6);
+}
+.pending-tower-chip:hover .pending-chip-tooltip{display:block;}
+.pct-name{font-size:12px;font-weight:700;color:#fff;margin-bottom:5px;}
+.pct-stats{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;}
+.pct-stat{font-size:10px;color:#8890b0;}
+.pct-stat span{color:#d4d8f0;font-weight:600;}
+.pct-special{font-size:9px;color:#f0a040;margin-top:4px;line-height:1.4;}
 
 /* Place hint */
 .place-hint{position:absolute;bottom:76px;left:50%;transform:translateX(-50%);background:rgba(240,192,64,0.9);color:#1a1200;font-size:13px;font-weight:700;border-radius:8px;padding:7px 18px;pointer-events:none;}
@@ -2424,23 +2436,24 @@ async function upgradeTowerInArmory(slotIdx) {
   const upgCost = towerUpgradeCost(td, entry.level);
   const canAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
   if (!canAfford) { showToast('Not enough resources!'); return; }
-  // Deduct resources and increment level locally
+  // Deduct cost and increment level locally
   Object.entries(upgCost).forEach(([k,v]) => { resources[k] -= v; });
   entry.level++;
+  const newLevel = entry.level;
   closeItemModal();
   renderArmoryGrid();
   updateResourcePills();
-  showToast(`${td.icon} ${td.name} upgraded to Lv ${entry.level}!`);
-  // Persist armory level to server so battle uses correct level
+  showToast(`${td.icon} ${td.name} upgraded to Lv ${newLevel}!`);
+  // Save updated armory levels directly to idw_player_state
+  // (no dedicated RPC exists, so we write directly — RLS allows authenticated users to update their own row)
   try {
-    await sb.from('game_saves').upsert({
-      id: currentUser.id,
-      save_data: { armory: armoryTowers },
-      updated_at: new Date().toISOString()
-    });
+    const { error } = await sb.from('idw_player_state')
+      .update({ armory: armoryTowers, updated_at: new Date().toISOString() })
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
   } catch(e) {
-    // Fallback: save via idw_touch to at least keep session alive
-    try { await serverRpc('idw_touch'); } catch(_) {}
+    console.warn('armory save failed:', e.message);
+    // Still functionally works this session — level is correct in memory
   }
 }
 
@@ -2787,7 +2800,7 @@ const MAP_DEFS = {
     waypoints: [
       [0,2],[2,2],[2,4],[4,4],[4,1],[6,1],[6,5],[8,5],
       [8,7],[10,7],[10,4],[12,4],[12,8],[14,8],[14,5],[16,5],
-      [16,2],[18,2],[18,6],[20,6],[20,3],[22,3]
+      [16,2],[18,2],[18,6],[20,6],[20,3],[19,3]
     ],
   },
   'canyon': {
@@ -2798,7 +2811,7 @@ const MAP_DEFS = {
     waypoints: [
       [0,1],[2,1],[2,3],[4,3],[4,6],[2,6],[2,8],[5,8],
       [5,5],[7,5],[7,2],[9,2],[9,6],[11,6],[11,3],[14,3],
-      [14,7],[16,7],[16,4],[18,4],[18,1],[20,1],[20,5],[22,5]
+      [14,7],[16,7],[16,4],[18,4],[18,1],[20,1],[20,5],[19,5]
     ],
   },
   'swamp': {
@@ -2809,7 +2822,7 @@ const MAP_DEFS = {
     waypoints: [
       [0,5],[2,5],[2,2],[4,2],[4,7],[6,7],[6,4],[8,4],
       [8,8],[10,8],[10,5],[12,5],[12,1],[14,1],[14,4],[16,4],
-      [16,8],[18,8],[18,5],[20,5],[20,2],[22,2]
+      [16,8],[18,8],[18,5],[20,5],[20,2],[19,2]
     ],
   },
 };
@@ -3050,8 +3063,25 @@ function updatePendingTowersBar() {
   pendingTowersQueue.forEach((t, i) => {
     const chip = document.createElement('div');
     chip.className = 'pending-tower-chip' + (i === pendingPlacingIdx && placingTower ? ' active-placing' : '');
-    chip.innerHTML = `${t.td.icon}<span class="pending-chip-lvl">${t.level}</span>`;
-    chip.title = t.td.name;
+    // Get exact stats at this tower's level
+    const stats = towerStatsAtLevel(t.td, t.level);
+    const specialHtml = t.td.special
+      ? `<div class="pct-special">⚡ ${t.td.special}</div>` : '';
+    chip.innerHTML = `
+      ${t.td.icon}
+      <span class="pending-chip-lvl">Lv${t.level}</span>
+      <div class="pending-chip-tooltip">
+        <div class="pct-name">${t.td.icon} ${t.td.name} <span style="color:var(--gold)">Lv${t.level}</span></div>
+        <div class="pct-stats">
+          <div class="pct-stat">⚔️ Dmg <span>${stats.dmg}</span></div>
+          <div class="pct-stat">⚡ Speed <span>${stats.atkSpeed}s</span></div>
+          <div class="pct-stat">📏 Range <span>${t.td.baseStats.range}</span></div>
+          <div class="pct-stat">🎯 Shots <span>×${t.td.baseStats.projectiles}</span></div>
+        </div>
+        ${specialHtml}
+        <div style="font-size:9px;color:#555e80;margin-top:4px;">Click to place</div>
+      </div>
+    `;
     chip.onclick = () => startPlacingPendingTower(i);
     list.appendChild(chip);
   });
@@ -3061,7 +3091,8 @@ function startPlacingPendingTower(idx) {
   const t = pendingTowersQueue[idx];
   if (!t) return;
   pendingPlacingIdx = idx;
-  placingTower = { towerId: t.td.id, td: t.td, cost: 0, level: t.level, fromPending: true };
+  // Pass the full entry so makeTower uses exact armory stats
+  placingTower = { towerId: t.td.id, td: t.td, cost: 0, level: t.level, entry: t.entry, fromPending: true };
   document.getElementById('place-hint').style.display = 'block';
   updatePendingTowersBar();
 }
@@ -3122,21 +3153,28 @@ function canPlaceTowerAt(sx, sy) {
   return coverage <= 0.5; // Max 50% overlap of path allowed
 }
 
-function makeTower(td, level, x, y) {
+function makeTower(td, level, x, y, entry) {
+  // Use exact stats from armory entry if provided (preserves any future customization)
+  // Fall back to formula calculation if no entry
   const stats = towerStatsAtLevel(td, level);
   const tileW = bs ? bs.tw : 44;
+  // If entry has custom stat overrides in future, apply them here
+  const dmg        = (entry?.dmg        !== undefined) ? entry.dmg        : stats.dmg;
+  const atkSpeed   = (entry?.atkSpeed   !== undefined) ? entry.atkSpeed   : parseFloat(stats.atkSpeed);
+  const range      = (entry?.range      !== undefined) ? entry.range      : td.baseStats.range;
+  const projectiles= (entry?.projectiles!== undefined) ? entry.projectiles: td.baseStats.projectiles;
   return {
     id: Math.random(),
     towerId: td.id,
     td, level,
     x, y,
     r: TOWER_RADIUS_PX,
-    dmg:    stats.dmg,
-    atkSpeed: parseFloat(stats.atkSpeed),
-    range:  td.baseStats.range * tileW,
-    projectiles: td.baseStats.projectiles,
+    dmg,
+    atkSpeed,
+    range: range * tileW,
+    projectiles,
     projectileSpeed: 280,
-    piercing: 0, 
+    piercing: 0,
     special: td.id,
     cooldown: 0,
     target: null,
@@ -3260,7 +3298,7 @@ function handleCanvasClick(e) {
       bs.gold -= placingTower.cost;
       updateBattleHUD();
     }
-    bs.towers.push(makeTower(placingTower.td, placingTower.level, x, y));
+    bs.towers.push(makeTower(placingTower.td, placingTower.level, x, y, placingTower.entry));
     if (placingTower.fromPending) {
       const idx = pendingTowersQueue.findIndex(t => t.td.id === placingTower.towerId && !t._placed);
       if (idx >= 0) { pendingTowersQueue[idx]._placed = true; finishPlacingPendingTower(idx); }
@@ -3500,7 +3538,7 @@ function battleLoop(ts) {
     checkWaveEnd();
   }
 
-  // Drawing now handled by startBattleLoop setInterval
+  // Drawing now handled by startBattleLoop RAF
 }
 
 function startBattleLoop() {
@@ -3508,8 +3546,26 @@ function startBattleLoop() {
   // Use setInterval as the PRIMARY loop — works in all tab states
   // RAF only used for drawing when visible
   let lastTime = performance.now();
+  // Logic interval: runs at 20fps always (background-safe)
+  // Logic + draw via RAF at 60fps when visible
+  function rafTick() {
+    if (bs && !bs.gameOver && !bs.victory) {
+      const now = performance.now();
+      const rawDt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      bs.lastTime = now;
+      const dt = rawDt * battleSpeed;
+      updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
+      updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
+      drawBattle();
+    }
+    battleRaf = requestAnimationFrame(rafTick);
+  }
+  battleRaf = requestAnimationFrame(rafTick);
+
+  // Background keepalive: runs logic when RAF is frozen (hidden tab)
   battleIntervalId = setInterval(() => {
-    if (!bs || bs.gameOver || bs.victory) return;
+    if (!document.hidden || !bs || bs.gameOver || bs.victory) return;
     const now = performance.now();
     const rawDt = Math.min((now - lastTime) / 1000, 0.25);
     lastTime = now;
@@ -3517,9 +3573,7 @@ function startBattleLoop() {
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
     updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
-    // Only draw when tab is visible (RAF is gone — draw inline)
-    if (!document.hidden) drawBattle();
-  }, 50); // 20fps — smooth enough for game logic and visible rendering
+  }, 100); // 10fps logic keepalive in background
 }
 function stopBattleLoop() {
   if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; } // kept for safety
