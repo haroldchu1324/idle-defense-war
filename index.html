@@ -899,7 +899,7 @@ async function serverRpc(name, args = {}) {
   const { data, error } = await sb.rpc(name, args);
   if (error) {
     console.error('RPC failed:', name, error);
-    showToast(error.message || `Server error: ${name}`);
+    showToast(error.message || 'Something went wrong, please try again.');
     throw error;
   }
   return data;
@@ -1280,13 +1280,7 @@ function showOfflineBanner(ts,lines){
 window.addEventListener('visibilitychange', () => {
   if (!currentUser) return;
   if (document.visibilityState === 'hidden') {
-    lastHiddenAt = Date.now();
     saveToDB();
-  } else if (lastHiddenAt) {
-    applyOfflineProgress(lastHiddenAt);
-    lastHiddenAt = null;
-    updateResourcePills();
-    updateNodeCards();
   }
 });
 window.addEventListener('beforeunload',()=>{ if(currentUser) saveToDB(); });
@@ -1773,17 +1767,17 @@ function renderNodeModal(){
 }
 
 async function unlockNode(resId,tierIdx,event){
-  try { await serverRpc('idw_unlock_node', {p_res_id:resId, p_tier_idx:tierIdx}); closeModal(); await refreshFromServer(); showToast('Node unlocked by server'); }
+  try { await serverRpc('idw_unlock_node', {p_res_id:resId, p_tier_idx:tierIdx}); closeModal(); await refreshFromServer(); showToast('Node unlocked!'); }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
 async function collectNode(resId,tierIdx){
-  try { await serverRpc('idw_collect_resource', {p_res_id:resId, p_tier_idx:tierIdx}); await refreshFromServer(); showToast('Resources collected by server'); }
+  try { await serverRpc('idw_collect_resource', {p_res_id:resId, p_tier_idx:tierIdx}); await refreshFromServer(); showToast('Resources collected!'); }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
 async function startUpgrade(resId,tierIdx,event){
-  try { await serverRpc('idw_start_node_upgrade', {p_res_id:resId, p_tier_idx:tierIdx}); await refreshFromServer(); renderNodeModal(); showToast('Upgrade started by server'); }
+  try { await serverRpc('idw_start_node_upgrade', {p_res_id:resId, p_tier_idx:tierIdx}); await refreshFromServer(); renderNodeModal(); showToast('Upgrade started!'); }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
@@ -2349,6 +2343,12 @@ function openArmorySlotModal(slotIdx) {
     const def = RESOURCE_DEFS.find(r=>r.id===k);
     return `${def?.icon||''} ${v.toLocaleString()} ${def?.label||k}`;
   }).join(', ');
+  const upgCost = towerUpgradeCost(td, entry.level);
+  const upgCostStr = Object.entries(upgCost).map(([k,v]) => {
+    const def = RESOURCE_DEFS.find(r=>r.id===k);
+    return `${def?.icon||''} ${v.toLocaleString()} ${def?.label||k}`;
+  }).join(' + ');
+  const canUpgAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
 
   document.getElementById('item-modal-content').innerHTML = `
     <div class="bmodal-header">
@@ -2368,9 +2368,9 @@ function openArmorySlotModal(slotIdx) {
     ${td.special ? `<div style="background:var(--bg3);border-radius:9px;padding:0.7rem 1rem;font-size:12px;color:var(--orange);margin-bottom:1rem;">⚡ ${td.special}</div>` : ''}
     <div class="info-row"><span class="info-row-label">Disenchant value</span><span style="color:var(--gold);">${disStr}</span></div>
     <div style="margin-top:1rem;display:flex;flex-direction:column;gap:0.5rem;">
-      <button class="bmodal-btn upgrade" onclick="upgradeTowerInArmory(${slotIdx})">
-        ⬆️ Upgrade Tower
-        <div class="btn-sub">Costs resources · +${Math.round(td.upgPctPerLevel*100)}% stats</div>
+      <button class="bmodal-btn upgrade" ${!canUpgAfford?'disabled':''} onclick="upgradeTowerInArmory(${slotIdx})">
+        ⬆️ Upgrade to Lv ${entry.level + 1}
+        <div class="btn-sub">${upgCostStr} · +${Math.round(td.upgPctPerLevel*100)}% stats${!canUpgAfford?' · <span style=\"color:var(--red)\">Not enough resources</span>':''}</div>
       </button>
       <button class="bmodal-btn cancel-upg" onclick="disenchantTower(${slotIdx})">
         💔 Disenchant — ${disStr}
@@ -2625,7 +2625,7 @@ function openTowerModal(towerId) {
 }
 
 async function craftTower(towerId) {
-  try { await serverRpc('idw_craft_tower', {p_tower_id:towerId}); await refreshFromServer(); showToast('Tower crafted by server'); }
+  try { await serverRpc('idw_craft_tower', {p_tower_id:towerId}); await refreshFromServer(); showToast('Tower crafted!'); }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
@@ -2841,20 +2841,24 @@ function getWaveConfig(stageId, wave) {
 
   const baseCount = Math.round(4 + (wave - 1) * 1.2 + Math.floor(stageIdx / 2));
 
+  // Enemy type progression: each stage unlocks the next tier
+  // 1-1: only red  1-2: red+blue  1-3: blue  1-4: blue+green
+  // 1-5: green+yellow  1-6: yellow+pink  1-7: pink+black
+  // 1-8: black+purple  1-9: purple+white  1-10: boss
   const waveSteps = [
     ['red'],                  // w1
-    ['red', 'blue'],          // w2
-    ['blue'],                 // w3
-    ['blue', 'green'],        // w4
-    ['green'],                // w5
-    ['green', 'yellow'],      // w6
-    ['yellow', 'pink'],       // w7
-    ['pink', 'black'],        // w8
-    ['black', 'purple'],      // w9
-    ['purple', 'white'],      // w10
+    ['red'],                  // w2
+    ['red', 'blue'],          // w3
+    ['red', 'blue'],          // w4
+    ['blue'],                 // w5
+    ['blue'],                 // w6
+    ['blue', 'green'],        // w7
+    ['blue', 'green'],        // w8
+    ['green'],                // w9
+    ['green', 'yellow'],      // w10
   ];
-
-  const stepIdx = Math.min(wave - 1 + Math.floor(stageIdx), waveSteps.length - 1);
+  // Stage advances enemy tier by 1 every 2 stages (much slower than before)
+  const stepIdx = Math.min(wave - 1 + Math.floor(stageIdx / 2), waveSteps.length - 1);
   const types = waveSteps[stepIdx];
 
   const groups = types.map((typeKey, i) => {
@@ -3008,7 +3012,7 @@ async function startBattle() {
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
   canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
   startBattleLoop();
-  showToast('Battle started by server');
+  showToast('⚔️ Battle started! Good luck Commander.');
 }
 
 function updatePendingTowersBar() {
@@ -3477,24 +3481,26 @@ function battleLoop(ts) {
 function startBattleLoop() {
   stopBattleLoop();
   battleRaf = requestAnimationFrame(battleLoop);
-  // Background interval: keeps battle running when tab is hidden
-  // Uses its own time tracking separate from RAF to avoid conflicts
-  let bgLastTime = null;
+
+  // setInterval runs battle logic when tab is hidden (RAF freezes on hidden tabs)
+  // Interval tracks its own lastTime independently of RAF
+  let bgLastTime = performance.now();
   battleIntervalId = setInterval(() => {
-    if (!document.hidden || !bs || bs.gameOver || bs.victory) {
-      bgLastTime = null; // reset when tab is visible — RAF takes over
-      return;
-    }
     const now = performance.now();
-    if (bgLastTime === null) bgLastTime = now;
-    const rawDt = Math.min((now - bgLastTime) / 1000, 0.25);
+    const elapsed = now - bgLastTime;
     bgLastTime = now;
-    // Also update bs.lastTime so when RAF resumes it doesn't get a huge spike
+
+    if (!document.hidden) return; // tab visible — RAF handles it
+    if (!bs || bs.gameOver || bs.victory) return; // no active battle
+
+    // Update bs.lastTime so RAF doesn't spike when tab becomes visible again
     bs.lastTime = now;
+
+    const rawDt = Math.min(elapsed / 1000, 0.25);
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
     updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
-  }, 100);
+  }, 50); // 20fps in background — smooth enough for battle logic
 }
 function stopBattleLoop() {
   if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; }
@@ -4032,7 +4038,7 @@ async function showResultScreen(won) {
     <div class="result-title ${won?'victory':'defeat'}">${won?'🏆 Victory!':'💀 Defeated'}</div>
     <div class="result-sub">${won?`Stage ${stage} complete!`:`Your base was overrun on Wave ${bs.wave}`}</div>
     <div style="font-size:24px;font-weight:700;color:#f0c040;margin-bottom:1.5rem;">${rewardText || 'No reward'}</div>
-    <div style="font-size:13px;color:#555e80;margin-bottom:1.5rem;">Reward/progress was validated by Supabase RPC.</div>
+    <div style="font-size:13px;color:#555e80;margin-bottom:1.5rem;">Your progress has been saved.</div>
     <div>
       <button class="result-btn" onclick="closeBattleScreen()">← Back to Map</button>
       ${won ? `<button class="result-btn" onclick="replayBattle()">🔄 Replay</button>` : `<button class="result-btn" onclick="replayBattle()">↩ Retry</button>`}
