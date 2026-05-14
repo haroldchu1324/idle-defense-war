@@ -1,0 +1,31 @@
+# Netlify configuration for Idle Defense War
+# Connect this repo to Netlify → every git push auto-deploys
+
+[build]
+  # No build step needed — pure static files
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Required for Supabase auth redirect to work
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+
+    # Cache JS/CSS aggressively, but not index.html
+    # (index.html gets no-cache so players always get fresh routing)
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
