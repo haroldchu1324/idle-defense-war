@@ -1156,6 +1156,8 @@ async function startGame(user) {
   const meta=user.user_metadata||{};
   document.getElementById('username-display').textContent=meta.username||user.email.split('@')[0];
   document.getElementById('login-msg').textContent='';
+  // Zero out resources before loading so stale JS defaults never show
+  resources={wood:0,stone:0,fiber:0,leather:0,ore:0};
   showLoadingScreen();
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
@@ -1602,22 +1604,27 @@ function updateUpgradeBars(){
 // ═══════════════════════════════════════════════
 // COLLECT ALL
 // ═══════════════════════════════════════════════
-function collectAll(){
-  let totals={};
-  RESOURCE_DEFS.forEach(r=>{ totals[r.id]=0; });
+async function collectAll(){
+  // Build list of nodes that have something to collect
+  const toCollect = [];
   RESOURCE_DEFS.forEach(r=>{
     r.tiers.forEach((_,ti)=>{
       const ns=nodeState[r.id][ti];
-      if(!ns.unlocked||ns.upgrading||ns.storedAmount<1) return;
-      const amount=Math.floor(ns.storedAmount);
-      resources[r.id]=(resources[r.id]||0)+amount;
-      ns.storedAmount-=amount;
-      totals[r.id]+=amount;
+      if(ns.unlocked && !ns.upgrading && ns.storedAmount >= 1) toCollect.push({r, ti});
     });
   });
-  const parts=RESOURCE_DEFS.filter(r=>totals[r.id]>0).map(r=>`${r.icon}+${totals[r.id].toLocaleString()}`);
-  showToast(parts.length?'Collected: '+parts.join('  '):'Nothing to collect yet');
-  updateResourcePills(); updateNodeCards(); scheduleSave();
+  if(toCollect.length === 0){ showToast('Nothing to collect yet'); return; }
+
+  showToast('Collecting...');
+  // Call server RPC for each node — server is source of truth for resources
+  for(const {r, ti} of toCollect){
+    try {
+      await serverRpc('idw_collect_resource', {p_res_id: r.id, p_tier_idx: ti});
+    } catch(e) { /* individual failure — continue collecting others */ }
+  }
+  // Single refresh after all collects
+  await refreshFromServer();
+  showToast('All resources collected!');
 }
 
 // ═══════════════════════════════════════════════
@@ -1641,7 +1648,11 @@ function renderNodeModal(){
   const ns=nodeState[r.id][ti];
   const def=r.tiers[ti];
   const reqLevel=LEVEL_UNLOCK[ti];
-  const costRes=Math.floor(resources[r.costCurrency]);
+  // Include stored amounts in nodes so players can upgrade without collecting first
+  const storedInNodes = RESOURCE_DEFS.find(x=>x.id===r.costCurrency)
+    ? nodeState[r.costCurrency].reduce((sum,ns)=>sum+Math.floor(ns.storedAmount||0),0)
+    : 0;
+  const costRes=Math.floor(resources[r.costCurrency]) + storedInNodes;
 
   let html=`
     <div class="bmodal-header">
