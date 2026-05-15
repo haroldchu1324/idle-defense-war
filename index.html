@@ -404,6 +404,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .camp-node.selected{border-color:var(--gold);box-shadow:0 0 0 4px rgba(240,192,64,0.3),0 0 16px rgba(240,192,64,0.2);}
 .camp-node.locked{opacity:0.4;cursor:not-allowed;}
 .camp-node.locked:hover{transform:none;}
+.camp-node.completed{cursor:pointer!important;}
+.camp-node.completed:hover{transform:scale(1.1)!important;}
 .camp-connector-h{flex:1;height:4px;min-width:16px;max-width:48px;background:repeating-linear-gradient(90deg,var(--border2) 0,var(--border2) 6px,transparent 6px,transparent 12px);}
 .camp-connector-h.done{background:repeating-linear-gradient(90deg,var(--green2) 0,var(--green2) 6px,transparent 6px,transparent 12px);}
 .camp-stage-info{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;width:100%;max-width:600px;}
@@ -1030,10 +1032,18 @@ function applyServerPayload(payload) {
   const s = root?.v2 || root?.save_data?.v2 || root;
   if (!s) return;
   if (s.resources) Object.assign(resources, s.resources);
-  if (s.playerXP !== undefined) playerXP = s.playerXP;
-  else if (s.player_xp !== undefined) playerXP = s.player_xp;
-  if (s.playerLevel !== undefined) playerLevel = s.playerLevel;
-  else if (s.player_level !== undefined) playerLevel = s.player_level;
+  // Apply XP from server — process through level-up loop so level is always correct
+  const rawXP = s.playerXP ?? s.player_xp ?? playerXP;
+  const rawLevel = s.playerLevel ?? s.player_level ?? playerLevel;
+  // Trust server level as base, then process remaining XP through level-up loop
+  playerLevel = rawLevel;
+  playerXP = rawXP;
+  // Drain any overflow XP into level-ups
+  while (playerXP >= xpForLevel(playerLevel)) {
+    playerXP -= xpForLevel(playerLevel);
+    playerLevel++;
+  }
+  updatePlayerLevelUI();
   if (s.nodes) {
     const syncMs = Date.now();
     RESOURCE_DEFS.forEach(r => {
@@ -1053,7 +1063,18 @@ function applyServerPayload(payload) {
     RESEARCH_DEFS.forEach(rd => { if (researchState[rd.id]?.researching) activeResearchId = rd.id; });
   }
   if (s.armoryTowers) armoryTowers = s.armoryTowers;
-  if (s.campCompleted) campCompletedStages = new Set(s.campCompleted);
+  // Always update campCompleted even if empty array
+  if (s.campCompleted !== undefined) {
+    const serverCompleted = Array.isArray(s.campCompleted) ? s.campCompleted : [];
+    const prevSize = campCompletedStages.size;
+    // UNION: never remove stages the client already knows about
+    // This prevents server inconsistency from wiping local progress
+    serverCompleted.forEach(id => campCompletedStages.add(id));
+    // If new stages were added, reset selection so buildCampaignMap picks highest
+    if (campCompletedStages.size > prevSize) {
+      campSelectedStage = null;
+    }
+  }
   // Load silo state from server payload
   if (s.silo) {
     RESOURCE_DEFS.forEach(r => {
@@ -1268,6 +1289,10 @@ function showGame() {
   sl.classList.remove('visible'); g.style.display='flex'; g.offsetHeight;
   setTimeout(()=>{ sl.style.display='none'; g.classList.add('visible'); }, 300);
   hideAuthLayer();
+  // Always start on Resources/Production tab on login
+  switchSection('base');
+  switchBaseTab('resources');
+  switchResTab('production');
 }
 function hideGame() {
   const g=document.getElementById('game');
@@ -2673,25 +2698,33 @@ async function upgradeTowerInArmory(slotIdx) {
   const upgCost = towerUpgradeCost(td, entry.level);
   const canAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
   if (!canAfford) { showToast('Not enough resources!'); return; }
+
   // Deduct cost and increment level locally
   Object.entries(upgCost).forEach(([k,v]) => { resources[k] -= v; });
   entry.level++;
   const newLevel = entry.level;
-  closeItemModal();
+
+  // Re-render modal immediately with new level + update grid behind it
+  openArmorySlotModal(slotIdx);
   renderArmoryGrid();
   updateResourcePills();
   showToast(`${td.icon} ${td.name} upgraded to Lv ${newLevel}!`);
-  // Save updated armory levels directly to idw_player_state
-  // (no dedicated RPC exists, so we write directly — RLS allows authenticated users to update their own row)
-  try {
-    const { error } = await sb.from('idw_player_state')
-      .update({ armory: armoryTowers, updated_at: new Date().toISOString() })
-      .eq('user_id', currentUser.id);
-    if (error) throw error;
-  } catch(e) {
-    console.warn('armory save failed:', e.message);
-    // Still functionally works this session — level is correct in memory
-  }
+
+  // Save to server in background — don't await so modal stays responsive
+  (async () => {
+    try {
+      const { error } = await sb.from('idw_player_state')
+        .update({
+          armory: armoryTowers,
+          resources: resources,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', currentUser.id);
+      if (error) throw new Error(error.message);
+    } catch(e) {
+      console.warn('armory save failed:', e.message);
+    }
+  })();
 }
 
 // ═══════════════════════════════════════════════
@@ -2913,18 +2946,30 @@ function switchCraftTab(name) {
 // CAMPAIGN MAP
 // ═══════════════════════════════════════════════
 const CAMPAIGN_STAGES = [
-  { id:'1-1',  name:'1-1',  icon:'🌲', diff:1, enemies:'5 Goblins',       reward:'50 Wood' },
-  { id:'1-2',  name:'1-2',  icon:'🌲', diff:1, enemies:'8 Goblins',       reward:'80 Wood + 30 Fiber' },
-  { id:'1-3',  name:'1-3',  icon:'🏕️', diff:2, enemies:'Goblin + Ogre',   reward:'60 Stone' },
-  { id:'1-4',  name:'1-4',  icon:'🏕️', diff:2, enemies:'12 Skeletons',    reward:'70 Stone + 40 Ore' },
-  { id:'1-5',  name:'1-5',  icon:'⚔️', diff:3, enemies:'Bandit Leader',   reward:'100 Ore + 50 Leather' },
-  { id:'1-6',  name:'1-6',  icon:'🌊', diff:3, enemies:'10 River Trolls', reward:'80 Fiber + 60 Leather' },
-  { id:'1-7',  name:'1-7',  icon:'🌊', diff:4, enemies:'Troll King',      reward:'150 Leather + 50 Ore' },
-  { id:'1-8',  name:'1-8',  icon:'🏔️', diff:4, enemies:'Stone Golems',    reward:'120 Stone + 80 Ore' },
-  { id:'1-9',  name:'1-9',  icon:'🏔️', diff:5, enemies:'Dragon Scout',    reward:'200 Ore + 100 Fiber' },
-  { id:'1-10', name:'1-10', icon:'🐉', diff:5, enemies:'Stage Boss: Dragon', reward:'500 of all resources' },
+  { id:'1-1',  name:'1-1',  icon:'🌲', diff:1 },
+  { id:'1-2',  name:'1-2',  icon:'🌲', diff:1 },
+  { id:'1-3',  name:'1-3',  icon:'🏕️', diff:2 },
+  { id:'1-4',  name:'1-4',  icon:'🏕️', diff:2 },
+  { id:'1-5',  name:'1-5',  icon:'⚔️', diff:3 },
+  { id:'1-6',  name:'1-6',  icon:'🌊', diff:3 },
+  { id:'1-7',  name:'1-7',  icon:'🌊', diff:4 },
+  { id:'1-8',  name:'1-8',  icon:'🏔️', diff:4 },
+  { id:'1-9',  name:'1-9',  icon:'🏔️', diff:5 },
+  { id:'1-10', name:'1-10', icon:'🐉', diff:5 },
 ];
 
+const CAMPAIGN_REWARDS = {
+  '1-1': {'wood':300, 'fiber':150, 'xp':45},
+  '1-2': {'wood':450, 'stone':225, 'xp':60},
+  '1-3': {'stone':450, 'fiber':300, 'xp':75},
+  '1-4': {'stone':600, 'ore':225, 'xp':98},
+  '1-5': {'ore':450, 'leather':300, 'xp':120},
+  '1-6': {'fiber':600, 'leather':375, 'xp':143},
+  '1-7': {'leather':750, 'ore':450, 'xp':173},
+  '1-8': {'stone':900, 'ore':525, 'xp':203},
+  '1-9': {'ore':1050, 'fiber':600, 'xp':240},
+  '1-10': {'wood':3000, 'stone':3000, 'fiber':3000, 'leather':3000, 'ore':3000, 'xp':450},
+};
 let campCompletedStages = new Set();
 let campSelectedStage = null;
 
@@ -2932,6 +2977,17 @@ function buildCampaignMap() {
   const map = document.getElementById('campaign-map');
   if (!map) return;
   map.innerHTML = '';
+
+  // Auto-select highest available stage if none selected or selected is now invalid
+  if (!campSelectedStage) {
+    // Find highest unlocked (first non-completed available, or last completed)
+    let highestAvailable = CAMPAIGN_STAGES[0].id;
+    CAMPAIGN_STAGES.forEach((s, i) => {
+      const available = i === 0 || campCompletedStages.has(CAMPAIGN_STAGES[i-1].id);
+      if (available) highestAvailable = s.id;
+    });
+    campSelectedStage = highestAvailable;
+  }
 
   const row = document.createElement('div');
   row.className = 'camp-row';
@@ -2960,13 +3016,14 @@ function buildCampaignMap() {
     node.className = 'camp-node' +
       (done ? ' completed' : '') +
       (selected ? ' selected' : '') +
-      (!available ? ' locked' : '');
+      (!available && !done ? ' locked' : '');
 
     if (!done) node.textContent = stage.icon;
+    // Completed nodes: textContent cleared so CSS ::after checkmark shows cleanly
     node.onclick = () => {
-      if (!available) return;
+      if (!available && !done) return; // locked: not done and prev not done
       campSelectedStage = stage.id;
-      buildCampaignMap(); 
+      buildCampaignMap();
       updateCampaignInfo();
     };
 
@@ -2979,6 +3036,7 @@ function buildCampaignMap() {
 
   const info = document.createElement('div');
   info.id = 'camp-stage-info-box';
+  info.style.marginTop = '20px';
   map.appendChild(info);
   updateCampaignInfo();
 }
@@ -3000,17 +3058,29 @@ function updateCampaignInfo() {
     `<div class="camp-diff-pip${i < stage.diff ? ' filled' : ''}"></div>`
   ).join('');
 
+  // Build reward preview
+  const stageRewards = CAMPAIGN_REWARDS[stage.id] || {};
+  const rewardPreview = Object.entries(stageRewards).map(([k,v]) => {
+    if (k === 'xp') return `<span style="color:var(--gold)">⭐ ${v} XP</span>`;
+    const def = RESOURCE_DEFS.find(r=>r.id===k);
+    return def ? `${def.icon} ${v.toLocaleString()} ${def.name}` : '';
+  }).filter(Boolean).join('&nbsp;&nbsp;');
+
   box.innerHTML = `
     <div class="camp-stage-info">
       <div class="camp-stage-info-title">${stage.icon} Stage ${stage.name}</div>
-      <div class="camp-stage-info-sub">${stage.enemies}</div>
       <div class="camp-difficulty">
         <span class="camp-diff-label">Difficulty:</span>
         ${diffPips}
       </div>
-      <div class="info-row" style="margin-bottom:0.5rem;"><span class="info-row-label">Reward</span><span style="color:var(--gold);">${stage.reward}</span></div>
-      <div class="info-row" style="margin-bottom:1rem;"><span class="info-row-label">Status</span><span style="color:${done?'var(--green)':available?'var(--blue)':'var(--red)'};">${done?'✓ Completed':available?'Available':'Locked'}</span></div>
-      ${available
+      <div style="font-size:12px;color:var(--text2);margin-bottom:0.75rem;line-height:1.8;">
+    ${done
+      ? '<span style="color:var(--text3);font-size:11px;">No rewards (already cleared)</span>'
+      : `<span style="color:var(--text3);font-size:11px;">First clear reward:</span><br>${rewardPreview}`
+    }
+  </div>
+
+      ${(available || done)
         ? `<button class="camp-play-btn" onclick="playCampaignStage('${stage.id}')">${done?'🔄 Replay':'⚔️ Deploy Defenses'}</button>`
         : `<button class="camp-play-btn" style="opacity:0.3;cursor:not-allowed;" disabled>🔒 Complete previous stage</button>`
       }
@@ -3227,7 +3297,7 @@ function openBattleSetup(stageId) {
 
   document.getElementById('setup-stage-info').innerHTML = `
     <div class="setup-info-row"><span class="setup-info-label">Map</span><span class="setup-info-val">${mapDef.name}</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Enemies</span><span class="setup-info-val">${isPvp ? 'Stage 1-1 enemies' : (stage?.enemies||'Various')}</span></div>
+
     <div class="setup-info-row"><span class="setup-info-label">Waves</span><span class="setup-info-val">10</span></div>
     <div class="setup-info-row"><span class="setup-info-label">Deploy slots</span><span class="setup-info-val">${battleDeploySlots()}</span></div>
     <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 50</span></div>
@@ -3368,7 +3438,7 @@ async function startBattle() {
   const pixelWaypoints = mapDef.waypoints.map(([c,r]) => ({x: c * tw + tw/2, y: r * th + th/2}));
 
   bs = {stageId, mapKey, mapDef, tw, th, COLS, ROWS, waypoints: pixelWaypoints,
-    towers: [], enemies: [], projectiles: [], explosions: [], gold: 50, lives: 20,
+    towers: [], enemies: [], projectiles: [], explosions: [], gold: 200, lives: 20,
     wave: 0, wavesQueued: 0, waveActive: false, waveEnemiesLeft: 0, waveSpawnQueue: [],
     spawnTimer: 0, gameOver: false, victory: false, lastTime: null};
 
@@ -3524,8 +3594,8 @@ function isTooCloseToPath(px, py, towerR) {
 
 function isTooCloseToTower(px, py, r) {
   if (!bs) return false;
-  // Allow significant overlap (up to 50%)
-  return bs.towers.some(t => dist(px,py,t.x,t.y) < (t.r + r) * 0.5);
+  // Towers must not overlap much — use 85% of combined radius
+  return bs.towers.some(t => dist(px,py,t.x,t.y) < (t.r + r) * 0.85);
 }
 
 function distToSegment(px, py, ax, ay, bx, by) {
@@ -3631,8 +3701,9 @@ function handleCanvasClick(e) {
     }
     bs.towers.push(makeTower(placingTower.td, placingTower.level, x, y, placingTower.entry));
     if (placingTower.fromPending) {
-      const idx = pendingTowersQueue.findIndex(t => t.td.id === placingTower.towerId && !t._placed);
-      if (idx >= 0) { pendingTowersQueue[idx]._placed = true; finishPlacingPendingTower(idx); }
+      // Use pendingPlacingIdx directly — correct even if multiple towers same type
+      const idx = pendingPlacingIdx;
+      if (idx >= 0 && idx < pendingTowersQueue.length) { finishPlacingPendingTower(idx); }
     } else {
       cancelPlacement();
     }
@@ -4097,7 +4168,7 @@ function checkWaveEnd() {
   if (!bs.waveActive) return;
   if (bs.enemies.length === 0 && bs.waveSpawnQueue.length === 0) {
     bs.waveActive = false;
-    const bonus = 20 + bs.wave * 8;
+    const bonus = 50; // flat 50 gold per wave
     bs.gold += bonus;
     updateBattleHUD();
 
@@ -4108,7 +4179,6 @@ function checkWaveEnd() {
       bs.wavesQueued--;
       setTimeout(launchWave, 300);
     } else {
-      // Wave cleared — wave button is always enabled so no need to re-enable
       showToast(`Wave ${bs.wave} cleared! +💰${bonus}`);
     }
     renderShop(); // refresh affordability
@@ -4263,22 +4333,21 @@ function drawTower(ctx, t) {
     ctx.stroke();
   }
 
-  // Tower circle base
+  // Tower circle base — solid dark background so icon is clear
   ctx.beginPath();
   ctx.arc(t.x, t.y, t.r, 0, Math.PI*2);
-  ctx.fillStyle = clr + '44';
+  ctx.fillStyle = '#1a1d2e';
   ctx.fill();
   ctx.strokeStyle = clr;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
-  // Icon emoji — less opaque so level badge is clear
-  ctx.globalAlpha = 0.5;
-  ctx.font = `${Math.round(t.r * 1.1)}px serif`;
+  // Tower icon — large and fully opaque
+  ctx.globalAlpha = 1.0;
+  ctx.font = `${Math.round(t.r * 1.6)}px serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(t.td.icon, t.x, t.y + 1);
-  ctx.globalAlpha = 1;
 
   // Level badge
   ctx.fillStyle = 'rgba(14,15,20,0.85)';
@@ -4433,7 +4502,7 @@ function drawPlacementPreview(ctx) {
   ctx.stroke();
 
   if (placingTower) {
-    ctx.font = `${r * 1.1}px serif`;
+    ctx.font = `${r * 1.4}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(placingTower.td.icon, x, y + 1);
@@ -4469,19 +4538,29 @@ async function showResultScreen(won) {
       });
       serverReward = result?.reward || {};
       firstClear = result?.first_clear ?? true;
+      console.log('Battle result:', { serverReward, firstClear, result });
       // Apply full server state (includes updated campCompleted, resources, XP)
-      applyServerPayload(result?.state || result);
+      if (result?.state) applyServerPayload(result.state);
       // If first clear, also update local campCompletedStages immediately
-      if (won && firstClear && stage) {
-        campCompletedStages.add(stage);
+      if (won && stage) {
+        if (firstClear) campCompletedStages.add(stage);
         buildCampaignMap(); // unlock next stage right away
       }
     } catch(e) {
       console.error('idw_submit_battle_result failed:', e);
-      // Server failed — still update local state so UI is correct
       if (won && stage) {
         campCompletedStages.add(stage);
         buildCampaignMap();
+        // Show fallback rewards from client table so screen isn't empty
+        const fallback = {
+          '1-1':{wood:300,fiber:150,xp:45}, '1-2':{wood:450,stone:225,xp:60},
+          '1-3':{stone:450,fiber:300,xp:75}, '1-4':{stone:600,ore:225,xp:98},
+          '1-5':{ore:450,leather:300,xp:120}, '1-6':{fiber:600,leather:375,xp:143},
+          '1-7':{leather:750,ore:450,xp:173}, '1-8':{stone:900,ore:525,xp:203},
+          '1-9':{ore:1050,fiber:600,xp:240}, '1-10':{wood:3000,stone:3000,fiber:3000,leather:3000,ore:3000,xp:450}
+        };
+        serverReward = fallback[stage] || {};
+        firstClear = !campCompletedStages.has(stage);
       }
     } finally {
       currentBattleId = null;
@@ -4519,7 +4598,7 @@ async function showResultScreen(won) {
   const badgeHtml = won
     ? firstClear
       ? `<div class="result-badge">⭐ First Clear!</div>`
-      : `<div class="result-badge" style="color:var(--text3);border-color:rgba(255,255,255,0.1)">Replay</div>`
+      : ''  // no badge for replay
     : '';
 
   const rewardsHtml = rewardRows.length > 0
