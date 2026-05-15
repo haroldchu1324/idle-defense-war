@@ -142,6 +142,39 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .collect-all-btn:hover{filter:brightness(1.1);}
 .collect-all-btn:active{transform:scale(0.97);}
 
+/* Resource sub-tabs */
+.res-subtabs{display:flex;gap:6px;padding:8px 12px 0;border-bottom:1px solid var(--border);flex-shrink:0;}
+.res-subtab{background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);font-size:13px;font-weight:600;padding:6px 14px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;margin-bottom:-1px;}
+.res-subtab.active{color:#fff;border-bottom-color:var(--gold);}
+.res-subtab:hover:not(.active){color:var(--text2);}
+.res-subpanel{display:none;flex:1;overflow-y:auto;}
+.res-subpanel.active{display:flex;flex-direction:column;}
+
+/* Silo panel */
+.silo-panel{display:flex;flex-direction:column;gap:0.75rem;padding:1rem;}
+.silo-lane{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1rem 1.2rem;}
+.silo-lane-header{display:flex;align-items:center;gap:8px;margin-bottom:0.75rem;}
+.silo-lane-icon{font-size:18px;}
+.silo-lane-name{font-size:14px;font-weight:700;color:#fff;flex:1;}
+.silo-capacity{font-size:11px;color:var(--text3);}
+.silo-slots-row{display:flex;gap:8px;flex-wrap:wrap;}
+.silo-slot{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:0.7rem 0.9rem;min-width:120px;cursor:pointer;transition:all 0.15s;}
+.silo-slot:hover{border-color:var(--gold);transform:translateY(-1px);}
+.silo-slot.locked{opacity:0.45;cursor:default;}
+.silo-slot.locked:hover{border-color:var(--border2);transform:none;}
+.silo-slot-cap{font-size:15px;font-weight:700;color:#fff;margin-bottom:2px;}
+.silo-slot-lvl{font-size:10px;color:var(--gold);margin-bottom:4px;}
+.silo-slot-lock{font-size:10px;color:var(--red);}
+
+/* Pill cap exceeded */
+.res-pill-val.capped{color:var(--red)!important;}
+@keyframes pilltop{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.pill-cap-warn{animation:pilltop 1s ease infinite;}
+
+/* Cap warning toast on pill */
+.cap-notif{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(245,90,90,0.15);border:1px solid rgba(245,90,90,0.4);border-radius:8px;padding:6px 16px;font-size:12px;color:#f55a5a;font-weight:600;z-index:200;pointer-events:none;opacity:0;transition:opacity 0.3s;}
+.cap-notif.show{opacity:1;}
+
 /* Lane header */
 .res-lane-header{display:flex;align-items:center;gap:9px;margin-bottom:0.5rem;padding:0 1px;}
 .res-lane-icon{font-size:20px;}
@@ -150,7 +183,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 
 /* Node row */
 .res-nodes-row{display:flex;flex-wrap:nowrap;gap:0.55rem;align-items:flex-start;}
-.res-nodes-row .node-card{flex-shrink:0;width:144px!important;height:144px!important;aspect-ratio:unset;max-width:unset;}
+.res-nodes-row{display:flex;gap:8px;flex-wrap:wrap;}
+.res-nodes-row .node-card{flex-shrink:0;width:120px!important;height:auto!important;min-height:100px;aspect-ratio:unset;max-width:unset;padding:0.7rem 0.9rem;cursor:pointer;}
 
 /* Square node card */
 .node-card{
@@ -361,7 +395,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .campaign-map-wrap{flex:1;overflow-y:auto;overflow-x:hidden;padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:1.5rem;}
 .campaign-map{position:relative;display:flex;flex-direction:column;gap:0;width:100%;max-width:600px;}
 .camp-row{display:flex;align-items:center;justify-content:center;gap:0;}
-.camp-node-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:72px;}
+.camp-node-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:72px;padding-bottom:18px;}
 .camp-node-label{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.02em;text-align:center;}
 .camp-node{width:52px;height:52px;border-radius:50%;background:var(--bg3);border:3px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:all 0.15s;position:relative;user-select:none;}
 .camp-node:hover:not(.locked){transform:scale(1.1);}
@@ -574,6 +608,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 /* Tower upgrade panel */
 #upgrade-panel{display:flex;flex-direction:column;flex:1;overflow:hidden;}
 .upg-panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #2a2e42;flex-shrink:0;font-size:13px;font-weight:700;color:#fff;}
+.upg-targeting{padding:8px;margin-bottom:6px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);}
+.upg-target-label{font-size:9px;color:var(--text3);margin-bottom:5px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;}
+.upg-target-btns{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.upg-target-btn{background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:10px;font-weight:600;padding:5px 0;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.1s;}
+.upg-target-btn:hover{border-color:var(--gold);color:var(--gold);}
+.upg-target-btn.active{background:rgba(240,192,64,0.15);border-color:var(--gold);color:var(--gold);}
 .upg-panel-stats{padding:10px 12px;border-bottom:1px solid #2a2e42;flex-shrink:0;}
 .upg-stat-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;}
 .upg-stat-label{color:#555e80;}
@@ -590,6 +630,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .upg-path-btn:hover:not(:disabled){filter:brightness(1.1);}
 .upg-path-btn:disabled{opacity:0.35;cursor:not-allowed;}
 .upg-path-cost{font-size:10px;color:#8890b0;margin-top:4px;text-align:center;}
+
+/* World PVP Map */
+.pvp-wrap{display:flex;flex-direction:column;flex:1;overflow:hidden;background:#080a10;}
+.pvp-toolbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#0d0f18;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;}
+.pvp-toolbar-title{font-size:14px;font-weight:700;color:#fff;flex:1;letter-spacing:0.04em;}
+.pvp-legend{display:flex;gap:14px;font-size:10px;color:#6a7090;align-items:center;}
+.pvp-legend-item{display:flex;align-items:center;gap:5px;}
+.pvp-legend-dot{width:10px;height:10px;border-radius:50%;}
+.pvp-canvas-area{flex:1;display:flex;align-items:center;justify-content:center;background:#080a10;position:relative;}
+.pvp-canvas-wrap{position:relative;cursor:default;}
+.pvp-tooltip{position:absolute;background:#0d0f1e;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px 14px;font-size:11px;pointer-events:all;z-index:30;display:none;min-width:160px;box-shadow:0 6px 24px rgba(0,0,0,0.8);}
+.pvp-tooltip-title{font-weight:700;color:#fff;margin-bottom:3px;font-size:12px;}
+.pvp-tooltip-sub{color:#6a7090;margin-bottom:8px;line-height:1.5;}
+.pvp-tooltip-btn{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#1a1200;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;width:100%;font-family:'Inter',sans-serif;transition:filter 0.1s;}
+.pvp-tooltip-btn:hover:not(:disabled){filter:brightness(1.1);}
+.pvp-tooltip-btn:disabled{opacity:0.4;cursor:not-allowed;background:#20243a;color:#6a7090;}
+.pvp-refresh-btn{background:#13151e;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#8890b0;font-size:11px;font-weight:600;padding:5px 12px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.1s;}
+.pvp-refresh-btn:hover{border-color:var(--gold);color:var(--gold);}
+.pvp-stats{font-size:10px;color:#4a5070;margin-left:auto;}
 
 /* Pending towers bar */
 .pending-towers-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(13,15,20,0.92);border:1px solid #353a55;border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;backdrop-filter:blur(8px);z-index:10;}
@@ -616,14 +675,29 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .place-hint{position:absolute;bottom:76px;left:50%;transform:translateX(-50%);background:rgba(240,192,64,0.9);color:#1a1200;font-size:13px;font-weight:700;border-radius:8px;padding:7px 18px;pointer-events:none;}
 
 /* Result overlay */
-.result-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:30;}
-.result-box{background:#1a1d28;border:2px solid #353a55;border-radius:20px;padding:2.5rem 3rem;text-align:center;min-width:320px;}
-.result-title{font-family:'Cinzel',serif;font-size:28px;font-weight:700;margin-bottom:0.5rem;}
-.result-title.victory{color:#f0c040;}
+.result-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);z-index:30;backdrop-filter:blur(4px);}
+.result-box{background:linear-gradient(160deg,#1a1d2e,#13151f);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:2rem 2.5rem;text-align:center;min-width:340px;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.8);}
+.result-title{font-family:'Cinzel',serif;font-size:26px;font-weight:700;margin-bottom:0.4rem;}
+.result-title.victory{color:#f0c040;text-shadow:0 0 20px rgba(240,192,64,0.5);}
 .result-title.defeat{color:#f55a5a;}
-.result-sub{font-size:14px;color:#8890b0;margin-bottom:1.5rem;}
-.result-btn{background:linear-gradient(135deg,#c89a20,#f0c040);color:#1a1200;border:none;border-radius:10px;padding:12px 30px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin:0 5px;}
+.result-sub{font-size:13px;color:#6a7090;margin-bottom:1rem;}
+.result-badge{display:inline-block;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.4);border-radius:20px;padding:3px 14px;font-size:11px;color:#f0c040;font-weight:700;margin-bottom:1rem;}
+.result-rewards{display:flex;flex-direction:column;gap:0;margin-bottom:1.5rem;}
+.result-reward-row{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);opacity:0;transform:translateY(8px);transition:opacity 0.35s ease,transform 0.35s ease;}
+.result-reward-row.show{opacity:1;transform:translateY(0);}
+.result-reward-icon{font-size:20px;width:28px;text-align:center;}
+.result-reward-info{text-align:left;}
+.result-reward-name{font-size:11px;color:#6a7090;}
+.result-reward-amount{font-size:16px;font-weight:700;color:#d4d8f0;}
+.result-reward-amount.xp{color:#f0c040;}
+.result-btns{display:flex;gap:10px;justify-content:center;margin-top:1.5rem;}
+.result-btn{border:none;border-radius:10px;padding:11px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:filter 0.15s;}
+.result-btn:hover{filter:brightness(1.1);}
+.result-btn.primary{background:linear-gradient(135deg,#c89a20,#f0c040);color:#1a1200;}
 .result-btn.secondary{background:#20243a;color:#d4d8f0;border:1px solid #353a55;}
+.result-btn.next{background:linear-gradient(135deg,#1a7a52,#3ecf8e);color:#001a0d;}
+@keyframes flyUp{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-120px) scale(1.4);}}
+.reward-floater{position:fixed;font-size:16px;font-weight:700;pointer-events:none;z-index:9999;animation:flyUp 1.2s ease forwards;}
 </style>
 </head>
 <body>
@@ -694,6 +768,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       <div class="res-pill rp-fiber"><span class="res-pill-icon">🌿</span><div class="res-pill-info"><div class="res-pill-name">Fiber</div><div class="res-pill-val" id="pill-fiber">0</div></div></div>
       <div class="res-pill rp-leather"><span class="res-pill-icon">🟫</span><div class="res-pill-info"><div class="res-pill-name">Leather</div><div class="res-pill-val" id="pill-leather">0</div></div></div>
       <div class="res-pill rp-ore"><span class="res-pill-icon">⛏️</span><div class="res-pill-info"><div class="res-pill-name">Ore</div><div class="res-pill-val" id="pill-ore">0</div></div></div>
+
     </div>
 
     <div class="top-user">
@@ -721,7 +796,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
         </div>
         <div class="panel active" id="base-panel-resources">
           <div id="offline-banner-slot"></div>
-          <div class="resources-panel" id="resources-panel"></div>
+          <div class="res-subtabs">
+            <button class="res-subtab active" id="restab-production" onclick="switchResTab('production')">⛏️ Production</button>
+            <button class="res-subtab" id="restab-silo" onclick="switchResTab('silo')">📦 Silo</button>
+          </div>
+          <div class="res-subpanel active" id="res-subpanel-production">
+            <div class="resources-panel" id="resources-panel"></div>
+          </div>
+          <div class="res-subpanel" id="res-subpanel-silo">
+            <div class="silo-panel" id="silo-panel"></div>
+          </div>
         </div>
         <div class="panel" id="base-panel-research">
           <div class="research-panel" id="research-panel">
@@ -791,7 +875,31 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
           <div class="campaign-map" id="campaign-map"></div>
         </div>
       </div>
-      <div id="section-pvp" style="display:none;flex:1;"><div class="placeholder-page"><div class="ph-icon">🌍</div><div class="ph-title">World PVP</div><div class="ph-sub">Challenge other players and climb the leaderboard.</div><div class="ph-badge">Coming soon</div></div></div>
+      <!-- WORLD PVP MAP -->
+      <div id="section-pvp" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div class="pvp-wrap">
+          <div class="pvp-toolbar">
+            <div class="pvp-toolbar-title">🌍 World Map</div>
+            <div class="pvp-legend">
+              <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);"></div> Unclaimed</div>
+              <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#3ecf8e;"></div> Yours</div>
+              <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#f0c040;"></div> Enemy</div>
+            </div>
+            <div class="pvp-stats" id="pvp-stats">– / 10,000 claimed</div>
+            <button class="pvp-refresh-btn" id="pvp-refresh-btn" onclick="pvpRefresh()">⟳ Refresh</button>
+          </div>
+          <div class="pvp-canvas-area" id="pvp-canvas-area">
+            <div class="pvp-canvas-wrap" id="pvp-canvas-wrap">
+              <canvas id="pvp-canvas"></canvas>
+            </div>
+          </div>
+          <div class="pvp-tooltip" id="pvp-tooltip">
+            <div class="pvp-tooltip-title" id="pvp-tt-title">Tile (0,0)</div>
+            <div class="pvp-tooltip-sub" id="pvp-tt-sub">Unclaimed</div>
+            <button class="pvp-tooltip-btn" id="pvp-tt-btn" onclick="pvpAttackTile()">⚔️ Attack</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -923,11 +1031,17 @@ function applyServerPayload(payload) {
   if (!s) return;
   if (s.resources) Object.assign(resources, s.resources);
   if (s.playerXP !== undefined) playerXP = s.playerXP;
+  else if (s.player_xp !== undefined) playerXP = s.player_xp;
   if (s.playerLevel !== undefined) playerLevel = s.playerLevel;
+  else if (s.player_level !== undefined) playerLevel = s.player_level;
   if (s.nodes) {
+    const syncMs = Date.now();
     RESOURCE_DEFS.forEach(r => {
       if (s.nodes[r.id]) r.tiers.forEach((_, ti) => {
-        if (s.nodes[r.id][ti]) Object.assign(nodeState[r.id][ti], s.nodes[r.id][ti]);
+        if (s.nodes[r.id][ti]) {
+          Object.assign(nodeState[r.id][ti], s.nodes[r.id][ti]);
+          nodeState[r.id][ti]._syncMs = syncMs; // when server value was received
+        }
       });
     });
   }
@@ -940,11 +1054,28 @@ function applyServerPayload(payload) {
   }
   if (s.armoryTowers) armoryTowers = s.armoryTowers;
   if (s.campCompleted) campCompletedStages = new Set(s.campCompleted);
-  buildResourcesPanel();
-  buildResearchPanel();
-  buildInventoryPanel();
-  buildCraftingPanel();
-  buildCampaignMap();
+  // Load silo state from server payload
+  if (s.silo) {
+    RESOURCE_DEFS.forEach(r => {
+      if (s.silo[r.id]) siloState[r.id] = s.silo[r.id];
+    });
+  }
+  lastServerSyncMs = Date.now();
+  // Only do full rebuild on first load; subsequent refreshes just update UI state
+  if (!currentUser || !document.getElementById('game').classList.contains('visible')) {
+    // Initial load — build everything
+    buildResourcesPanel();
+    buildResearchPanel();
+    buildInventoryPanel();
+    buildCraftingPanel();
+    buildCampaignMap();
+  } else {
+    // Subsequent refresh — just update cards and counts, don't rebuild DOM
+    updateNodeCards();
+    updateArmorySlotCount();
+    renderArmoryGrid();
+    buildCampaignMap();
+  }
   updateResourcePills();
   updatePlayerLevelUI();
 }
@@ -997,6 +1128,24 @@ function fillTimeSecs(stored, cap, ph) {
   return Math.round((rem / ph) * 3600);
 }
 
+// Total storage capacity for a resource
+function totalCapacity(resId) {
+  let cap = BASE_CAPACITY;
+  const silo = siloState[resId];
+  if (silo) silo.forEach((s,ti) => {
+    if (s.unlocked) cap += Math.round(SILO_TIERS[ti].cap * (1 + (s.level-1)*0.6));
+  });
+  return cap;
+}
+
+// Compact number format: 1M, 1.1M, 500K etc
+function fmtCompact(n) {
+  if (n >= 1e9)  return (n/1e9).toFixed(1).replace(/\.0$/,'')  + 'B';
+  if (n >= 1e6)  return (n/1e6).toFixed(1).replace(/\.0$/,'')  + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1).replace(/\.0$/,'') + 'K';
+  return Math.floor(n).toLocaleString();
+}
+
 function nodeProdPerHour(r, ti, ul) {
   const base = Math.round(r.tiers[ti].baseProd * (1 + (ul - 1) * 0.50));
   const levelMult = 1 + bonusProd(playerLevel);
@@ -1017,6 +1166,16 @@ const TIER_TABLE = [
   [2400, 900,  7200],
   [4800, 2000, 14400],
 ];
+
+const BASE_CAPACITY = 5000;
+const SILO_TIERS = [
+  { cap: 10000,  upgCostBase: 200,  unlockCost: 0    },
+  { cap: 25000,  upgCostBase: 500,  unlockCost: 300  },
+  { cap: 60000,  upgCostBase: 1200, unlockCost: 700  },
+  { cap: 150000, upgCostBase: 3000, unlockCost: 1500 },
+  { cap: 400000, upgCostBase: 8000, unlockCost: 3500 },
+];
+const siloState = {};
 
 const RESOURCE_DEFS = [
   { id:'wood',    name:'Wood',    icon:'🪵', type:'wood',
@@ -1058,9 +1217,12 @@ RESOURCE_DEFS.forEach(r => {
     unlocked: ti === 0, upgradeLevel: 1, storedAmount: 0,
     upgrading: false, upgradeStartMs: 0, upgradeDurationMs: 0, upgradeCostPaid: 0,
   }));
+  siloState[r.id] = SILO_TIERS.map((_,ti)=>({ unlocked: ti===0, level: 1 }));
 });
 
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
+
+let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
 let lastTick = Date.now(), lastStructuralRender = 0;
 
@@ -1176,6 +1338,7 @@ async function startGame(user) {
   try{await loadFromDB();await new Promise(r=>setTimeout(r,450));}
   catch(e){console.warn('startGame failed:',e);}
   finally{
+    // Full panel build on login
     buildResourcesPanel();
     buildResearchPanel();
     buildInventoryPanel();
@@ -1184,7 +1347,7 @@ async function startGame(user) {
     updateResourcePills();
     updatePlayerLevelUI();
     showGame();
-    startLoop();
+    startLoop(); // start loop AFTER server state is loaded
   }
 }
 
@@ -1202,6 +1365,9 @@ function resetState() {
   armoryTowers=[];
   campCompletedStages=new Set();
   campSelectedStage=null;
+  RESOURCE_DEFS.forEach(r=>{
+    siloState[r.id] = SILO_TIERS.map((_,ti)=>({ unlocked: ti===0, level: 1 }));
+  });
 }
 
 // ═══════════════════════════════════════════════
@@ -1212,9 +1378,9 @@ async function loadFromDB() {
   try {
     const payload = await serverRpc('idw_get_state');
     const s = payload?.v2 || payload;
-    // Show offline banner if player has been away — only on login
-    if (s?.lastSeen) applyOfflineProgress(s.lastSeen);
     applyServerPayload(payload);
+    if (s?.lastSeen) showOfflineTimeBanner(s.lastSeen);
+    // Silo state loaded from idw_get_state payload (in applyServerPayload)
   } catch (e) {
     console.warn('server load failed, falling back to old game_saves:', e);
     // Old fallback kept so a bad SQL install does not freeze the login screen.
@@ -1233,9 +1399,8 @@ async function loadFromDB() {
 
 async function saveToDB() {
   if(!currentUser) return;
-  // Server authoritative mode: do not upload browser-owned game state.
-  // This only updates last_seen so the backend can calculate offline progress.
   try { await serverRpc('idw_touch'); } catch(e) { console.warn('touch failed', e); }
+  // Silo state saved via idw_unlock_silo / idw_upgrade_silo RPCs
 }
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveToDB,5000);}
 
@@ -1261,36 +1426,46 @@ function resolveOfflineUpgrades() {
 }
 
 function applyOfflineProgress(lastSeen) {
+  // Kept for compatibility — server handles actual offline production
+  // Just show the time banner
+  showOfflineTimeBanner(lastSeen);
+}
+
+function showOfflineTimeBanner(lastSeen) {
   if(!lastSeen) return;
   const maxMs = 8*60*60*1000;
   const elapsed = Math.min(Date.now()-lastSeen, maxMs);
-  if(elapsed < 5000) return;
+  if(elapsed < 60000) return; // only show if away > 1 minute
+  const h=Math.floor(elapsed/3600000), m=Math.floor((elapsed%3600000)/60000);
+  const ts=h>0?`${h}h ${m}m`:`${m}m`;
+  // Build summary from current nodeState (already applied from server)
   const summary = [];
   RESOURCE_DEFS.forEach(r=>{
     r.tiers.forEach((_,ti)=>{
       const ns = nodeState[r.id][ti];
-      if(!ns.unlocked || ns.upgrading) return; 
-      const ph  = nodeProdPerHour(r,ti,ns.upgradeLevel);
-      const cap = nodeStorageCap(r,ti,ns.upgradeLevel);
-      const produced = Math.floor(ph*(elapsed/3600000));
-      const added = Math.min(produced, cap-ns.storedAmount);
-      if(added>0){
-        ns.storedAmount=Math.min(ns.storedAmount+added, cap);
-        summary.push(`${r.icon} ${r.name}: +${added.toLocaleString()}`);
+      if(ns.unlocked && !ns.upgrading) {
+        const ph = nodeProdPerHour(r,ti,ns.upgradeLevel);
+        const gathered = Math.floor(ph * (elapsed/3600000));
+        if(gathered > 0) summary.push(`${r.icon} +${gathered.toLocaleString()} ${r.name}`);
       }
     });
   });
-  if(summary.length>0){
-    const h=Math.floor(elapsed/3600000), m=Math.floor((elapsed%3600000)/60000);
-    const ts=h>0?`${h}h ${m}m`:`${m}m`;
-    setTimeout(()=>showOfflineBanner(ts,summary),600);
-  }
+  setTimeout(()=>showOfflineBanner(ts, summary.length > 0 ? summary : ['Your nodes were idle']), 800);
 }
 
 function showOfflineBanner(ts,lines){
+  pendingOfflineBanner = {ts, lines};
   const slot=document.getElementById('offline-banner-slot');
   if(!slot) return;
-  slot.innerHTML=`<div class="offline-banner"><div><div style="color:var(--green);font-weight:600;margin-bottom:4px;">⏰ Offline ${ts} — gathered while away:</div><div style="color:var(--text2);font-size:11px;line-height:1.7;">${lines.join('<br>')}</div></div><button class="offline-banner-close" onclick="this.closest('.offline-banner').remove()">✕</button></div>`;
+  const resPanel = document.getElementById('base-panel-resources');
+  if(!resPanel || !resPanel.classList.contains('active')) return;
+  slot.innerHTML=`<div class="offline-banner" id="offline-banner-el"><div><div style="color:var(--green);font-weight:600;margin-bottom:4px;">⏰ Offline ${ts} — gathered while away:</div><div style="color:var(--text2);font-size:11px;line-height:1.7;">${lines.join('<br>')}</div></div><button class="offline-banner-close" onclick="pendingOfflineBanner=null;this.closest('.offline-banner').remove()">✕</button></div>`;
+  // Auto-dismiss after 10 seconds
+  setTimeout(()=>{
+    pendingOfflineBanner=null;
+    const el=document.getElementById('offline-banner-el');
+    if(el) el.remove();
+  }, 10000);
 }
 
 window.addEventListener('visibilitychange', () => {
@@ -1310,13 +1485,16 @@ function startLoop(){
   // setInterval ticks resources every second — works even when tab is hidden
   intervalId = setInterval(tickResources, 1000);
   // RAF only handles visual bars/animations
-  function rafLoop(){ updateUpgradeBars(); updateProgressBars(); updateResearchBars(); rafId=requestAnimationFrame(rafLoop); }
+  function rafLoop(){ updateUpgradeBars(); updateProgressBars(); updateResearchBars(); updateStoredCounters(); rafId=requestAnimationFrame(rafLoop); }
   rafId = requestAnimationFrame(rafLoop);
 }
 function stopLoop(){
   if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
   if(intervalId){ clearInterval(intervalId); intervalId=null; }
 }
+
+// Timestamp of last server sync — tickResources only adds production after this point
+let lastServerSyncMs = Date.now();
 
 // Runs every 1 second via setInterval — works in any tab, any focus state
 function tickResources(){
@@ -1341,18 +1519,14 @@ function tickResources(){
         return;
       }
 
-      const ph  = nodeProdPerHour(r,ti,ns.upgradeLevel);
-      const cap = nodeStorageCap(r,ti,ns.upgradeLevel);
-      const prev = Math.floor(ns.storedAmount);
-      // 1 second worth of production (ph is per hour)
-      ns.storedAmount = Math.min(ns.storedAmount + ph/3600, cap);
-      if(Math.floor(ns.storedAmount) !== prev) changed=true;
+      // No client-side accumulation — server is source of truth
+      // Just check if upgrade is needed, nothing else
     });
   });
 
   if(changed){
-    updateResourcePills();
     updateNodeCards();
+    updateResourcePills();
     if(document.getElementById('craft-towers')?.classList.contains('active')) renderTowerGrid();
     scheduleSave();
   }
@@ -1365,6 +1539,7 @@ function tickAll(){ tickResources(); }
 // PLAYER LEVEL UI
 // ═══════════════════════════════════════════════
 function addXP(amount, x, y) {
+  // Update locally for immediate visual feedback
   playerXP += amount;
   while(playerXP >= xpForLevel(playerLevel)){
     playerXP -= xpForLevel(playerLevel);
@@ -1374,6 +1549,23 @@ function addXP(amount, x, y) {
   }
   updatePlayerLevelUI();
   if(x !== undefined) spawnXPFloater(`+${amount} XP`, x, y);
+  // Persist to server — debounced so rapid XP gains batch together
+  scheduleXPSave();
+}
+
+let xpSaveTimer = null;
+function scheduleXPSave() {
+  clearTimeout(xpSaveTimer);
+  xpSaveTimer = setTimeout(async () => {
+    if (!currentUser) return;
+    try {
+      await sb.from('idw_player_state')
+        .update({ player_xp: playerXP, player_level: playerLevel, updated_at: new Date().toISOString() })
+        .eq('user_id', currentUser.id);
+    } catch(e) {
+      console.warn('XP save failed:', e.message);
+    }
+  }, 3000); // batch XP saves every 3 seconds
 }
 
 function updatePlayerLevelUI(){
@@ -1461,7 +1653,13 @@ function closeBuffsModal(){
 function updateResourcePills(){
   RESOURCE_DEFS.forEach(r=>{
     const el=document.getElementById('pill-'+r.id);
-    if(el) el.textContent=Math.floor(resources[r.id]).toLocaleString();
+    if(!el) return;
+    const amt = Math.floor(resources[r.id]||0);
+    const cap = totalCapacity(r.id);
+    const atCap = amt >= cap;
+    el.textContent = fmtCompact(amt) + ' / ' + fmtCompact(cap);
+    el.classList.toggle('capped', atCap);
+    el.classList.toggle('pill-cap-warn', atCap);
   });
 }
 
@@ -1474,6 +1672,7 @@ function buildResourcesPanel(){
 
   const bar=document.createElement('div');
   bar.className='collect-all-bar';
+  bar.style.cssText='display:flex;justify-content:flex-end;padding:12px 16px 8px;';
   bar.innerHTML=`<button class="collect-all-btn" onclick="collectAll()">📥 Collect All</button>`;
   panel.appendChild(bar);
 
@@ -1482,13 +1681,14 @@ function buildResourcesPanel(){
     lane.className='res-lane';
     lane.id='lane-'+r.id;
     lane.innerHTML=`
-      <div class="res-lane-header">
-        <span class="res-lane-icon">${r.icon}</span>
-        <span class="res-lane-name">${r.name}s</span>
-        <span class="res-lane-rate" id="lane-rate-${r.id}"></span>
+      <div class="silo-lane-header">
+        <span class="silo-lane-icon">${r.icon}</span>
+        <span class="silo-lane-name">${r.name} Nodes</span>
+        <span class="silo-capacity" id="lane-rate-${r.id}"></span>
       </div>
       <div class="res-nodes-row" id="nodes-row-${r.id}"></div>
     `;
+    lane.className='silo-lane';
     panel.appendChild(lane);
 
     const row=document.getElementById('nodes-row-'+r.id);
@@ -1515,20 +1715,18 @@ function updateNodeCards(){
       const reqLevel=LEVEL_UNLOCK[ti];
 
       if(!ns.unlocked){
-        let firstLocked=true;
-        for(let i=0;i<ti;i++) if(!nodeState[r.id][i].unlocked){firstLocked=false;break;}
-        if(!firstLocked){card.classList.add('locked-hidden');return;}
         card.classList.remove('locked-hidden');
         card.classList.add('locked');
         card.classList.remove('upgrading');
-        const canUnlock=playerLevel>=reqLevel;
+        const prevUnlocked = ti===0 || nodeState[r.id][ti-1].unlocked;
+        const canUnlock=playerLevel>=reqLevel && prevUnlocked;
         const canAfford=resources[r.costCurrency]>=def.unlockCost;
-        const statusColor=(!canUnlock||!canAfford)?'var(--red)':'var(--green)';
+        const lockText = !prevUnlocked ? 'Unlock prev tier' : !playerLevel>=reqLevel ? 'Need Lv '+reqLevel : def.unlockCost.toLocaleString()+' '+r.costCurrencyIcon;
         card.innerHTML=`
-          <div class="nc-top"><span class="nc-icon">${r.icon}</span></div>
+          <div class="nc-top"><span class="nc-icon" style="opacity:0.4">${r.icon}</span></div>
           <div class="nc-lock-body">
             <span class="nc-lock-icon">🔒</span>
-            <div class="nc-lock-req" style="color:${statusColor}">${!canUnlock?'Need Lv '+reqLevel:def.unlockCost.toLocaleString()+' '+r.costCurrencyIcon}</div>
+            <div class="nc-lock-req" style="color:${canUnlock&&canAfford?'var(--green)':'var(--red)'};">${lockText}</div>
           </div>`;
         return;
       }
@@ -1563,8 +1761,8 @@ function updateNodeCards(){
           <span class="nc-lvlbadge badge-${r.type}">Lv${ns.upgradeLevel}</span>
         </div>
         <div class="nc-rate">${ph.toLocaleString()}/hr</div>
-        <div class="nc-stored">${stored.toLocaleString()}/${cap.toLocaleString()}</div>
-        <div class="nc-progwrap" style="margin-top:auto;"><div class="nc-prog type-${r.type}" id="ncprog-${r.id}-${ti}" style="width:${pct}%"></div></div>`;
+        <div class="nc-progwrap" style="margin-top:auto;"><div class="nc-prog type-${r.type}" id="ncprog-${r.id}-${ti}" style="width:${pct}%"></div></div>
+        <div style="font-size:8px;color:var(--text3);margin-top:3px;text-align:center;">Tap to view</div>`;
     });
 
     const rateEl=document.getElementById('lane-rate-'+r.id);
@@ -1581,6 +1779,29 @@ function updateProgressBars(){
       if(!bar) return;
       const cap=nodeStorageCap(r,ti,ns.upgradeLevel);
       bar.style.width=Math.min((ns.storedAmount/cap)*100,100).toFixed(2)+'%';
+    });
+  });
+}
+
+// Lightweight display-only counter — runs every RAF frame
+// Shows server base + estimated production since last sync
+// Never writes to ns.storedAmount — server stays source of truth
+function updateStoredCounters(){
+  const now = Date.now();
+  RESOURCE_DEFS.forEach(r=>{
+    r.tiers.forEach((_,ti)=>{
+      const ns = nodeState[r.id][ti];
+      if(!ns.unlocked || ns.upgrading) return;
+      const syncMs = ns._syncMs || now;
+      const ph  = nodeProdPerHour(r,ti,ns.upgradeLevel);
+      const cap = nodeStorageCap(r,ti,ns.upgradeLevel);
+      const elapsedHrs = (now - syncMs) / 3600000;
+      // Display = server base + production since sync (capped at storage)
+      const display = Math.min(ns.storedAmount + ph * elapsedHrs, cap);
+      const el = document.getElementById(`ncstored-${r.id}-${ti}`);
+      if(el) el.textContent = `${Math.floor(display).toLocaleString()}/${cap.toLocaleString()}`;
+      const bar = document.getElementById(`ncprog-${r.id}-${ti}`);
+      if(bar) bar.style.width = Math.min((display/cap)*100,100).toFixed(2)+'%';
     });
   });
 }
@@ -1615,42 +1836,60 @@ function updateUpgradeBars(){
 // COLLECT ALL
 // ═══════════════════════════════════════════════
 async function collectAll(){
-  // Build list of nodes that have something to collect
   const toCollect = [];
   RESOURCE_DEFS.forEach(r=>{
     r.tiers.forEach((_,ti)=>{
       const ns=nodeState[r.id][ti];
-      if(ns.unlocked && !ns.upgrading && ns.storedAmount >= 1) toCollect.push({r, ti});
+      if(ns.unlocked && !ns.upgrading && Math.floor(ns._displayStored||ns.storedAmount) >= 1) toCollect.push({r,ti});
     });
   });
   if(toCollect.length === 0){ showToast('Nothing to collect yet'); return; }
 
-  // Call server RPC for each node
-  for(const {r, ti} of toCollect){
-    try {
-      await serverRpc('idw_collect_resource', {p_res_id: r.id, p_tier_idx: ti});
-    } catch(e) { /* individual failure — continue collecting others */ }
-  }
-  // Snapshot resources before refresh so we can show the diff
   const before = {};
   RESOURCE_DEFS.forEach(r => { before[r.id] = resources[r.id] || 0; });
+
+  for(const {r, ti} of toCollect){
+    try { await serverRpc('idw_collect_resource', {p_res_id: r.id, p_tier_idx: ti}); }
+    catch(e) {}
+  }
   await refreshFromServer();
-  // Build itemised summary from the diff
-  const parts = RESOURCE_DEFS
-    .map(r => ({ r, gained: (resources[r.id]||0) - (before[r.id]||0) }))
-    .filter(x => x.gained > 0)
-    .map(x => `${x.r.icon} +${x.gained.toLocaleString()}`);
-  if (parts.length) showToast(parts.join('  '));
+
+  // Show what was collected, warn about caps
+  const parts = [];
+  let anyCapped = false;
+  RESOURCE_DEFS.forEach(r => {
+    const gained = (resources[r.id]||0) - (before[r.id]||0);
+    if(gained > 0) parts.push(`${r.icon} +${fmtCompact(gained)}`);
+    const cap = totalCapacity(r.id);
+    if((resources[r.id]||0) >= cap) {
+      anyCapped = true;
+      showCapWarning(r);
+    }
+  });
+  if(parts.length) showToast(parts.join('  '));
+  if(anyCapped) showToast('⚠️ Some resources are at capacity — upgrade your Silo!');
+}
+
+function showCapWarning(r) {
+  // Flash the pill red
+  const el = document.getElementById('pill-'+r.id);
+  if(el){ el.classList.add('capped','pill-cap-warn'); }
 }
 
 // ═══════════════════════════════════════════════
 // NODE MODAL
 // ═══════════════════════════════════════════════
 
-function openNodeModal(resId,tierIdx){
+async function openNodeModal(resId,tierIdx){
   modalResId=resId; modalTierIdx=tierIdx;
+  // Show modal immediately with cached data
   renderNodeModal();
   document.getElementById('building-modal').classList.add('open');
+  // Fetch fresh stored amount from server in background
+  try {
+    await refreshFromServer();
+    if(modalResId===resId && modalTierIdx===tierIdx) renderNodeModal();
+  } catch(e) {}
 }
 function closeModal(){
   document.getElementById('building-modal').classList.remove('open');
@@ -1770,16 +2009,14 @@ function renderNodeModal(){
         </div>`;
     }
 
+    // Upgrade note: resources stay in node, production pauses during upgrade
     html+=`
       <div class="bmodal-btns">
-        <button class="bmodal-btn collect" ${stored<=0?'disabled':''} onclick="collectNode('${r.id}',${ti},event)">
-          📥 Collect ${stored.toLocaleString()} ${r.label}
-        </button>
         ${isMax
           ?`<button class="bmodal-btn upgrade" disabled>✅ Max Level (${MAX_NODE_LEVEL})</button>`
           :`<button class="bmodal-btn upgrade" ${costRes<nodeUpgradeCost(r,ti,ns.upgradeLevel)?'disabled':''} onclick="startUpgrade('${r.id}',${ti},event)">
               ⬆️ Upgrade — ${r.costCurrencyIcon} ${nodeUpgradeCost(r,ti,ns.upgradeLevel).toLocaleString()}
-              <div class="btn-sub">⏱ ${fmtTime(upgradeTimeSecs(ns.upgradeLevel))} · +${XP_PER_UPGRADE} XP on complete</div>
+              <div class="btn-sub">⏱ ${fmtTime(upgradeTimeSecs(ns.upgradeLevel))} · production pauses · +${XP_PER_UPGRADE} XP</div>
             </button>`
         }
       </div>`;
@@ -2845,61 +3082,104 @@ const ENEMY_TYPES = {
 };
 
 function getWaveConfig(stageId, wave) {
+  // PVP stages use difficulty level directly
+  if (stageId.startsWith('pvp-')) {
+    const diff = parseInt(stageId.split('-')[1]) || 1;
+    // Map difficulty 1-10 to stage index equivalent for wave generation
+    const fakeStageIdx = diff - 1;
+    return getWaveConfigByIndex(fakeStageIdx, wave, stageId);
+  }
   const stageIdx = CAMPAIGN_STAGES.findIndex(s=>s.id===stageId);
-  const stageMult = 1 + stageIdx * 0.15;
-  // Health scales up every OTHER wave
-  const waveMult  = 1 + Math.floor((wave - 1) / 2) * 0.12;
-  const mult = stageMult * waveMult;
-  const isBoss = stageId === '1-10' && wave >= 8;
+  return getWaveConfigByIndex(stageIdx, wave, stageId);
+}
+
+function getWaveConfigByIndex(stageIdx, wave, stageId) {
+
+  // ── Tier progression ──
+  // 1-1, 1-2, 1-3 → pool: red, blue, green  (green is highest)
+  // 1-4, 1-5, 1-6 → pool: red, blue, green, yellow  (yellow is highest)
+  // 1-7, 1-8, 1-9 → pool: red, blue, green, yellow, pink  (pink is highest)
+  // 1-10           → boss stage
+  //
+  // Within every stage, waves always ramp from weakest to highest tier:
+  //   waves 1-3:  red only
+  //   waves 4-5:  red + blue
+  //   waves 6-7:  blue + green
+  //   waves 8-9:  green (+ yellow/pink if available)
+  //   wave 10:    highest tier for this stage only
+  //
+  // Difficulty increases across stages with same tiers via:
+  //   - more enemies per wave
+  //   - higher HP multiplier
+  //   - slightly faster enemies
+
+  // Enemies always use base stats — no HP or speed scaling across stages or waves
+  // Difficulty comes purely from enemy types and count
+
+  // Enemy count grows with wave and stage
+  const baseCount = 3 + (wave - 1) + Math.floor(stageIdx * 0.8);
 
   function scaleEnemy(typeKey, count) {
     const t = ENEMY_TYPES[typeKey];
     return {
-      type: typeKey,
-      count,
-      hp:    Math.round(t.hp * mult),
+      type: typeKey, count: Math.max(1, count),
+      hp:    t.hp,
       speed: t.speed,
-      reward: Math.max(1, t.reward),
-      size:  t.size,
-      color: t.color,
+      reward: t.reward,
+      size:  t.size, color: t.color,
       spawnOnDeath: t.spawnOnDeath,
     };
   }
 
-  if (isBoss && wave === 10) {
-    return { enemies: [ scaleEnemy('boss', 1), scaleEnemy('black', 5) ] };
+  // ── Boss stage 1-10 or pvp difficulty 10 ──
+  if (stageId === '1-10' || (stageId.startsWith('pvp-') && stageIdx >= 9)) {
+    if (wave === 10) return { enemies: [ scaleEnemy('boss', 1), scaleEnemy('black', 4) ] };
+    if (wave >= 8)   return { enemies: [ scaleEnemy('purple', 2), scaleEnemy('black', 3) ] };
+    if (wave >= 6)   return { enemies: [ scaleEnemy('pink', 2), scaleEnemy('yellow', 3) ] };
+    if (wave >= 4)   return { enemies: [ scaleEnemy('green', 3), scaleEnemy('yellow', 2) ] };
+    return { enemies: [ scaleEnemy('red', Math.floor(baseCount/2)), scaleEnemy('blue', Math.ceil(baseCount/2)) ] };
   }
-  if (isBoss) {
-    return { enemies: [ scaleEnemy('boss', 1), scaleEnemy('purple', 4) ] };
+
+  // ── Highest tier per stage group ──
+  // 1-1 to 1-3: green is max
+  // 1-4 to 1-6: yellow is max
+  // 1-7 to 1-9: pink is max
+  const TIERS = ['red','blue','green','yellow','pink','black','purple'];
+  const maxTierIdx = stageIdx <= 2 ? 2  // green
+                   : stageIdx <= 5 ? 3  // yellow
+                   : 4;                 // pink (1-7 to 1-9)
+
+  // Wave ramp: always starts at red, climbs to maxTier by wave 10
+  // waves 1-3:  red
+  // waves 4-5:  red + blue
+  // waves 6-7:  blue + green
+  // waves 8-9:  one below max + max (if max > green)
+  //             else just green
+  // wave 10:    max tier only
+  let types;
+  if (wave <= 3) {
+    types = ['red'];
+  } else if (wave <= 5) {
+    types = ['red', 'blue'];
+  } else if (wave <= 7) {
+    types = ['blue', 'green'];
+  } else if (wave <= 9) {
+    // approach max tier
+    const secondTop = Math.max(2, maxTierIdx - 1); // at least green
+    types = maxTierIdx > 2
+      ? [TIERS[secondTop], TIERS[maxTierIdx]]
+      : ['green'];
+  } else {
+    // wave 10: max tier only
+    types = [TIERS[maxTierIdx]];
   }
 
-  const baseCount = Math.round(4 + (wave - 1) * 1.2 + Math.floor(stageIdx / 2));
-
-  // Enemy type progression: each stage unlocks the next tier
-  // 1-1: only red  1-2: red+blue  1-3: blue  1-4: blue+green
-  // 1-5: green+yellow  1-6: yellow+pink  1-7: pink+black
-  // 1-8: black+purple  1-9: purple+white  1-10: boss
-  const waveSteps = [
-    ['red'],                  // w1
-    ['red'],                  // w2
-    ['red', 'blue'],          // w3
-    ['red', 'blue'],          // w4
-    ['blue'],                 // w5
-    ['blue'],                 // w6
-    ['blue', 'green'],        // w7
-    ['blue', 'green'],        // w8
-    ['green'],                // w9
-    ['green', 'yellow'],      // w10
-  ];
-  // Stage advances enemy tier by 1 every 2 stages (much slower than before)
-  const stepIdx = Math.min(wave - 1 + Math.floor(stageIdx / 2), waveSteps.length - 1);
-  const types = waveSteps[stepIdx];
-
+  // Split baseCount across types
   const groups = types.map((typeKey, i) => {
-    const count = (i < baseCount % types.length)
-      ? Math.ceil(baseCount / types.length)
-      : Math.floor(baseCount / types.length);
-    return scaleEnemy(typeKey, Math.max(1, count));
+    const share = i === 0
+      ? Math.floor(baseCount / types.length)
+      : Math.ceil(baseCount / types.length);
+    return scaleEnemy(typeKey, share);
   });
 
   return { enemies: groups };
@@ -2935,17 +3215,23 @@ function openBattleSetup(stageId) {
   setup.style.display  = 'flex';
   game.style.display   = 'none';
 
-  document.getElementById('setup-title').textContent = `Stage ${stageId}`;
+  const isPvp = stageId.startsWith('pvp-');
+  const pvpDiff = isPvp ? parseInt(stageId.split('-')[1]) : null;
+  const mapKeys = Object.keys(MAP_DEFS);
+  const pvpMapKey = isPvp ? mapKeys[(pvpDiff - 1) % mapKeys.length] : (STAGE_MAP[stageId] || 'forest');
+  const mapDef = MAP_DEFS[pvpMapKey];
+  const stage = CAMPAIGN_STAGES.find(s=>s.id===stageId);
+
+  document.getElementById('setup-title').textContent = isPvp ? `World Map — Difficulty ${pvpDiff}` : `Stage ${stageId}`;
   document.getElementById('setup-sub').textContent   = `Select up to ${battleDeploySlots()} towers from your Armory to bring`;
 
-  const stage = CAMPAIGN_STAGES.find(s=>s.id===stageId);
-  const mapDef = MAP_DEFS[STAGE_MAP[stageId]||'forest'];
   document.getElementById('setup-stage-info').innerHTML = `
     <div class="setup-info-row"><span class="setup-info-label">Map</span><span class="setup-info-val">${mapDef.name}</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Enemies</span><span class="setup-info-val">${stage?.enemies||'Various'}</span></div>
+    <div class="setup-info-row"><span class="setup-info-label">Enemies</span><span class="setup-info-val">${isPvp ? 'Stage 1-1 enemies' : (stage?.enemies||'Various')}</span></div>
     <div class="setup-info-row"><span class="setup-info-label">Waves</span><span class="setup-info-val">10</span></div>
     <div class="setup-info-row"><span class="setup-info-label">Deploy slots</span><span class="setup-info-val">${battleDeploySlots()}</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 200</span></div>
+    <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 50</span></div>
+    ${isPvp ? `<div class="setup-info-row"><span class="setup-info-label">Reward</span><span class="setup-info-val" style="color:#3ecf8e">🟢 Claim territory</span></div>` : ''}
   `;
   renderSetupArmory();
 }
@@ -2993,11 +3279,43 @@ function updateSetupSlotBadge(maxSlots) {
   document.getElementById('setup-start-btn').disabled = false;
 }
 
-function closeBattleScreen() {
+function closeBattleScreen(goToNextStage) {
   stopBattleLoop();
   document.getElementById('battle-screen').style.display = 'none';
   placingTower = null;
   selectedTowerId = null;
+  _lastHudGold = -1;
+
+  // Always navigate to campaign tab on exit
+  switchSection('campaign');
+
+  if (goToNextStage) {
+    // Find and select the next stage after the one just played
+    const stageId = battleSetupStageId;
+    const idx = CAMPAIGN_STAGES.findIndex(s => s.id === stageId);
+    const nextStage = CAMPAIGN_STAGES[idx + 1];
+    if (nextStage && campCompletedStages.has(stageId)) {
+      campSelectedStage = nextStage.id;
+    } else {
+      campSelectedStage = stageId;
+    }
+  } else {
+    // Exit — scroll to highest unlocked stage
+    const highestIdx = CAMPAIGN_STAGES.reduce((best, s, i) =>
+      campCompletedStages.has(s.id) ? i + 1 : best, 0);
+    const target = CAMPAIGN_STAGES[Math.min(highestIdx, CAMPAIGN_STAGES.length - 1)];
+    campSelectedStage = target?.id || CAMPAIGN_STAGES[0].id;
+  }
+
+  buildCampaignMap();
+  // Scroll the selected stage into view
+  setTimeout(() => {
+    const map = document.getElementById('campaign-map');
+    if (map) {
+      const sel = map.querySelector('.camp-node.selected');
+      if (sel) sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 100);
 }
 
 let pendingTowersQueue = []; 
@@ -3005,15 +3323,30 @@ let pendingPlacingIdx = 0;
 
 async function startBattle() {
   const stageId = battleSetupStageId;
-  const mapKey  = STAGE_MAP[stageId] || 'forest';
+  const isPvpBattle = stageId.startsWith('pvp-');
+  const mapKey  = isPvpBattle ? 'forest' : (STAGE_MAP[stageId] || 'forest');
   const mapDef  = MAP_DEFS[mapKey];
 
   let serverBattle;
-  try {
-    serverBattle = await serverRpc('idw_start_battle', {p_stage_id:stageId, p_armory_indexes:battleSelectedTowers});
-    currentBattleId = serverBattle.battleId;
-    await refreshFromServer();
-  } catch(e) { return; }
+  if (isPvpBattle) {
+    // PVP battles don't go through idw_start_battle — use a simple local setup
+    serverBattle = { battleId: null, consumedTowers: battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean) };
+    currentBattleId = null;
+    // Remove consumed towers from armory locally
+    battleSelectedTowers.sort((a,b)=>b-a).forEach(i => armoryTowers.splice(i, 1));
+    renderArmoryGrid();
+  } else {
+    try {
+      serverBattle = await serverRpc('idw_start_battle', {p_stage_id:stageId, p_armory_indexes:battleSelectedTowers});
+      currentBattleId = serverBattle.battleId;
+      await refreshFromServer();
+    } catch(e) {
+      console.error('idw_start_battle failed:', e);
+      // If start_battle fails, run without server tracking
+      currentBattleId = null;
+      serverBattle = { battleId: null, consumedTowers: [] };
+    }
+  }
 
   const toConsume = (serverBattle.consumedTowers || []).filter(Boolean);
   pendingTowersQueue = toConsume.map(entry => ({
@@ -3035,7 +3368,7 @@ async function startBattle() {
   const pixelWaypoints = mapDef.waypoints.map(([c,r]) => ({x: c * tw + tw/2, y: r * th + th/2}));
 
   bs = {stageId, mapKey, mapDef, tw, th, COLS, ROWS, waypoints: pixelWaypoints,
-    towers: [], enemies: [], projectiles: [], explosions: [], gold: 200, lives: 20,
+    towers: [], enemies: [], projectiles: [], explosions: [], gold: 50, lives: 20,
     wave: 0, wavesQueued: 0, waveActive: false, waveEnemiesLeft: 0, waveSpawnQueue: [],
     spawnTimer: 0, gameOver: false, victory: false, lastTime: null};
 
@@ -3154,11 +3487,8 @@ function canPlaceTowerAt(sx, sy) {
 }
 
 function makeTower(td, level, x, y, entry) {
-  // Use exact stats from armory entry if provided (preserves any future customization)
-  // Fall back to formula calculation if no entry
   const stats = towerStatsAtLevel(td, level);
   const tileW = bs ? bs.tw : 44;
-  // If entry has custom stat overrides in future, apply them here
   const dmg        = (entry?.dmg        !== undefined) ? entry.dmg        : stats.dmg;
   const atkSpeed   = (entry?.atkSpeed   !== undefined) ? entry.atkSpeed   : parseFloat(stats.atkSpeed);
   const range      = (entry?.range      !== undefined) ? entry.range      : td.baseStats.range;
@@ -3178,6 +3508,7 @@ function makeTower(td, level, x, y, entry) {
     special: td.id,
     cooldown: 0,
     target: null,
+    targeting: 'first', // first | last | strongest | weakest
     upgrades: [0, 0, 0],
   };
 }
@@ -3318,6 +3649,13 @@ function handleCanvasClick(e) {
   }
 }
 
+function setTowerTargeting(towerId, mode) {
+  const t = bs.towers.find(t => t.id === towerId);
+  if (!t) return;
+  t.targeting = mode;
+  showUpgradePanel(t); // re-render to update active button
+}
+
 function deselectTower() {
   selectedTowerId = null;
   showShopPanel();
@@ -3404,6 +3742,21 @@ function renderUpgradePanel(tower) {
 
   const paths = document.getElementById('upg-paths');
   paths.innerHTML = '';
+
+  // Targeting selector
+  const targetingDiv = document.createElement('div');
+  targetingDiv.className = 'upg-targeting';
+  targetingDiv.innerHTML = `
+    <div class="upg-target-label">🎯 Target Priority</div>
+    <div class="upg-target-btns">
+      ${['first','last','strongest','weakest'].map(m=>`
+        <button class="upg-target-btn${(tower.targeting||'first')===m?' active':''}"
+          onclick="setTowerTargeting('${tower.id}','${m}')">
+          ${{first:'First',last:'Last',strongest:'Strongest',weakest:'Weakest'}[m]}
+        </button>`).join('')}
+    </div>`;
+  paths.appendChild(targetingDiv);
+
   UPGRADE_PATHS.forEach((path, pi) => {
     const currentLvl = tower.upgrades[pi];
     const maxLvl = path.levels.length;
@@ -3564,16 +3917,18 @@ function startBattleLoop() {
   battleRaf = requestAnimationFrame(rafTick);
 
   // Background keepalive: runs logic when RAF is frozen (hidden tab)
+  // Uses same battleSpeed so 4x in background = 4x speed
   battleIntervalId = setInterval(() => {
     if (!document.hidden || !bs || bs.gameOver || bs.victory) return;
     const now = performance.now();
-    const rawDt = Math.min((now - lastTime) / 1000, 0.25);
+    // No strict cap — allow battleSpeed to scale dt naturally
+    const rawDt = Math.min((now - lastTime) / 1000, 0.5);
     lastTime = now;
     bs.lastTime = now;
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
     updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
-  }, 100); // 10fps logic keepalive in background
+  }, 50); // 20fps keepalive — fast enough for 4x speed in background
 }
 function stopBattleLoop() {
   if (battleRaf) { cancelAnimationFrame(battleRaf); battleRaf = null; } // kept for safety
@@ -3628,12 +3983,15 @@ function updateTowers(dt) {
     t.cooldown -= dt;
     if (t.cooldown > 0) return;
 
-    // Find targets in range, sorted by furthest along path
-    const inRange = bs.enemies
-      .filter(e => dist(t.x, t.y, e.x, e.y) <= t.range)
-      .sort((a,b) => b.dist - a.dist);
-
+    // Find enemies in range then sort by targeting mode
+    const inRange = bs.enemies.filter(e => !e.isDead && !e.isReached && dist(t.x, t.y, e.x, e.y) <= t.range);
     if (inRange.length === 0) return;
+    switch(t.targeting || 'first') {
+      case 'first':    inRange.sort((a,b) => b.dist - a.dist); break; // furthest along path
+      case 'last':     inRange.sort((a,b) => a.dist - b.dist); break; // least far along path
+      case 'strongest':inRange.sort((a,b) => b.hp - a.hp);    break; // highest current hp
+      case 'weakest':  inRange.sort((a,b) => a.hp - b.hp);    break; // lowest current hp
+    }
 
     // Inferno: hit all in range
     if (t.towerId === 'inferno') {
@@ -3914,11 +4272,13 @@ function drawTower(ctx, t) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Icon emoji
+  // Icon emoji — less opaque so level badge is clear
+  ctx.globalAlpha = 0.5;
   ctx.font = `${Math.round(t.r * 1.1)}px serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(t.td.icon, t.x, t.y + 1);
+  ctx.globalAlpha = 1;
 
   // Level badge
   ctx.fillStyle = 'rgba(14,15,20,0.85)';
@@ -4088,9 +4448,17 @@ async function showResultScreen(won) {
   const box = document.getElementById('result-box');
   const stage = bs.stageId;
   const goldEarned = bs.gold;
-  let serverReward = {};
+  let serverReward = {}, firstClear = true;
 
-  if (currentBattleId) {
+  const isPvpStage = bs?.stageId?.startsWith('pvp-');
+
+  if (isPvpStage) {
+    // PVP battle ended — handle win/lose, animate tile, apply cooldown
+    if (pvpPendingTile) {
+      await pvpBattleEnded(pvpPendingTile, !!won);
+      pvpPendingTile = null;
+    }
+  } else if (currentBattleId) {
     try {
       const result = await serverRpc('idw_submit_battle_result', {
         p_battle_id: currentBattleId,
@@ -4100,29 +4468,97 @@ async function showResultScreen(won) {
         p_client_gold: bs.gold || 0
       });
       serverReward = result?.reward || {};
+      firstClear = result?.first_clear ?? true;
+      // Apply full server state (includes updated campCompleted, resources, XP)
       applyServerPayload(result?.state || result);
+      // If first clear, also update local campCompletedStages immediately
+      if (won && firstClear && stage) {
+        campCompletedStages.add(stage);
+        buildCampaignMap(); // unlock next stage right away
+      }
     } catch(e) {
-      won = false;
+      console.error('idw_submit_battle_result failed:', e);
+      // Server failed — still update local state so UI is correct
+      if (won && stage) {
+        campCompletedStages.add(stage);
+        buildCampaignMap();
+      }
     } finally {
       currentBattleId = null;
     }
   }
 
-  const rewardText = Object.entries(serverReward).map(([k,v]) => `${v} ${k}`).join(' + ');
+  // Build reward display — separate resources from XP
+  const rewardParts = Object.entries(serverReward)
+    .filter(([k]) => k !== 'xp')
+    .map(([k,v]) => {
+      const def = RESOURCE_DEFS.find(r=>r.id===k);
+      return `${def?.icon||''} ${v.toLocaleString()} ${def?.name||k}`;
+    });
+  const xpGained = serverReward.xp || 0;
+  const rewardText = rewardParts.join('  ');
+
+  // Check if there's a next stage available
+  const stageIdx = CAMPAIGN_STAGES.findIndex(s => s.id === stage);
+  const nextStage = CAMPAIGN_STAGES[stageIdx + 1];
+  const hasNextStage = won && nextStage && !isPvpStage;
+
+  // Build reward rows
+  const rewardRows = [];
+  if (won && Object.keys(serverReward).length > 0) {
+    Object.entries(serverReward).forEach(([k,v]) => {
+      if (k === 'xp') {
+        rewardRows.push({ icon:'⭐', name:'Experience', amount:`+${v} XP`, cls:'xp', id:`res-xp` });
+      } else {
+        const def = RESOURCE_DEFS.find(r=>r.id===k);
+        if (def) rewardRows.push({ icon:def.icon, name:def.name, amount:`+${v.toLocaleString()}`, cls:'', id:`res-${k}` });
+      }
+    });
+  }
+
+  const badgeHtml = won
+    ? firstClear
+      ? `<div class="result-badge">⭐ First Clear!</div>`
+      : `<div class="result-badge" style="color:var(--text3);border-color:rgba(255,255,255,0.1)">Replay</div>`
+    : '';
+
+  const rewardsHtml = rewardRows.length > 0
+    ? `<div class="result-rewards">${rewardRows.map(r=>
+        `<div class="result-reward-row" id="${r.id}">
+          <div class="result-reward-icon">${r.icon}</div>
+          <div class="result-reward-info">
+            <div class="result-reward-name">${r.name}</div>
+            <div class="result-reward-amount ${r.cls}">${r.amount}</div>
+          </div>
+        </div>`).join('')}</div>`
+    : won ? '' : `<div style="color:var(--text3);font-size:13px;margin-bottom:1rem;">Better luck next time, Commander.</div>`;
+
   box.innerHTML = `
     <div class="result-title ${won?'victory':'defeat'}">${won?'🏆 Victory!':'💀 Defeated'}</div>
-    <div class="result-sub">${won?`Stage ${stage} complete!`:`Your base was overrun on Wave ${bs.wave}`}</div>
-    <div style="font-size:24px;font-weight:700;color:#f0c040;margin-bottom:1.5rem;">${rewardText || 'No reward'}</div>
-    <div style="font-size:13px;color:#555e80;margin-bottom:1.5rem;">Your progress has been saved.</div>
-    <div>
-      <button class="result-btn" onclick="closeBattleScreen()">← Back to Map</button>
-      ${won ? `<button class="result-btn" onclick="replayBattle()">🔄 Replay</button>` : `<button class="result-btn" onclick="replayBattle()">↩ Retry</button>`}
+    <div class="result-sub">${won?`Stage ${stage} complete!`:`Your base fell on Wave ${bs.wave}`}</div>
+    ${badgeHtml}
+    ${rewardsHtml}
+    <div class="result-btns">
+      <button class="result-btn secondary" onclick="closeBattleScreen(false)">← Exit</button>
+      ${won && hasNextStage
+        ? `<button class="result-btn next" onclick="closeBattleScreen(false);setTimeout(()=>openBattleSetup('${nextStage.id}'),200)">Next Stage →</button>`
+        : ''}
+      <button class="result-btn ${won?'secondary':'primary'}" onclick="replayBattle()">${won?'🔄 Replay':'↩ Retry'}</button>
     </div>`;
   overlay.style.display = 'flex';
+
+  // Show reward rows immediately
+  if (rewardRows.length > 0) {
+    rewardRows.forEach(r => {
+      const el = document.getElementById(r.id);
+      if (el) el.classList.add('show');
+    });
+  }
 }
 
 function replayBattle() {
   document.getElementById('result-overlay').style.display = 'none';
+  _lastHudGold = -1;
   openBattleSetup(battleSetupStageId);
 }
 
@@ -4131,11 +4567,22 @@ function exitBattle() {
   closeBattleScreen();
 }
 
+let _lastHudGold = -1;
 function updateBattleHUD() {
   if (!bs) return;
   document.getElementById('hud-lives').textContent = bs.lives;
   document.getElementById('hud-wave').textContent  = bs.wave;
   document.getElementById('hud-gold').textContent  = bs.gold;
+  // Only refresh shop/upgrade panel when gold actually changes
+  if (bs.gold !== _lastHudGold) {
+    _lastHudGold = bs.gold;
+    renderShop();
+    const upgradePanel = document.getElementById('upgrade-panel');
+    if (upgradePanel && upgradePanel.style.display !== 'none' && selectedTowerId) {
+      const tower = bs.towers.find(t => t.id === selectedTowerId);
+      if (tower) renderUpgradePanel(tower);
+    }
+  }
 }
 
 // ── COLOR HELPER ──
@@ -4150,6 +4597,698 @@ function adjustColor(hex, amount) {
 // ═══════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// WORLD PVP MAP
+// ═══════════════════════════════════════════════
+const PVP_GRID      = 100;   // 100×100 total tiles
+const PVP_VISIBLE   = 11;    // 11×11 tiles visible at once (fixed camera)
+const PVP_PAGE_SIZE = 11;    // tiles per page when navigating
+
+// State
+let pvpTiles        = {};
+let pvpMyUserId     = null;
+let pvpLoaded       = false;
+let pvpRefreshTimer = null;
+let pvpHoveredTile  = null;
+let pvpSelectedTile = null;
+let pvpPendingTile  = null;
+let pvpAttackCooldownUntil = 0;
+let pvpAnimating    = {};
+let pvpAnimRaf      = null;
+let pvpViewX        = 44;    // top-left tile X of current view (start near center)
+let pvpViewY        = 44;    // top-left tile Y of current view
+
+// Palette for other players — bright distinct colors, never green
+const PVP_PLAYER_PALETTE = [
+  '#f0c040','#f55a5a','#a060e0','#4a8fff','#f07030',
+  '#e050a0','#30c0d0','#c0802a','#d0e040','#c03060',
+  '#6070e0','#e06840','#b030b0','#30d0a0','#e0b830',
+];
+
+function pvpUserColor(userId) {
+  if (!userId) return '#2a2e42';
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) { hash = ((hash<<5)-hash)+userId.charCodeAt(i); hash|=0; }
+  return PVP_PLAYER_PALETTE[Math.abs(hash) % PVP_PLAYER_PALETTE.length];
+}
+
+function pvpDarkenColor(hex, amt=0.3) {
+  const c=parseInt((hex.length===7?hex:'#888888').slice(1),16);
+  const r=Math.round(((c>>16)&255)*amt), g=Math.round(((c>>8)&255)*amt), b=Math.round((c&255)*amt);
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+function lerpColor(a,b,t) {
+  const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const ca=p(a.length===7?a:'#222233'), cb=p(b.length===7?b:'#222233');
+  return '#'+[0,1,2].map(i=>Math.round(ca[i]+(cb[i]-ca[i])*t).toString(16).padStart(2,'0')).join('');
+}
+
+function pvpAnimateTile(idx, fromColor, toColor, duration=1200) {
+  pvpAnimating[idx]={fromColor,toColor,startTime:performance.now(),duration};
+  if(!pvpAnimRaf){
+    function loop(){
+      const now=performance.now(); let any=false;
+      Object.keys(pvpAnimating).forEach(i=>{
+        const a=pvpAnimating[i], t=Math.min(1,(now-a.startTime)/a.duration);
+        if(t>=1){ if(pvpTiles[i]) pvpTiles[i].animColor=null; delete pvpAnimating[i]; }
+        else { if(pvpTiles[i]) pvpTiles[i].animColor=lerpColor(a.fromColor,a.toColor,t); any=true; }
+      });
+      pvpDraw();
+      pvpAnimRaf=any?requestAnimationFrame(loop):null;
+    }
+    pvpAnimRaf=requestAnimationFrame(loop);
+  }
+}
+
+function pvpTileIdx(tx,ty){ return ty*PVP_GRID+tx; }
+
+function pvpTileDifficulty(tx,ty){
+  return 1; // All world map territories are stage 1-1
+}
+
+// Static version of pvpTileIdx usable at definition time
+function pvpTileIdxStatic(tx,ty){ return ty*100+tx; }
+
+// ── Load & Refresh ──
+async function pvpLoad() {
+  if(!currentUser) return;
+  pvpMyUserId=currentUser.id;
+  pvpViewX=44; pvpViewY=44; pvpPixelOffsetX=0; pvpPixelOffsetY=0;
+  await pvpRefresh(true);
+}
+
+async function pvpRefresh(init=false) {
+  if(!currentUser) return;
+  const btn=document.getElementById('pvp-refresh-btn');
+  if(btn){btn.disabled=true;btn.textContent='⟳ Loading…';}
+  try {
+    const{data,error}=await sb.from('pvp_world').select('tile_idx,owner_id,attacking_until').limit(10000);
+    if(!error&&data){
+      data.forEach(row=>{
+        const newOwner=row.owner_id;
+        const newColor=newOwner===pvpMyUserId?'#3ecf8e':pvpUserColor(newOwner);
+        const existing=pvpTiles[row.tile_idx];
+        if(existing&&existing.owner!==newOwner){
+          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null};
+          pvpAnimateTile(row.tile_idx,existing.color||'#1a1d2e',newColor,1200);
+        } else {
+          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null};
+        }
+      });
+    }
+  } catch(e){console.warn('pvpRefresh failed:',e.message);}
+  pvpLoaded=true;
+  if(btn){btn.disabled=false;btn.textContent='⟳ Refresh';}
+  pvpUpdateStats();
+  if(init) pvpInitCanvas();
+  else pvpDraw();
+  clearTimeout(pvpRefreshTimer);
+  pvpRefreshTimer=setTimeout(()=>{
+    const s=document.getElementById('section-pvp');
+    if(s&&s.style.display!=='none') pvpRefresh();
+  },30000);
+}
+
+function pvpUpdateStats(){
+  const el=document.getElementById('pvp-stats');
+  if(!el) return;
+  const mine=Object.values(pvpTiles).filter(t=>t.owner===pvpMyUserId).length;
+  const total=Object.keys(pvpTiles).length;
+  el.textContent=`Your territory: ${mine} · Total claimed: ${total}/10,000`;
+}
+
+// ── Canvas init ──
+function pvpTileSize() {
+  const area = document.getElementById('pvp-canvas-area');
+  const w = area ? area.clientWidth  : 700;
+  const h = area ? area.clientHeight : 600;
+  // Fill the full area, show as many tiles as possible at a reasonable size
+  return Math.floor(Math.min(w / 15, h / 12, 56)); // max ~56px per tile
+}
+
+function pvpVisibleCols() {
+  const area = document.getElementById('pvp-canvas-area');
+  const w = area ? area.clientWidth : 700;
+  return Math.min(PVP_GRID, Math.floor(w / pvpTileSize()));
+}
+
+function pvpVisibleRows() {
+  const area = document.getElementById('pvp-canvas-area');
+  const h = area ? area.clientHeight : 600;
+  return Math.min(PVP_GRID, Math.floor(h / pvpTileSize()));
+}
+
+let pvpDragStartX=0, pvpDragStartY=0, pvpDragging=false, pvpDragMoved=false;
+let pvpPixelOffsetX=0, pvpPixelOffsetY=0; // sub-tile pixel offset for smooth drag
+
+function pvpInitCanvas() {
+  const wrap  = document.getElementById('pvp-canvas-wrap');
+  const canvas= document.getElementById('pvp-canvas');
+  const area  = document.getElementById('pvp-canvas-area');
+  if(!wrap||!canvas||!area) return;
+
+  const ts   = pvpTileSize();
+  const cols = pvpVisibleCols();
+  const rows = pvpVisibleRows();
+
+  canvas.width  = cols * ts;
+  canvas.height = rows * ts;
+  wrap.style.width  = canvas.width  + 'px';
+  wrap.style.height = canvas.height + 'px';
+  wrap.style.cursor = 'grab';
+
+  function tileAt(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const ts2  = canvas.width / cols;
+    return {
+      tx: pvpViewX + Math.floor((clientX - rect.left)  / ts2),
+      ty: pvpViewY + Math.floor((clientY - rect.top)   / ts2),
+    };
+  }
+
+  // ── Smooth pixel-level drag ──
+  // pvpOffsetX/Y track sub-tile pixel offset so tiles can be partially visible
+  canvas.onmousedown = (e) => {
+    // Don't start drag if clicking on tooltip
+    if (e.target !== canvas) return;
+    pvpDragging  = true;
+    pvpDragMoved = false;
+    pvpDragStartX = e.clientX;
+    pvpDragStartY = e.clientY;
+    wrap.style.cursor = 'grabbing';
+    e.preventDefault();
+  };
+  canvas.onmousemove = (e) => {
+    if (pvpDragging) {
+      const dx = e.clientX - pvpDragStartX;
+      const dy = e.clientY - pvpDragStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pvpDragMoved = true;
+      const ts2 = pvpTileSize();
+      // Accumulate pixel offset
+      pvpPixelOffsetX += dx;
+      pvpPixelOffsetY += dy;
+      pvpDragStartX = e.clientX;
+      pvpDragStartY = e.clientY;
+      // When offset exceeds a tile, shift the view
+      while (pvpPixelOffsetX >= ts2) { if(pvpViewX>0){pvpViewX--;} pvpPixelOffsetX-=ts2; }
+      while (pvpPixelOffsetX <= -ts2){ if(pvpViewX<PVP_GRID-cols){pvpViewX++;} pvpPixelOffsetX+=ts2; }
+      while (pvpPixelOffsetY >= ts2) { if(pvpViewY>0){pvpViewY--;} pvpPixelOffsetY-=ts2; }
+      while (pvpPixelOffsetY <= -ts2){ if(pvpViewY<PVP_GRID-rows){pvpViewY++;} pvpPixelOffsetY+=ts2; }
+      // Clamp at edges
+      if(pvpViewX<=0&&pvpPixelOffsetX>0) pvpPixelOffsetX=0;
+      if(pvpViewY<=0&&pvpPixelOffsetY>0) pvpPixelOffsetY=0;
+      if(pvpViewX>=PVP_GRID-cols&&pvpPixelOffsetX<0) pvpPixelOffsetX=0;
+      if(pvpViewY>=PVP_GRID-rows&&pvpPixelOffsetY<0) pvpPixelOffsetY=0;
+      pvpDraw();
+    } else {
+      // Hover — account for pixel offset when determining tile
+      const rect = canvas.getBoundingClientRect();
+      const ts2  = pvpTileSize();
+      const mx   = e.clientX - rect.left - pvpPixelOffsetX;
+      const my   = e.clientY - rect.top  - pvpPixelOffsetY;
+      const htx  = pvpViewX + Math.floor(mx / ts2);
+      const hty  = pvpViewY + Math.floor(my / ts2);
+      pvpHoveredTile = (htx>=0&&htx<PVP_GRID&&hty>=0&&hty<PVP_GRID) ? {tx:htx,ty:hty} : null;
+      pvpDraw();
+    }
+  };
+  canvas.onmouseup = (e) => {
+    wrap.style.cursor = 'grab';
+    if (!pvpDragMoved && e.target === canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const ts2  = pvpTileSize();
+      const mx   = e.clientX - rect.left - pvpPixelOffsetX;
+      const my   = e.clientY - rect.top  - pvpPixelOffsetY;
+      const tx   = pvpViewX + Math.floor(mx / ts2);
+      const ty   = pvpViewY + Math.floor(my / ts2);
+      if (tx>=0&&tx<PVP_GRID&&ty>=0&&ty<PVP_GRID) pvpClickTile(tx,ty,e);
+    }
+    pvpDragging = false;
+  };
+  canvas.onmouseleave = () => {
+    pvpDragging = false;
+    wrap.style.cursor = 'grab';
+    pvpHoveredTile = null;
+    pvpDraw();
+  };
+
+  // ── Touch drag (same smooth logic) ──
+  let touchStartX=0, touchStartY=0, touchMoved=false;
+  canvas.ontouchstart = (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchMoved  = false;
+    e.preventDefault();
+  };
+  canvas.ontouchmove = (e) => {
+    const dx = e.touches[0].clientX - touchStartX;
+    const dy = e.touches[0].clientY - touchStartY;
+    if(Math.abs(dx)>3||Math.abs(dy)>3) touchMoved=true;
+    const ts2=pvpTileSize();
+    pvpPixelOffsetX+=dx; pvpPixelOffsetY+=dy;
+    touchStartX=e.touches[0].clientX; touchStartY=e.touches[0].clientY;
+    while(pvpPixelOffsetX>=ts2){if(pvpViewX>0){pvpViewX--;}pvpPixelOffsetX-=ts2;}
+    while(pvpPixelOffsetX<=-ts2){if(pvpViewX<PVP_GRID-pvpVisibleCols()){pvpViewX++;}pvpPixelOffsetX+=ts2;}
+    while(pvpPixelOffsetY>=ts2){if(pvpViewY>0){pvpViewY--;}pvpPixelOffsetY-=ts2;}
+    while(pvpPixelOffsetY<=-ts2){if(pvpViewY<PVP_GRID-pvpVisibleRows()){pvpViewY++;}pvpPixelOffsetY+=ts2;}
+    if(pvpViewX<=0&&pvpPixelOffsetX>0) pvpPixelOffsetX=0;
+    if(pvpViewY<=0&&pvpPixelOffsetY>0) pvpPixelOffsetY=0;
+    pvpDraw();
+    e.preventDefault();
+  };
+  canvas.ontouchend = (e) => {
+    if (!touchMoved) {
+      const t=e.changedTouches[0];
+      const rect=canvas.getBoundingClientRect();
+      const ts2=pvpTileSize();
+      const mx=t.clientX-rect.left-pvpPixelOffsetX;
+      const my=t.clientY-rect.top-pvpPixelOffsetY;
+      const tx=pvpViewX+Math.floor(mx/ts2);
+      const ty=pvpViewY+Math.floor(my/ts2);
+      if(tx>=0&&tx<PVP_GRID&&ty>=0&&ty<PVP_GRID) pvpClickTile(tx,ty,t);
+    }
+  };
+  canvas.style.touchAction='none';
+
+  pvpBuildNav();
+  pvpDraw();
+}
+
+// ── Navigation arrows ──
+function pvpBuildNav() {
+  const area=document.getElementById('pvp-canvas-area');
+  if(!area||area.querySelector('.pvp-nav-up')) return;
+  const dirs=[
+    {cls:'pvp-nav-up',   label:'▲', style:'top:4px;left:50%;transform:translateX(-50%)',  action:()=>pvpPan(0,-PVP_PAGE_SIZE)},
+    {cls:'pvp-nav-down', label:'▼', style:'bottom:4px;left:50%;transform:translateX(-50%)',action:()=>pvpPan(0,PVP_PAGE_SIZE)},
+    {cls:'pvp-nav-left', label:'◀', style:'left:4px;top:50%;transform:translateY(-50%)',   action:()=>pvpPan(-PVP_PAGE_SIZE,0)},
+    {cls:'pvp-nav-right',label:'▶', style:'right:4px;top:50%;transform:translateY(-50%)', action:()=>pvpPan(PVP_PAGE_SIZE,0)},
+  ];
+  dirs.forEach(d=>{
+    const b=document.createElement('button');
+    b.className='pvp-nav-btn '+d.cls;
+    b.textContent=d.label;
+    b.style.cssText='position:absolute;'+d.style+';background:rgba(13,15,24,0.85);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#8890b0;font-size:14px;padding:6px 10px;cursor:pointer;z-index:5;font-family:Inter,sans-serif;';
+    b.onclick=d.action;
+    area.appendChild(b);
+  });
+}
+
+function pvpPan(dx,dy){
+  const cols=pvpVisibleCols(), rows=pvpVisibleRows();
+  pvpViewX=Math.max(0,Math.min(PVP_GRID-cols,pvpViewX+dx));
+  pvpViewY=Math.max(0,Math.min(PVP_GRID-rows,pvpViewY+dy));
+  pvpPixelOffsetX=0; pvpPixelOffsetY=0; // snap on arrow press
+  pvpHideTooltip();
+  pvpDraw();
+}
+
+// ── Draw ──
+function pvpDraw() {
+  const canvas=document.getElementById('pvp-canvas');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const cols=pvpVisibleCols(), rows=pvpVisibleRows();
+  const ts=canvas.width/cols;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#0a0c14';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  const now=Date.now();
+
+  // Draw with pixel offset — render one extra tile on each edge for smooth scroll
+  ctx.save();
+  ctx.rect(0, 0, canvas.width, canvas.height);
+  ctx.clip();
+
+  for(let row=-1;row<=rows;row++){
+    for(let col=-1;col<=cols;col++){
+      const tx=pvpViewX+col, ty=pvpViewY+row;
+      if(tx<0||tx>=PVP_GRID||ty<0||ty>=PVP_GRID) continue;
+
+      const px=col*ts+pvpPixelOffsetX, py=row*ts+pvpPixelOffsetY;
+      // Skip tiles fully outside canvas
+      if(px+ts<0||px>canvas.width||py+ts<0||py>canvas.height) continue;
+      const idx=pvpTileIdx(tx,ty);
+      const tile=pvpTiles[idx];
+      const isMine=tile?.owner===pvpMyUserId;
+      const isOwned=tile?.owner!=null;
+      const isHovered=pvpHoveredTile?.tx===tx&&pvpHoveredTile?.ty===ty;
+      const isSelected=pvpSelectedTile?.tx===tx&&pvpSelectedTile?.ty===ty;
+      const isUnderAttack=tile?.attackingUntil&&tile.attackingUntil>now;
+
+      // Tile color
+      let tileColor;
+      if(tile?.animColor) tileColor=tile.animColor;
+      else if(isMine) tileColor='#3ecf8e';
+      else if(isOwned) tileColor=tile.color||pvpUserColor(tile.owner);
+      else tileColor=null; // unclaimed
+
+      // Background fill
+      if(tileColor){
+        ctx.fillStyle=pvpDarkenColor(tileColor,0.22);
+      } else {
+        ctx.fillStyle=isHovered?'#1e2235':'#13151f';
+      }
+      ctx.fillRect(px,py,ts,ts);
+
+      // Colored territory fill (semi-transparent overlay)
+      if(tileColor){
+        ctx.fillStyle=tileColor+(isHovered?'55':'33');
+        ctx.fillRect(px,py,ts,ts);
+      }
+
+      // Under-attack orange border
+      if(isUnderAttack){
+        ctx.strokeStyle='rgba(240,160,40,0.8)';
+        ctx.lineWidth=2;
+        ctx.strokeRect(px+1,py+1,ts-2,ts-2);
+      }
+
+      // Hover highlight
+      if(isHovered&&!isUnderAttack){
+        ctx.fillStyle='rgba(255,255,255,0.06)';
+        ctx.fillRect(px,py,ts,ts);
+      }
+
+      // Selection ring
+      if(isSelected){
+        ctx.strokeStyle='rgba(240,192,64,0.9)';
+        ctx.lineWidth=2;
+        ctx.strokeRect(px+2,py+2,ts-4,ts-4);
+      }
+
+      const diff=pvpTileDifficulty(tx,ty);
+      const cx2=px+ts/2, cy2=py+ts/2;
+
+      if(isOwned && ts>=18){
+        // Player owned: donut ring in owner color
+        const outerR=ts*0.28, innerR=ts*0.15;
+        const ringColor=tile?.animColor||(tileColor||'#3ecf8e');
+        ctx.beginPath();
+        ctx.arc(cx2,cy2,outerR,0,Math.PI*2,false);
+        ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
+        ctx.fillStyle=ringColor;
+        ctx.fill();
+        if(ts>=28){
+          ctx.fillStyle='rgba(255,255,255,0.85)';
+          ctx.font=`bold ${Math.max(8,Math.round(ts*0.16))}px Inter`;
+          ctx.textAlign='center';
+          ctx.textBaseline='top';
+          ctx.fillText('1-1',cx2,cy2+outerR+2);
+        }
+      } else if(!isOwned && ts>=18){
+        // Unclaimed PVP tile — show stage number muted
+        ctx.fillStyle='rgba(255,255,255,0.22)';
+        ctx.font=`${Math.max(8,Math.round(ts*0.18))}px Inter`;
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText('1-1',cx2,cy2);
+      }
+
+      // Under-attack icon
+      if(isUnderAttack&&ts>=20){
+        ctx.fillStyle='rgba(240,160,40,0.9)';
+        ctx.font=`${Math.round(ts*0.35)}px serif`;
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText('⚔',px+ts/2,py+ts/2);
+      }
+    }
+  }
+
+  ctx.restore(); // end clip
+
+  // Grid lines — thin white with pixel offset
+  ctx.strokeStyle='rgba(255,255,255,0.10)';
+  ctx.lineWidth=0.5;
+  for(let i=-1;i<=cols+1;i++){
+    const pos=i*ts+pvpPixelOffsetX;
+    if(pos<0||pos>canvas.width) continue;
+    ctx.beginPath(); ctx.moveTo(pos,0); ctx.lineTo(pos,canvas.height); ctx.stroke();
+  }
+  for(let i=-1;i<=rows+1;i++){
+    const pos=i*ts+pvpPixelOffsetY;
+    if(pos<0||pos>canvas.height) continue;
+    ctx.beginPath(); ctx.moveTo(0,pos); ctx.lineTo(canvas.width,pos); ctx.stroke();
+  }
+
+  // Mini-map position indicator (top-right corner)
+  const mmSize=60, mmPad=8;
+  const mmX=canvas.width-mmSize-mmPad, mmY=mmPad;
+  ctx.fillStyle='rgba(10,12,20,0.85)';
+  ctx.fillRect(mmX,mmY,mmSize,mmSize);
+  ctx.strokeStyle='rgba(255,255,255,0.15)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(mmX,mmY,mmSize,mmSize);
+  // viewport rect on minimap
+  const mmTile=mmSize/PVP_GRID;
+  const mmCols=pvpVisibleCols(), mmRows=pvpVisibleRows();
+  ctx.fillStyle='rgba(240,192,64,0.25)';
+  ctx.fillRect(mmX+pvpViewX*mmTile, mmY+pvpViewY*mmTile, mmCols*mmTile, mmRows*mmTile);
+  ctx.strokeStyle='rgba(240,192,64,0.7)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(mmX+pvpViewX*mmTile, mmY+pvpViewY*mmTile, mmCols*mmTile, mmRows*mmTile);
+  // claimed tiles on minimap
+  Object.entries(pvpTiles).forEach(([idxStr,t])=>{
+    if(!t.owner) return;
+    const ti=parseInt(idxStr), ttx=ti%PVP_GRID, tty=Math.floor(ti/PVP_GRID);
+    ctx.fillStyle=t.owner===pvpMyUserId?'#3ecf8e':(t.color||'#888');
+    ctx.fillRect(mmX+ttx*mmTile, mmY+tty*mmTile, Math.max(1,mmTile), Math.max(1,mmTile));
+  });
+
+  // Coord display
+  ctx.fillStyle='rgba(10,12,20,0.75)';
+  ctx.fillRect(mmPad,mmPad,80,18);
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.font='9px Inter';
+  ctx.textAlign='left';
+  ctx.textBaseline='top';
+  const hx=pvpHoveredTile?.tx??'-', hy=pvpHoveredTile?.ty??'-';
+  ctx.fillText(`(${hx}, ${hy}) · View: ${pvpViewX},${pvpViewY}`,mmPad+4,mmPad+4);
+}
+
+// ── Tile interaction ──
+function pvpClickTile(tx,ty,e) {
+  const idx=pvpTileIdx(tx,ty);
+  const tile=pvpTiles[idx];
+  const isMine=tile?.owner===pvpMyUserId;
+  const isOwned=tile?.owner!=null;
+  const diff=pvpTileDifficulty(tx,ty);
+  const now=Date.now();
+  const isUnderAttack=tile?.attackingUntil&&tile.attackingUntil>now;
+  const onCooldown=pvpAttackCooldownUntil>now;
+  const cooldownSecs=onCooldown?Math.ceil((pvpAttackCooldownUntil-now)/1000):0;
+  pvpSelectedTile={tx,ty,idx};
+
+  const tooltip=document.getElementById('pvp-tooltip');
+  const title=document.getElementById('pvp-tt-title');
+  const sub=document.getElementById('pvp-tt-sub');
+  const btn=document.getElementById('pvp-tt-btn');
+
+  title.textContent=`Tile (${tx}, ${ty}) · Stage 1-1`;
+  if(isUnderAttack){
+    const s=Math.ceil((tile.attackingUntil-now)/1000);
+    sub.innerHTML=`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
+  } else if(isMine){
+    sub.innerHTML=`<span style="color:#3ecf8e">✓ Your territory</span>`;
+  } else if(isOwned){
+    sub.innerHTML=`<span style="color:#f55a5a">Enemy territory</span> · Diff ${diff}`;
+  } else {
+    sub.innerHTML=`Unclaimed · Difficulty ${diff}`;
+  }
+  btn.textContent=isMine?'✓ Yours':isUnderAttack?'🔒 Under Attack':onCooldown?`⏳ ${cooldownSecs}s cooldown`:'⚔️ Attack (Stage 1-1)';
+  btn.disabled=isMine||isUnderAttack||onCooldown;
+  btn.onclick=(isMine||isUnderAttack||onCooldown)?null:pvpAttackTile;
+
+  // Position tooltip near the clicked tile
+  const canvas=document.getElementById('pvp-canvas');
+  const wrap=document.getElementById('pvp-canvas-wrap');
+  const area=document.getElementById('pvp-canvas-area');
+  const cols=pvpVisibleCols();
+  const ts2=canvas.width/cols;
+  const col=tx-pvpViewX, row=ty-pvpViewY;
+  const wrapRect=wrap.getBoundingClientRect();
+  const areaRect=area.getBoundingClientRect();
+  let ttx=(wrapRect.left-areaRect.left)+(col+1)*ts2+6;
+  let tty=(wrapRect.top-areaRect.top)+row*ts2;
+  if(ttx+175>areaRect.width) ttx=(wrapRect.left-areaRect.left)+col*ts2-180;
+  if(tty+100>areaRect.height) tty=areaRect.height-105;
+  tooltip.style.display='block';
+  tooltip.style.left=ttx+'px';
+  tooltip.style.top=tty+'px';
+  pvpDraw();
+}
+
+function pvpHideTooltip(){
+  const t=document.getElementById('pvp-tooltip');
+  if(t) t.style.display='none';
+  pvpSelectedTile=null;
+  pvpDraw();
+}
+
+async function pvpAttackTile(){
+  if(!pvpSelectedTile) return;
+  const{tx,ty,idx}=pvpSelectedTile;
+  const diff=pvpTileDifficulty(tx,ty);
+  pvpHideTooltip();
+  try{
+    const attackingUntil=new Date(Date.now()+10*60*1000).toISOString();
+    await sb.from('pvp_world').upsert({tile_idx:idx,owner_id:pvpTiles[idx]?.owner||null,attacking_until:attackingUntil});
+    if(!pvpTiles[idx]) pvpTiles[idx]={owner:null,color:null};
+    pvpTiles[idx].attackingUntil=Date.now()+10*60*1000;
+  }catch(e){console.warn('attack lock failed:',e.message);}
+  pvpPendingTile={tx,ty,idx};
+  openBattleSetup(`pvp-${diff}`,true);
+}
+
+async function pvpBattleEnded(tile,won){
+  if(!tile||!currentUser) return;
+  try{
+    const cooldownUntil=new Date(Date.now()+10*1000).toISOString();
+    if(won){
+      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:currentUser.id,attacking_until:cooldownUntil,claimed_at:new Date().toISOString()});
+      const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
+      pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',attackingUntil:Date.now()+10000};
+      pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
+      showToast(`🟢 Tile (${tile.tx},${tile.ty}) conquered!`);
+      pvpUpdateStats();
+    } else {
+      const prevOwner=pvpTiles[tile.idx]?.owner||null;
+      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:prevOwner,attacking_until:cooldownUntil});
+      if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+10000;
+      showToast('💀 Attack failed!');
+    }
+    pvpAttackCooldownUntil=Date.now()+60*1000;
+    pvpDraw();
+    setTimeout(()=>pvpRefresh(),11000);
+  }catch(e){console.warn('pvpBattleEnded failed:',e.message);}
+}
+
+
+// ═══════════════════════════════════════════════
+// SILO SYSTEM
+// ═══════════════════════════════════════════════
+function buildSiloPanel(){
+  const panel = document.getElementById('silo-panel');
+  if(!panel) return;
+  panel.innerHTML = '';
+
+  RESOURCE_DEFS.forEach(r=>{
+    const lane = document.createElement('div');
+    lane.className = 'silo-lane';
+    const totalCap = totalCapacity(r.id);
+    lane.innerHTML = `
+      <div class="silo-lane-header">
+        <span class="silo-lane-icon">${r.icon}</span>
+        <span class="silo-lane-name">${r.name} Storage</span>
+        <span class="silo-capacity">Total: ${fmtCompact(totalCap)}</span>
+      </div>
+      <div class="silo-slots-row" id="silo-row-${r.id}"></div>`;
+    panel.appendChild(lane);
+
+    const row = document.getElementById('silo-row-'+r.id);
+    SILO_TIERS.forEach((tier, ti)=>{
+      const s = siloState[r.id][ti];
+      const unlockReqLevel = LEVEL_UNLOCK[ti] || 0;
+      const canUnlock = playerLevel >= unlockReqLevel;
+      const slot = document.createElement('div');
+      slot.className = 'silo-slot' + (s.unlocked ? '' : ' locked');
+      const thisCap = Math.round(tier.cap * (1 + (s.level-1)*0.6));
+      const upgCost = Math.round(tier.upgCostBase * Math.pow(1.6, s.level-1));
+      if(s.unlocked){
+        slot.innerHTML = `
+          <div class="silo-slot-lvl">Lv${s.level} · +${fmtCompact(thisCap)}</div>
+          <div class="silo-slot-cap">${r.icon} ${r.name}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Upgrade: ${fmtCompact(upgCost)} ${r.icon}</div>`;
+        slot.onclick = () => openSiloModal(r.id, ti);
+      } else {
+        const prevTierDone = ti===0 || siloState[r.id][ti-1].unlocked;
+        slot.innerHTML = `
+          <div class="silo-slot-cap">${r.icon} Tier ${ti+1}</div>
+          <div class="silo-slot-lock">${!prevTierDone ? '🔒 Prev tier first' : !canUnlock ? `Need Lv ${unlockReqLevel}` : `${fmtCompact(tier.unlockCost)} ${r.icon} to unlock`}</div>`;
+        if(prevTierDone && canUnlock) slot.onclick = () => openSiloModal(r.id, ti);
+      }
+      row.appendChild(slot);
+    });
+  });
+}
+
+function openSiloModal(resId, tierIdx){
+  const r = RESOURCE_DEFS.find(x=>x.id===resId);
+  const s = siloState[resId][tierIdx];
+  const tier = SILO_TIERS[tierIdx];
+  const thisCap = Math.round(tier.cap * (1 + (s.level-1)*0.6));
+  const nextCap = Math.round(tier.cap * (1 + s.level*0.6));
+  const upgCost = Math.round(tier.upgCostBase * Math.pow(1.6, s.level-1));
+  const canAffordUpg = (resources[resId]||0) >= upgCost;
+
+  const modal = document.getElementById('item-modal-content');
+  if(!modal) return;
+
+  if(!s.unlocked){
+    const canAffordUnlock = (resources[resId]||0) >= tier.unlockCost;
+    modal.innerHTML = `
+      <div class="bmodal-header">
+        <div><span class="bmodal-icon">${r.icon}</span>
+          <div class="bmodal-title">${r.name} Silo Tier ${tierIdx+1}</div>
+          <div class="bmodal-sub">Unlock to add +${fmtCompact(tier.cap)} base capacity</div>
+        </div>
+        <button class="bmodal-close" onclick="closeItemModal()">✕</button>
+      </div>
+      <div class="info-row"><span class="info-row-label">Unlock cost</span><span style="color:${canAffordUnlock?'var(--green)':'var(--red)'};">${fmtCompact(tier.unlockCost)} ${r.icon} ${r.name}</span></div>
+      <div class="info-row"><span class="info-row-label">You have</span><span>${fmtCompact(resources[resId]||0)} ${r.icon}</span></div>
+      <div class="bmodal-btns">
+        <button class="bmodal-btn upgrade" ${!canAffordUnlock?'disabled':''} onclick="unlockSilo('${resId}',${tierIdx})">🔓 Unlock Silo</button>
+      </div>`;
+  } else {
+    modal.innerHTML = `
+      <div class="bmodal-header">
+        <div><span class="bmodal-icon">${r.icon}</span>
+          <div class="bmodal-title">${r.name} Silo Lv${s.level}</div>
+          <div class="bmodal-sub">Storage slot for ${r.name}</div>
+        </div>
+        <button class="bmodal-close" onclick="closeItemModal()">✕</button>
+      </div>
+      <div class="upg-preview" style="margin:0.75rem 0;">
+        <span class="upg-now">+${fmtCompact(thisCap)} · ${fmtCompact(totalCapacity(resId))} total</span>
+        <span class="upg-arrow">→</span>
+        <span class="upg-next">+${fmtCompact(nextCap)} · ${fmtCompact(totalCapacity(resId) - thisCap + nextCap)} total</span>
+      </div>
+      <div class="info-row"><span class="info-row-label">Upgrade cost</span><span style="color:${canAffordUpg?'var(--green)':'var(--red)'};">${fmtCompact(upgCost)} ${r.icon} ${r.name}</span></div>
+      <div class="bmodal-btns">
+        <button class="bmodal-btn upgrade" ${!canAffordUpg?'disabled':''} onclick="upgradeSilo('${resId}',${tierIdx})">⬆️ Upgrade Silo</button>
+      </div>`;
+  }
+  document.getElementById('item-modal').classList.add('open');
+}
+
+async function unlockSilo(resId, tierIdx){
+  const r = RESOURCE_DEFS.find(x=>x.id===resId);
+  try {
+    await serverRpc('idw_unlock_silo', {p_res_id: resId, p_tier_idx: tierIdx});
+    await refreshFromServer();
+    closeItemModal();
+    buildSiloPanel();
+    showToast(`${r.icon} ${r.name} Silo Tier ${tierIdx+1} unlocked!`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function upgradeSilo(resId, tierIdx){
+  const r = RESOURCE_DEFS.find(x=>x.id===resId);
+  try {
+    await serverRpc('idw_upgrade_silo', {p_res_id: resId, p_tier_idx: tierIdx});
+    await refreshFromServer();
+    const s = siloState[resId][tierIdx];
+    closeItemModal();
+    buildSiloPanel();
+    showToast(`${r.icon} ${r.name} Silo upgraded to Lv${s.level}!`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
 function switchSection(name){
   ['base','campaign','pvp'].forEach(s=>{
     const el=document.getElementById('section-'+s);
@@ -4157,7 +5296,28 @@ function switchSection(name){
     const btn=document.getElementById('nav-'+s);
     if(btn) btn.classList.toggle('active',s===name);
   });
+  // Init PVP map when switching to it
+  if(name === 'pvp' && !pvpLoaded) pvpLoad();
+  else if(name === 'pvp') {
+    pvpInitCanvas();
+    pvpRefresh(); // always refresh when opening map
+  }
+  // Stop auto-refresh and hide tooltip when leaving
+  if(name !== 'pvp') {
+    pvpHideTooltip();
+    clearTimeout(pvpRefreshTimer);
+  }
 }
+function switchResTab(name){
+  ['production','silo'].forEach(t=>{
+    const p=document.getElementById('res-subpanel-'+t);
+    const b=document.getElementById('restab-'+t);
+    if(p) p.classList.toggle('active',t===name);
+    if(b) b.classList.toggle('active',t===name);
+  });
+  if(name==='silo') buildSiloPanel();
+}
+
 function switchBaseTab(name){
   ['resources','research','inventory','crafting','settings'].forEach(t=>{
     const p=document.getElementById('base-panel-'+t);
@@ -4166,6 +5326,15 @@ function switchBaseTab(name){
   document.querySelectorAll('#base-tabs .ctab').forEach((btn,i)=>{
     btn.classList.toggle('active',['resources','research','inventory','crafting','settings'][i]===name);
   });
+  if(name !== 'resources'){
+    const slot = document.getElementById('offline-banner-slot');
+    if(slot) slot.innerHTML = '';
+  } else {
+    // Refresh from server when switching to Resources tab
+    // so stored amounts always match what will be collected
+    if(currentUser) refreshFromServer().catch(()=>{});
+    if(pendingOfflineBanner) showOfflineBanner(pendingOfflineBanner.ts, pendingOfflineBanner.lines);
+  }
 }
 
 // ═══════════════════════════════════════════════
