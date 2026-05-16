@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\index.html\" | Measure-Object -Line\\).Lines)"
+    ]
+  }
+}

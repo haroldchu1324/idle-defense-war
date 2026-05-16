@@ -157,14 +157,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .silo-lane-icon{font-size:18px;}
 .silo-lane-name{font-size:14px;font-weight:700;color:#fff;flex:1;}
 .silo-capacity{font-size:11px;color:var(--text3);}
-.silo-slots-row{display:flex;gap:8px;flex-wrap:wrap;}
-.silo-slot{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:0.7rem 0.9rem;min-width:120px;cursor:pointer;transition:all 0.15s;}
-.silo-slot:hover{border-color:var(--gold);transform:translateY(-1px);}
-.silo-slot.locked{opacity:0.45;cursor:default;}
-.silo-slot.locked:hover{border-color:var(--border2);transform:none;}
-.silo-slot-cap{font-size:15px;font-weight:700;color:#fff;margin-bottom:2px;}
-.silo-slot-lvl{font-size:10px;color:var(--gold);margin-bottom:4px;}
-.silo-slot-lock{font-size:10px;color:var(--red);}
+.silo-slots-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;}
+.silo-slots-row .node-card{width:120px;min-height:100px;flex-shrink:0;}
 
 /* Pill cap exceeded */
 .res-pill-val.capped{color:var(--red)!important;}
@@ -182,8 +176,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .res-lane-rate{font-size:13px;color:var(--text3);margin-left:6px;}
 
 /* Node row */
-.res-nodes-row{display:flex;flex-wrap:nowrap;gap:0.55rem;align-items:flex-start;}
-.res-nodes-row{display:flex;gap:8px;flex-wrap:wrap;}
+.res-nodes-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;}
 .res-nodes-row .node-card{flex-shrink:0;width:120px!important;height:auto!important;min-height:100px;aspect-ratio:unset;max-width:unset;padding:0.7rem 0.9rem;cursor:pointer;}
 
 /* Square node card */
@@ -399,13 +392,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .camp-node-label{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.02em;text-align:center;}
 .camp-node{width:52px;height:52px;border-radius:50%;background:var(--bg3);border:3px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:all 0.15s;position:relative;user-select:none;}
 .camp-node:hover:not(.locked){transform:scale(1.1);}
-.camp-node.completed{background:var(--green3);border-color:var(--green2);}
+.camp-node.completed{background:var(--green3);border-color:var(--green2);cursor:pointer!important;}
 .camp-node.completed::after{content:'✓';position:absolute;font-size:20px;font-weight:700;color:var(--green);}
+.camp-node.completed:hover{transform:scale(1.1)!important;}
 .camp-node.selected{border-color:var(--gold);box-shadow:0 0 0 4px rgba(240,192,64,0.3),0 0 16px rgba(240,192,64,0.2);}
 .camp-node.locked{opacity:0.4;cursor:not-allowed;}
 .camp-node.locked:hover{transform:none;}
-.camp-node.completed{cursor:pointer!important;}
-.camp-node.completed:hover{transform:scale(1.1)!important;}
+.elite-mode-active .campaign-map-wrap{background:radial-gradient(ellipse at center top,rgba(120,15,15,0.35) 0%,transparent 70%);}
+.elite-mode-active .campaign-header{background:linear-gradient(135deg,rgba(80,10,10,0.5),rgba(40,5,5,0.3));border-bottom-color:rgba(200,40,40,0.25);}
+.elite-mode-active #section-campaign{background:linear-gradient(180deg,rgba(60,8,8,0.4) 0%,transparent 40%);}
 .camp-connector-h{flex:1;height:4px;min-width:16px;max-width:48px;background:repeating-linear-gradient(90deg,var(--border2) 0,var(--border2) 6px,transparent 6px,transparent 12px);}
 .camp-connector-h.done{background:repeating-linear-gradient(90deg,var(--green2) 0,var(--green2) 6px,transparent 6px,transparent 12px);}
 .camp-stage-info{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;width:100%;max-width:600px;}
@@ -529,8 +524,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-back-btn:hover{background:#1a1d28;color:#d4d8f0;}
 .setup-title{font-family:'Cinzel',serif;font-size:20px;color:#fff;font-weight:700;}
 .setup-sub{font-size:13px;color:#555e80;margin-left:auto;}
-.setup-body{flex:1;overflow-y:auto;padding:1.5rem;display:flex;gap:1.5rem;flex-wrap:wrap;}
-.setup-section{flex:1;min-width:280px;}
+.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 3rem;display:grid;grid-template-columns:1fr 220px 380px;gap:1.5rem;align-items:start;}
+.setup-section{min-width:0;}
+.setup-tower-slot.info-active .setup-tower-info-btn{background:rgba(62,207,142,0.3)!important;border-color:#3ecf8e!important;color:#3ecf8e!important;}
 .setup-section-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem;}
 .setup-slot-badge{font-size:12px;font-weight:600;padding:2px 10px;border-radius:20px;background:#20243a;color:#4a8fff;border:1px solid #2a5fcc;}
 .setup-armory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,110px));gap:0.75rem;}
@@ -548,10 +544,41 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-info-row:last-child{border-bottom:none;}
 .setup-info-label{color:#555e80;}
 .setup-info-val{color:#d4d8f0;font-weight:500;}
-.setup-footer{padding:1rem 1.5rem;background:#13151c;border-top:1px solid #2a2e42;display:flex;justify-content:flex-end;flex-shrink:0;}
+.setup-footer{display:none;}
 .setup-start-btn{background:linear-gradient(135deg,#c89a20,#f0c040);color:#1a1200;border:none;border-radius:10px;padding:13px 36px;font-size:16px;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;transition:filter 0.15s;}
 .setup-start-btn:hover:not(:disabled){filter:brightness(1.05);}
 .setup-start-btn:disabled{opacity:0.35;cursor:not-allowed;}
+
+/* ── Setup armory scroll ── */
+.setup-armory-scroll{overflow-y:auto;max-height:calc(100vh - 270px);padding-bottom:1.5rem;padding-right:4px;}
+
+/* ── Setup tower info button ── */
+.setup-tower-info-btn{position:absolute;bottom:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(74,143,255,0.2);border:1px solid #4a8fff;color:#4a8fff;font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;font-family:'Inter',sans-serif;line-height:1;transition:background 0.12s;padding:0;}
+.setup-tower-info-btn:hover{background:rgba(74,143,255,0.45);}
+
+/* ── Tower stats middle panel ── */
+.setup-stats-card{background:#1a1d28;border:1px solid #2a2e42;border-radius:12px;padding:1rem;}
+.setup-stats-icon{font-size:30px;text-align:center;margin-bottom:5px;}
+.setup-stats-name{font-size:13px;font-weight:700;color:#fff;margin-bottom:3px;}
+.setup-stats-type{font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;border:1px solid;display:inline-block;margin-bottom:0.7rem;}
+.setup-stat-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+.setup-stat-row:last-child{border-bottom:none;}
+.setup-stat-label{color:#555e80;}
+.setup-stat-val{color:#d4d8f0;font-weight:600;}
+.setup-stats-special{font-size:9px;color:#f0a040;margin-top:0.5rem;padding:6px 8px;background:rgba(240,160,64,0.08);border-radius:6px;line-height:1.5;border:1px solid rgba(240,160,64,0.2);}
+
+/* ── PVP loading overlay ── */
+.pvp-loading-overlay{position:absolute;inset:0;background:rgba(8,10,16,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;z-index:20;}
+.pvp-loading-spinner{font-size:40px;animation:pulseLoad 1.3s ease-in-out infinite;}
+.pvp-loading-text{font-size:13px;color:var(--text2);letter-spacing:0.03em;}
+
+/* ── PVP coordinate input ── */
+.pvp-coord-form{display:flex;align-items:center;gap:4px;margin-left:10px;}
+.pvp-coord-label{font-size:10px;color:#4a5070;font-weight:600;}
+.pvp-coord-input{background:#13151e;border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#d4d8f0;font-size:11px;padding:4px 6px;width:48px;font-family:'Inter',sans-serif;outline:none;text-align:center;}
+.pvp-coord-input:focus{border-color:var(--gold);color:#fff;}
+.pvp-coord-go{background:rgba(240,192,64,0.15);border:1px solid rgba(240,192,64,0.35);border-radius:5px;color:#f0c040;font-size:10px;font-weight:700;padding:4px 9px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.12s;white-space:nowrap;}
+.pvp-coord-go:hover{background:rgba(240,192,64,0.3);}
 
 /* Battle HUD */
 .battle-hud-top{position:absolute;top:0;left:0;right:0;height:52px;z-index:10;background:rgba(13,15,20,0.92);border-bottom:1px solid #2a2e42;display:flex;align-items:center;padding:0 10px;gap:8px;backdrop-filter:blur(8px);}
@@ -870,8 +897,22 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       </div>
       <div id="section-campaign" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div class="campaign-header">
-          <div class="campaign-stage-label">Stage <span id="camp-stage-num">1</span></div>
-          <div class="campaign-stage-sub">Select a mission to deploy your defenses</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div class="campaign-stage-label">Stage <span id="camp-stage-num">1</span></div>
+              <div class="campaign-stage-sub" style="margin-top:6px;">Select a mission to deploy your defenses</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="font-size:11px;color:var(--text3);">World:</label>
+              <select id="camp-world-select" onchange="switchCampaignWorld(parseInt(this.value))"
+                style="background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:#fff;font-size:13px;padding:4px 10px;cursor:pointer;font-family:'Inter',sans-serif;">
+              </select>
+              <button id="camp-elite-btn" onclick="toggleEliteMode()"
+                style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:12px;font-weight:700;padding:5px 14px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;">
+                ⚔️ Normal
+              </button>
+            </div>
+          </div>
         </div>
         <div class="campaign-map-wrap">
           <div class="campaign-map" id="campaign-map"></div>
@@ -881,16 +922,30 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       <div id="section-pvp" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div class="pvp-wrap">
           <div class="pvp-toolbar">
-            <div class="pvp-toolbar-title">🌍 World Map</div>
+            <div style="display:flex;align-items:center;">
+              <div class="pvp-toolbar-title">🌍 World Map</div>
+              <div class="pvp-coord-form">
+                <span class="pvp-coord-label">X:</span>
+                <input class="pvp-coord-input" id="pvp-coord-x" type="text" inputmode="numeric" placeholder="0" onkeydown="if(event.key==='Enter')pvpGoToCoord()">
+                <span class="pvp-coord-label">Y:</span>
+                <input class="pvp-coord-input" id="pvp-coord-y" type="text" inputmode="numeric" placeholder="0" onkeydown="if(event.key==='Enter')pvpGoToCoord()">
+                <button class="pvp-coord-go" onclick="pvpGoToCoord()">Go →</button>
+              </div>
+            </div>
             <div class="pvp-legend">
               <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);"></div> Unclaimed</div>
               <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#3ecf8e;"></div> Yours</div>
               <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#f0c040;"></div> Enemy</div>
             </div>
             <div class="pvp-stats" id="pvp-stats">– / 10,000 claimed</div>
+            <button class="pvp-refresh-btn" onclick="pvpGoHome()">🏠 Home</button>
             <button class="pvp-refresh-btn" id="pvp-refresh-btn" onclick="pvpRefresh()">⟳ Refresh</button>
           </div>
           <div class="pvp-canvas-area" id="pvp-canvas-area">
+            <div class="pvp-loading-overlay" id="pvp-loading-overlay" style="display:none;">
+              <div class="pvp-loading-spinner">🌍</div>
+              <div class="pvp-loading-text">Loading World Map…</div>
+            </div>
             <div class="pvp-canvas-wrap" id="pvp-canvas-wrap">
               <canvas id="pvp-canvas"></canvas>
             </div>
@@ -898,6 +953,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
           <div class="pvp-tooltip" id="pvp-tooltip">
             <div class="pvp-tooltip-title" id="pvp-tt-title">Tile (0,0)</div>
             <div class="pvp-tooltip-sub" id="pvp-tt-sub">Unclaimed</div>
+            <div id="pvp-tt-mine-btns" style="display:none;flex-direction:column;gap:5px;">
+              <button class="pvp-tooltip-btn" id="pvp-tt-home-btn" style="background:rgba(255,215,0,0.15);color:#f0c040;border:1px solid rgba(255,215,0,0.35);" onclick="pvpSetHome()">🏠 Set as Home</button>
+              <button class="pvp-tooltip-btn" style="background:rgba(90,150,255,0.15);color:#8aabff;border:1px solid rgba(90,150,255,0.35);" onclick="pvpOpenUpgradePanel()">⬆️ Upgrade Base</button>
+            </div>
             <button class="pvp-tooltip-btn" id="pvp-tt-btn" onclick="pvpAttackTile()">⚔️ Attack</button>
           </div>
         </div>
@@ -927,21 +986,28 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       <div class="setup-sub" id="setup-sub">Choose towers from your Armory to bring</div>
     </div>
     <div class="setup-body">
+      <!-- Left: Armory -->
       <div class="setup-section">
         <div class="setup-section-title">
           Armory — Bring to Battle
           <span id="setup-slot-info" class="setup-slot-badge">0 / 2 selected</span>
         </div>
         <div style="font-size:12px;color:#555e80;margin-bottom:0.75rem;">Selected towers are consumed on deployment. You place them yourself after the battle starts.</div>
-        <div class="setup-armory-grid" id="setup-armory-grid"></div>
+        <div class="setup-armory-scroll">
+          <div class="setup-armory-grid" id="setup-armory-grid"></div>
+        </div>
       </div>
+      <!-- Middle: Tower stats (shown when ℹ is clicked) -->
+      <div class="setup-section" id="setup-stats-section" style="visibility:hidden;">
+        <div class="setup-section-title" style="font-size:12px;">Tower Stats</div>
+        <div id="setup-stats-content" class="setup-stats-card"></div>
+      </div>
+      <!-- Right: Stage Info + Start button -->
       <div class="setup-section">
         <div class="setup-section-title">Stage Info</div>
         <div id="setup-stage-info" class="setup-info-box"></div>
+        <button class="setup-start-btn" id="setup-start-btn" onclick="startBattle()" style="width:100%;margin-top:1rem;">⚔️ Start Battle</button>
       </div>
-    </div>
-    <div class="setup-footer">
-      <button class="setup-start-btn" id="setup-start-btn" onclick="startBattle()">⚔️ Start Battle</button>
     </div>
   </div>
 
@@ -1066,14 +1132,10 @@ function applyServerPayload(payload) {
   // Always update campCompleted even if empty array
   if (s.campCompleted !== undefined) {
     const serverCompleted = Array.isArray(s.campCompleted) ? s.campCompleted : [];
-    const prevSize = campCompletedStages.size;
     // UNION: never remove stages the client already knows about
-    // This prevents server inconsistency from wiping local progress
     serverCompleted.forEach(id => campCompletedStages.add(id));
-    // If new stages were added, reset selection so buildCampaignMap picks highest
-    if (campCompletedStages.size > prevSize) {
-      campSelectedStage = null;
-    }
+    // Always reset so buildCampaignMap picks highest available on next render
+    campSelectedStage = null;
   }
   // Load silo state from server payload
   if (s.silo) {
@@ -1156,7 +1218,8 @@ function totalCapacity(resId) {
   if (silo) silo.forEach((s,ti) => {
     if (s.unlocked) cap += Math.round(SILO_TIERS[ti].cap * (1 + (s.level-1)*0.6));
   });
-  return cap;
+  const siloBonus = getResearchBonuses().silo_cap || 0;
+  return Math.round(cap * (1 + siloBonus));
 }
 
 // Compact number format: 1M, 1.1M, 500K etc
@@ -1174,7 +1237,7 @@ function nodeProdPerHour(r, ti, ul) {
   return Math.round(base * levelMult * resMult);
 }
 function nodeStorageCap(r, ti, ul) {
-  return Math.round(r.tiers[ti].cap * (1 + (ul - 1) * 0.60));
+  return Math.round(r.tiers[ti].cap * (1 + (ul - 1) * 0.90));
 }
 function nodeUpgradeCost(r, ti, ul) {
   return Math.round(r.tiers[ti].upgCostBase * Math.pow(1.6, ul - 1));
@@ -1238,13 +1301,14 @@ RESOURCE_DEFS.forEach(r => {
     unlocked: ti === 0, upgradeLevel: 1, storedAmount: 0,
     upgrading: false, upgradeStartMs: 0, upgradeDurationMs: 0, upgradeCostPaid: 0,
   }));
-  siloState[r.id] = SILO_TIERS.map((_,ti)=>({ unlocked: ti===0, level: 1 }));
+  siloState[r.id] = SILO_TIERS.map((_,ti)=>({ unlocked: ti===0, level: 1, upgrading:false, upgradeStartMs:0, upgradeDurationMs:0, upgradeCostPaid:0 }));
 });
 
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 
 let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
+let siloModalResId = null, siloModalTierIdx = null;
 let lastTick = Date.now(), lastStructuralRender = 0;
 
 // ═══════════════════════════════════════════════
@@ -1391,7 +1455,7 @@ function resetState() {
   campCompletedStages=new Set();
   campSelectedStage=null;
   RESOURCE_DEFS.forEach(r=>{
-    siloState[r.id] = SILO_TIERS.map((_,ti)=>({ unlocked: ti===0, level: 1 }));
+    siloState[r.id] = SILO_TIERS.map((_,ti)=>({ unlocked: ti===0, level: 1, upgrading:false, upgradeStartMs:0, upgradeDurationMs:0, upgradeCostPaid:0 }));
   });
 }
 
@@ -1549,6 +1613,22 @@ function tickResources(){
     });
   });
 
+  // Check silo upgrade timers
+  RESOURCE_DEFS.forEach(r=>{
+    siloState[r.id]?.forEach((s, ti)=>{
+      if(!s.upgrading) return;
+      if(now >= s.upgradeStartMs + s.upgradeDurationMs){
+        s.level++;
+        s.upgrading=false; s.upgradeStartMs=0; s.upgradeDurationMs=0; s.upgradeCostPaid=0;
+        changed=true;
+        addXP(20, undefined, undefined);
+        showToast(`📦 ${r.name} Silo upgraded to Lv${s.level}!`);
+        if(document.getElementById('res-subpanel-silo')?.classList.contains('active')) buildSiloPanel();
+        if(siloModalResId===r.id && siloModalTierIdx===ti) openSiloModal(r.id, ti);
+      }
+    });
+  });
+
   if(changed){
     updateNodeCards();
     updateResourcePills();
@@ -1601,6 +1681,44 @@ function updatePlayerLevelUI(){
   document.getElementById('pl-xp-bar').style.width = pct+'%';
 }
 
+function calculatePowerLevel() {
+  const pl = {};
+  pl.accountLevel = playerLevel * 10;
+  const RES_VALUE = { wood:1, stone:1.2, fiber:1, leather:1.5, ore:2 };
+  pl.resources = Object.entries(resources).reduce((sum,[k,v])=>sum+(v||0)*(RES_VALUE[k]||1),0)/100;
+  pl.armory = armoryTowers.filter(Boolean).reduce((sum,entry)=>{
+    const td=TOWER_DEFS.find(t=>t.id===entry.towerId); if(!td) return sum;
+    const stats=towerStatsAtLevel(td,entry.level);
+    const dps=parseFloat(stats.dmg)/Math.max(0.1,parseFloat(stats.atkSpeed));
+    const r={archer:1,catapult:1.2,crossbow:1.5,frost:1.5,sniper:2,inferno:2.5,god_tower:10}[entry.towerId]||1;
+    return sum+dps*r*(1+(entry.level-1)*0.15);
+  },0);
+  pl.nodeUpgrades=0;
+  RESOURCE_DEFS.forEach(r=>{ r.tiers.forEach((_,ti)=>{ const ns=nodeState[r.id][ti]; if(ns.unlocked) pl.nodeUpgrades+=ns.upgradeLevel*(ti+1)*2; }); });
+  pl.siloUpgrades=0;
+  RESOURCE_DEFS.forEach(r=>{ siloState[r.id]?.forEach((s,ti)=>{ if(s.unlocked) pl.siloUpgrades+=s.level*(ti+1); }); });
+  pl.research=RESEARCH_DEFS.reduce((sum,rd)=>{ if(!researchState[rd.id]?.done) return sum; const w={production:5,tower:8,battle:6,economy:4,advanced:15}[rd.category]||5; return sum+w; },0);
+  pl.campaignProgress=0;
+  campCompletedStages.forEach(id=>{ if(id.startsWith('elite:')){ const b=CAMPAIGN_STAGES.find(s=>s.id===id.slice(6)); pl.campaignProgress+=(b?.diff||3)*8; } else { const s=CAMPAIGN_STAGES.find(s=>s.id===id); pl.campaignProgress+=(s?.diff||1)*3; } });
+  pl.permanentBuffs=0;
+  RESEARCH_DEFS.forEach(rd=>{ if(!researchState[rd.id]?.done) return; if(rd.bonus?.pct) pl.permanentBuffs+=rd.bonus.pct*100; });
+  pl.total=Math.round(pl.accountLevel*1.0+pl.resources*0.5+pl.armory*2.0+pl.nodeUpgrades*1.5+pl.siloUpgrades*1.0+pl.research*3.0+pl.campaignProgress*2.0+pl.permanentBuffs*1.0);
+  return pl;
+}
+async function syncPowerLevel() {
+  if(!currentUser) return;
+  const pl=calculatePowerLevel();
+  try {
+    await sb.from('idw_player_state').update({
+      power_level:pl.total, pl_account_level:Math.round(pl.accountLevel),
+      pl_resources:Math.round(pl.resources), pl_armory:Math.round(pl.armory),
+      pl_node_upgrades:Math.round(pl.nodeUpgrades), pl_silo_upgrades:Math.round(pl.siloUpgrades),
+      pl_research:Math.round(pl.research), pl_campaign_progress:Math.round(pl.campaignProgress),
+      pl_permanent_buffs:Math.round(pl.permanentBuffs), updated_at:new Date().toISOString()
+    }).eq('user_id',currentUser.id);
+  } catch(e){ console.warn('syncPowerLevel failed:',e.message); }
+}
+
 function spawnXPFloater(text,x,y){
   if(x===undefined) return;
   const el=document.createElement('div');
@@ -1614,21 +1732,15 @@ function spawnXPFloater(text,x,y){
 // BUFFS MODAL
 // ═══════════════════════════════════════════════
 function openBuffsModal(){
-  const lbp  = (bonusProd(playerLevel)*100).toFixed(1);
-  const lbc  = (bonusCombat(playerLevel)*100).toFixed(1);
-  const lbcr = (bonusCraft(playerLevel)*100).toFixed(1);
-  const lbr  = (bonusResearch(playerLevel)*100).toFixed(1);
   const needed = xpForLevel(playerLevel);
   const pct = Math.min((playerXP/needed)*100,100).toFixed(1);
   const rb = getResearchBonuses();
-
+  const pl = calculatePowerLevel();
   function fmtBonus(v){ const n=parseFloat(v.toFixed(1)); return `<span class="buff-val${n===0?' zero':''}">${n===0?'—':'+'+n.toFixed(1)+'%'}</span>`; }
-
   const prodRows = RESOURCE_DEFS.map(r => {
     const total = (bonusProd(playerLevel) + researchProdBonus(r.id)) * 100;
     return `<div class="buff-row"><span class="buff-label">${r.icon} ${r.name}</span>${fmtBonus(total)}</div>`;
   }).join('');
-
   document.getElementById('buffs-modal-content').innerHTML=`
     <div class="bmodal-header">
       <div>
@@ -1641,29 +1753,40 @@ function openBuffsModal(){
     <div class="storage-bar-wrap" style="margin-bottom:1.1rem;">
       <div class="storage-bar" style="width:${pct}%;background:linear-gradient(90deg,var(--gold2),var(--gold));"></div>
     </div>
-
+    <div class="buffs-section" style="margin-bottom:1rem;">
+      <div class="buffs-section-title">⚔️ Power Level</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:0.6rem;">
+        <span style="font-size:28px;font-weight:800;color:#f0c040;">${pl.total.toLocaleString()}</span>
+        <span style="font-size:11px;color:var(--text3);">overall power</span>
+      </div>
+      <div class="buff-row"><span class="buff-label">Account Level</span><span class="buff-val">${Math.round(pl.accountLevel)}</span></div>
+      <div class="buff-row"><span class="buff-label">Resources</span><span class="buff-val">${Math.round(pl.resources)}</span></div>
+      <div class="buff-row"><span class="buff-label">Armory</span><span class="buff-val">${Math.round(pl.armory)}</span></div>
+      <div class="buff-row"><span class="buff-label">Node Upgrades</span><span class="buff-val">${Math.round(pl.nodeUpgrades)}</span></div>
+      <div class="buff-row"><span class="buff-label">Silo Upgrades</span><span class="buff-val">${Math.round(pl.siloUpgrades)}</span></div>
+      <div class="buff-row"><span class="buff-label">Research</span><span class="buff-val">${Math.round(pl.research)}</span></div>
+      <div class="buff-row"><span class="buff-label">Campaign Progress</span><span class="buff-val">${Math.round(pl.campaignProgress)}</span></div>
+    </div>
     <div class="buffs-section">
       <div class="buffs-section-title">🌾 Resource Production</div>
       ${prodRows}
     </div>
-
     <div class="buffs-section">
-      <div class="buffs-section-title">⚔️ Combat</div>
-      <div class="buff-row"><span class="buff-label">Attack power</span>${fmtBonus((parseFloat(lbc)+rb.attack*100+rb.all_combat*100))}</div>
-      <div class="buff-row"><span class="buff-label">Defense rating</span>${fmtBonus((parseFloat(lbc)+rb.defense*100+rb.all_combat*100))}</div>
-      <div class="buff-row"><span class="buff-label">Max HP</span>${fmtBonus((parseFloat(lbc)+rb.hp*100+rb.all_combat*100))}</div>
+      <div class="buffs-section-title">🗼 Tower Bonuses</div>
+      <div class="buff-row"><span class="buff-label">Tower Damage</span>${fmtBonus(rb.tower_dmg*100)}</div>
+      <div class="buff-row"><span class="buff-label">Attack Speed</span>${fmtBonus(rb.tower_spd*100)}</div>
+      <div class="buff-row"><span class="buff-label">Range</span>${fmtBonus(rb.tower_range*100)}</div>
     </div>
-
+    <div class="buffs-section">
+      <div class="buffs-section-title">⚔️ Battle Bonuses</div>
+      <div class="buff-row"><span class="buff-label">Starting Gold</span><span class="buff-val">${rb.start_gold>0?'+'+rb.start_gold:'—'}</span></div>
+      <div class="buff-row"><span class="buff-label">Starting Lives</span><span class="buff-val">${rb.start_lives>0?'+'+rb.start_lives:'—'}</span></div>
+      <div class="buff-row"><span class="buff-label">Wave Clear Gold</span>${fmtBonus(rb.wave_gold*100)}</div>
+    </div>
     <div class="buffs-section">
       <div class="buffs-section-title">⚙️ Efficiency</div>
-      <div class="buff-row"><span class="buff-label">Crafting speed</span>${fmtBonus(parseFloat(lbcr)+rb.craft_speed*100)}</div>
-      <div class="buff-row"><span class="buff-label">Research speed</span>${fmtBonus(parseFloat(lbr)+rb.research_speed*100)}</div>
-      <div class="buff-row"><span class="buff-label">Storage capacity</span>${fmtBonus(rb.storage*100)}</div>
-    </div>
-
-    <div style="background:var(--bg3);border-radius:9px;padding:0.7rem 0.9rem;font-size:11px;color:var(--text3);line-height:1.7;">
-      <div>+0.1% production &amp; combat per level · +0.1% crafting &amp; research every 5 levels</div>
-      <div style="margin-top:3px;color:var(--text2);">Additional bonuses from research are shown above.</div>
+      <div class="buff-row"><span class="buff-label">Silo Capacity</span>${fmtBonus(rb.silo_cap*100)}</div>
+      <div class="buff-row"><span class="buff-label">Research Speed</span>${fmtBonus(rb.research_speed*100)}</div>
     </div>
   `;
   document.getElementById('buffs-modal').classList.add('open');
@@ -1746,7 +1869,7 @@ function updateNodeCards(){
         const prevUnlocked = ti===0 || nodeState[r.id][ti-1].unlocked;
         const canUnlock=playerLevel>=reqLevel && prevUnlocked;
         const canAfford=resources[r.costCurrency]>=def.unlockCost;
-        const lockText = !prevUnlocked ? 'Unlock prev tier' : !playerLevel>=reqLevel ? 'Need Lv '+reqLevel : def.unlockCost.toLocaleString()+' '+r.costCurrencyIcon;
+        const lockText = !prevUnlocked ? 'Unlock prev tier' : playerLevel < reqLevel ? 'Need Lv '+reqLevel : def.unlockCost.toLocaleString()+' '+r.costCurrencyIcon;
         card.innerHTML=`
           <div class="nc-top"><span class="nc-icon" style="opacity:0.4">${r.icon}</span></div>
           <div class="nc-lock-body">
@@ -1852,6 +1975,28 @@ function updateUpgradeBars(){
         mbar.style.width=pct.toFixed(2)+'%';
         const etaEl=document.getElementById('modal-upg-eta');
         if(etaEl) etaEl.textContent='⏱ '+fmtCountdown(remSecs)+' remaining';
+      }
+    });
+  });
+
+  // Silo upgrade bars — run every RAF frame regardless of which tab is shown
+  RESOURCE_DEFS.forEach(r=>{
+    siloState[r.id]?.forEach((s, ti)=>{
+      if(!s.upgrading) return;
+      const elapsed=now-s.upgradeStartMs;
+      const pct=Math.min((elapsed/s.upgradeDurationMs)*100,100);
+      const remSecs=Math.max(0,Math.ceil((s.upgradeDurationMs-elapsed)/1000));
+
+      const bar=document.getElementById(`siloupg-${r.id}-${ti}`);
+      if(bar) bar.style.width=pct.toFixed(2)+'%';
+      const timerEl=document.getElementById(`silotimer-${r.id}-${ti}`);
+      if(timerEl) timerEl.textContent=fmtCountdown(remSecs);
+
+      if(siloModalResId===r.id && siloModalTierIdx===ti){
+        const smbar=document.getElementById('silo-modal-upg-bar');
+        if(smbar) smbar.style.width=pct.toFixed(2)+'%';
+        const smeta=document.getElementById('silo-modal-upg-eta');
+        if(smeta) smeta.textContent='⏱ '+fmtCountdown(remSecs)+' remaining';
       }
     });
   });
@@ -2061,7 +2206,15 @@ async function collectNode(resId,tierIdx){
 }
 
 async function startUpgrade(resId,tierIdx,event){
-  try { await serverRpc('idw_start_node_upgrade', {p_res_id:resId, p_tier_idx:tierIdx}); await refreshFromServer(); renderNodeModal(); showToast('Upgrade started!'); }
+  try {
+    await serverRpc('idw_start_node_upgrade', {p_res_id:resId, p_tier_idx:tierIdx});
+    await refreshFromServer();
+    // Use client clock so countdown matches the displayed time exactly
+    const ns = nodeState[resId][tierIdx];
+    if(ns.upgrading){ ns.upgradeStartMs = Date.now(); ns.upgradeDurationMs = upgradeTimeSecs(ns.upgradeLevel) * 1000; }
+    renderNodeModal();
+    showToast('Upgrade started!');
+  }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
@@ -2081,100 +2234,43 @@ function cancelUpgrade(resId,tierIdx){
 // RESEARCH TREE DEFINITIONS
 // ═══════════════════════════════════════════════
 const RESEARCH_DEFS = [
-  // ── PRODUCTION TREE ──────────────────────────
-  { id:'prod1', name:'Sharpened Axes',    icon:'🪓', category:'production',
-    desc:'Better logging tools increase output from all wood nodes.',
-    effect:'+8% Wood Production',      bonus:{type:'res_prod',resId:'wood',pct:0.08},
-    requires:[], cost:{wood:200,fiber:100},     durationMs:5*60*1000 },
-  { id:'prod2', name:'Iron Drills',       icon:'⚙️', category:'production',
-    desc:'Reinforced drill bits double ore extraction efficiency.',
-    effect:'+8% Ore Production',       bonus:{type:'res_prod',resId:'ore',pct:0.08},
-    requires:['prod1'], cost:{wood:300,ore:150},       durationMs:12*60*1000 },
-  { id:'prod3', name:'Fiber Looms',       icon:'🌀', category:'production',
-    desc:'Efficient looms process fiber much faster.',
-    effect:'+10% Fiber Production',    bonus:{type:'res_prod',resId:'fiber',pct:0.10},
-    requires:['prod2'], cost:{fiber:300,stone:150},    durationMs:25*60*1000 },
-  { id:'prod4', name:'Tanning Techniques',icon:'📜', category:'production',
-    desc:'Advanced tanning doubles leather yield per hide.',
-    effect:'+10% Leather Production',  bonus:{type:'res_prod',resId:'leather',pct:0.10},
-    requires:['prod3'], cost:{leather:250,ore:200},    durationMs:45*60*1000 },
-  { id:'prod5', name:'Masonry Guild',     icon:'🏛️', category:'production',
-    desc:'Organized quarrying guilds dramatically improve stone output.',
-    effect:'+12% Stone Production',    bonus:{type:'res_prod',resId:'stone',pct:0.12},
-    requires:['prod4'], cost:{stone:400,wood:300},     durationMs:90*60*1000 },
-  { id:'prod6', name:'Supply Chains',     icon:'🔗', category:'production',
-    desc:'Coordinated logistics boost all resource production.',
-    effect:'+5% All Production',       bonus:{type:'all_prod',pct:0.05},
-    requires:['prod5'], cost:{wood:500,stone:500,fiber:300,leather:300,ore:300}, durationMs:3*60*60*1000 },
-
-  // ── COMBAT TREE ──────────────────────────────
-  { id:'comb1', name:'Sword Tempering',   icon:'⚔️', category:'combat',
-    desc:'Better heat treatment makes blades far sharper.',
-    effect:'+10% Attack Power',        bonus:{type:'attack',pct:0.10},
-    requires:[], cost:{ore:200,wood:100},       durationMs:8*60*1000 },
-  { id:'comb2', name:'Leather Armour',    icon:'🛡️', category:'combat',
-    desc:'Toughened leather padding reduces damage taken.',
-    effect:'+10% Defense',             bonus:{type:'defense',pct:0.10},
-    requires:['comb1'], cost:{leather:200,fiber:150},  durationMs:18*60*1000 },
-  { id:'comb3', name:'War Training',      icon:'🎯', category:'combat',
-    desc:'Drilled soldiers hit harder and more accurately.',
-    effect:'+12% Attack Power',        bonus:{type:'attack',pct:0.12},
-    requires:['comb2'], cost:{ore:300,stone:200},      durationMs:35*60*1000 },
-  { id:'comb4', name:'Stone Fortifications',icon:'🏯', category:'combat',
-    desc:'Reinforced walls greatly increase troop survivability. Unlocks +2 Armory slots.',
-    effect:'+15% Defense · +2 Armory Slots', bonus:{type:'defense',pct:0.15},
-    requires:['comb3'], cost:{stone:500,ore:200},      durationMs:75*60*1000 },
-  { id:'comb5', name:'Elite Warriors',    icon:'🗡️', category:'combat',
-    desc:'A standing army of elite troops ready for battle. Unlocks +3 Armory slots.',
-    effect:'+20% Max HP · +3 Armory Slots',  bonus:{type:'hp',pct:0.20},
-    requires:['comb4'], cost:{ore:400,leather:400,wood:300}, durationMs:2*60*60*1000 },
-  { id:'comb6', name:'War Tactics',       icon:'📯', category:'combat',
-    desc:'Advanced battlefield strategy multiplies combat effectiveness. Unlocks +5 Armory slots.',
-    effect:'+10% All Combat · +5 Armory Slots', bonus:{type:'all_combat',pct:0.10},
-    requires:['comb5'], cost:{ore:600,stone:400,leather:500}, durationMs:4*60*60*1000 },
-
-  // ── ECONOMY TREE ─────────────────────────────
-  { id:'econ1', name:'Trading Routes',    icon:'🗺️', category:'economy',
-    desc:'Established trade routes increase gold income from sales.',
-    effect:'+15% Crafting Speed',      bonus:{type:'craft_speed',pct:0.15},
-    requires:[], cost:{wood:300,stone:100},     durationMs:15*60*1000 },
-  { id:'econ2', name:'Market Expansion',  icon:'🏪', category:'economy',
-    desc:'A larger market hub attracts more merchants.',
-    effect:'+20% Crafting Speed',      bonus:{type:'craft_speed',pct:0.20},
-    requires:['econ1'], cost:{wood:400,stone:300,fiber:200}, durationMs:40*60*1000 },
-  { id:'econ3', name:'Storage Vaults',    icon:'🏦', category:'economy',
-    desc:'Reinforced vaults increase the storage cap of all resources.',
-    effect:'+25% Storage Capacity',    bonus:{type:'storage',pct:0.25},
-    requires:['econ2'], cost:{stone:600,wood:400},     durationMs:80*60*1000 },
-  { id:'econ4', name:'Resource Surplus',  icon:'📦', category:'economy',
-    desc:'Surplus resource planning optimizes all production lines.',
-    effect:'+8% All Production',       bonus:{type:'all_prod',pct:0.08},
-    requires:['econ3'], cost:{wood:500,stone:500,fiber:500,leather:300,ore:300}, durationMs:3*60*60*1000 },
-
-  // ── ADVANCED TREE ────────────────────────────
-  { id:'adv1',  name:'Arcane Metallurgy', icon:'✨', category:'advanced',
-    desc:'Infuse metals with arcane energy for superior results.',
-    effect:'+15% Ore & Leather Prod',  bonus:{type:'res_prod_multi',resIds:['ore','leather'],pct:0.15},
-    requires:['prod6','comb3'], cost:{ore:500,leather:400},    durationMs:5*60*60*1000 },
-  { id:'adv2',  name:'Ancient Blueprints',icon:'🗂️', category:'advanced',
-    desc:'Recovered schematics unlock long-forgotten construction methods.',
-    effect:'+20% Research Speed',      bonus:{type:'research_speed',pct:0.20},
-    requires:['adv1'], cost:{stone:600,fiber:500,ore:400},     durationMs:8*60*60*1000 },
-  { id:'adv3',  name:'Golem Workforce',   icon:'🤖', category:'advanced',
-    desc:'Stone golems work tirelessly, boosting all resource output.',
-    effect:'+15% All Production',      bonus:{type:'all_prod',pct:0.15},
-    requires:['adv2','econ4'], cost:{stone:800,ore:600,wood:600}, durationMs:12*60*60*1000 },
-  { id:'adv4',  name:'Kingdom Mastery',   icon:'👑', category:'advanced',
-    desc:'Total mastery of the kingdom grants power across all domains.',
-    effect:'+10% Everything',          bonus:{type:'everything',pct:0.10},
-    requires:['adv3','comb6'], cost:{wood:1000,stone:1000,fiber:800,leather:800,ore:800}, durationMs:24*60*60*1000 },
+  // ── PRODUCTION ──
+  { id:'prod1', name:'Sharpened Axes',     icon:'🪓', category:'production', desc:'Better tools increase wood node output.',    effect:'+10% Wood Production',       bonus:{type:'res_prod',resId:'wood',pct:0.10},    requires:[], cost:{wood:200,fiber:100}, durationMs:5*60*1000 },
+  { id:'prod2', name:'Iron Drills',        icon:'⛏️', category:'production', desc:'Reinforced drill bits increase ore yield.',  effect:'+10% Ore Production',        bonus:{type:'res_prod',resId:'ore',pct:0.10},     requires:['prod1'], cost:{wood:300,ore:150}, durationMs:12*60*1000 },
+  { id:'prod3', name:'Fiber Looms',        icon:'🌀', category:'production', desc:'Efficient looms process fiber faster.',      effect:'+10% Fiber Production',      bonus:{type:'res_prod',resId:'fiber',pct:0.10},   requires:['prod1'], cost:{fiber:300,stone:150}, durationMs:20*60*1000 },
+  { id:'prod4', name:'Tanning Techniques', icon:'📜', category:'production', desc:'Advanced tanning increases leather yield.',  effect:'+10% Leather Production',    bonus:{type:'res_prod',resId:'leather',pct:0.10}, requires:['prod2'], cost:{leather:250,ore:200}, durationMs:35*60*1000 },
+  { id:'prod5', name:'Masonry Guild',      icon:'🏛️', category:'production', desc:'Organized quarrying improves stone output.', effect:'+10% Stone Production',      bonus:{type:'res_prod',resId:'stone',pct:0.10},   requires:['prod3'], cost:{stone:400,wood:300}, durationMs:50*60*1000 },
+  { id:'prod6', name:'Supply Chains',      icon:'🔗', category:'production', desc:'Logistics boost all resource production.',   effect:'+8% All Production',         bonus:{type:'all_prod',pct:0.08},                 requires:['prod4','prod5'], cost:{wood:500,stone:400,fiber:300,leather:300,ore:300}, durationMs:2*60*60*1000 },
+  // ── TOWER ──
+  { id:'tow1', name:'Tempered Steel',      icon:'⚔️', category:'tower',      desc:'Better alloys increase turret damage.',      effect:'+10% Tower Damage',          bonus:{type:'tower_dmg',pct:0.10},                requires:[], cost:{ore:200,wood:100}, durationMs:8*60*1000 },
+  { id:'tow2', name:'Rapid Mechanisms',    icon:'⚙️', category:'tower',      desc:'Precision mechanisms increase attack speed.', effect:'+10% Tower Attack Speed',    bonus:{type:'tower_spd',pct:0.10},                requires:['tow1'], cost:{ore:300,leather:150}, durationMs:20*60*1000 },
+  { id:'tow3', name:'Optic Sights',        icon:'🔭', category:'tower',      desc:'Improved optics extend turret range.',        effect:'+15% Tower Range',           bonus:{type:'tower_range',pct:0.15},              requires:['tow2'], cost:{stone:300,ore:200}, durationMs:40*60*1000 },
+  { id:'tow4', name:'Explosive Tips',      icon:'💥', category:'tower',      desc:'Explosive tips deal bonus damage.',           effect:'+15% Tower Damage',          bonus:{type:'tower_dmg',pct:0.15},                requires:['tow3'], cost:{ore:500,fiber:300}, durationMs:75*60*1000 },
+  { id:'tow5', name:'Elite Armaments',     icon:'🗡️', category:'tower',      desc:'Master-crafted weapons for elite towers.',    effect:'+20% Dmg · +10% Speed',      bonus:{type:'tower_dmg_spd',pct_dmg:0.20,pct_spd:0.10}, requires:['tow4'], cost:{ore:700,leather:500,wood:400}, durationMs:3*60*60*1000 },
+  // ── BATTLE ──
+  { id:'bat1', name:'War Treasury',        icon:'💰', category:'battle',     desc:'Better funding increases starting gold.',    effect:'+50 Starting Gold',          bonus:{type:'start_gold',flat:50},                requires:[], cost:{wood:300,stone:200}, durationMs:10*60*1000 },
+  { id:'bat2', name:'Bounty Contracts',    icon:'📋', category:'battle',     desc:'Contracts reward more gold per wave.',       effect:'+20% Wave Clear Gold',       bonus:{type:'wave_gold',pct:0.20},                requires:['bat1'], cost:{leather:300,fiber:200}, durationMs:25*60*1000 },
+  { id:'bat3', name:'Fortified Walls',     icon:'🏯', category:'battle',     desc:'Stronger defenses give more lives.',         effect:'+3 Starting Lives',          bonus:{type:'start_lives',flat:3},                requires:['bat2'], cost:{stone:500,ore:300}, durationMs:50*60*1000 },
+  { id:'bat4', name:'Combat Rations',      icon:'🍖', category:'battle',     desc:'Sustained supplies give more lives.',        effect:'+5 Starting Lives',          bonus:{type:'start_lives',flat:5},                requires:['bat3'], cost:{leather:400,fiber:400,wood:300}, durationMs:90*60*1000 },
+  { id:'bat5', name:'War Doctrine',        icon:'📯', category:'battle',     desc:'Advanced tactics increase gold and lives.',  effect:'+30% Wave Gold · +5 Lives',  bonus:{type:'wave_gold_lives',pct:0.30,flat:5},   requires:['bat4','tow3'], cost:{ore:600,stone:500,leather:400}, durationMs:4*60*60*1000 },
+  // ── ECONOMY ──
+  { id:'econ1', name:'Storage Vaults',     icon:'🏦', category:'economy',    desc:'Reinforced vaults increase silo capacity.',  effect:'+20% Silo Capacity',         bonus:{type:'silo_cap',pct:0.20},                 requires:[], cost:{stone:400,wood:300}, durationMs:20*60*1000 },
+  { id:'econ2', name:'Rapid Forges',       icon:'🔥', category:'economy',    desc:'Faster forges reduce crafting costs.',       effect:'-15% Crafting Cost',         bonus:{type:'craft_cost',pct:-0.15},              requires:['econ1'], cost:{ore:300,fiber:200}, durationMs:40*60*1000 },
+  { id:'econ3', name:'Scholar Guild',      icon:'📚', category:'economy',    desc:'Organized scholars speed up research.',      effect:'-25% Research Time',         bonus:{type:'research_speed',pct:0.25},           requires:['econ2'], cost:{fiber:500,leather:300}, durationMs:60*60*1000 },
+  { id:'econ4', name:'Resource Surplus',   icon:'📦', category:'economy',    desc:'Surplus planning boosts all production.',    effect:'+10% All Production',        bonus:{type:'all_prod',pct:0.10},                 requires:['econ3','prod6'], cost:{wood:600,stone:500,fiber:400,leather:400,ore:300}, durationMs:3*60*60*1000 },
+  // ── ADVANCED ──
+  { id:'adv1', name:'Arcane Metallurgy',   icon:'✨', category:'advanced',   desc:'Arcane alloys — towers hit harder.',         effect:'+20% Tower Damage',          bonus:{type:'tower_dmg',pct:0.20},                requires:['prod6','tow4'], cost:{ore:600,leather:500}, durationMs:5*60*60*1000 },
+  { id:'adv2', name:'Ancient Blueprints',  icon:'🗂️', category:'advanced',   desc:'Forgotten schematics speed research.',       effect:'-30% Research Time · +10% Prod', bonus:{type:'research_prod',res_spd:0.30,all_prod:0.10}, requires:['econ3','adv1'], cost:{stone:700,fiber:600,ore:500}, durationMs:8*60*60*1000 },
+  { id:'adv3', name:'Golem Workforce',     icon:'🤖', category:'advanced',   desc:'Stone golems boost all production.',         effect:'+20% All Production',        bonus:{type:'all_prod',pct:0.20},                 requires:['adv2','econ4'], cost:{stone:900,ore:700,wood:600}, durationMs:12*60*60*1000 },
+  { id:'adv4', name:'Kingdom Mastery',     icon:'👑', category:'advanced',   desc:'Total mastery across all domains.',          effect:'+15% Dmg · +15% Prod · +50 Gold · +5 Lives', bonus:{type:'mastery',tower_dmg:0.15,all_prod:0.15,gold:50,lives:5}, requires:['adv3','bat5'], cost:{wood:1200,stone:1200,fiber:1000,leather:1000,ore:1000}, durationMs:24*60*60*1000 },
 ];
 
 const RESEARCH_CATEGORIES = [
-  { id:'production', name:'Production',  icon:'🌾', desc:'Boost resource output' },
-  { id:'combat',     name:'Combat',      icon:'⚔️', desc:'Strengthen your forces' },
-  { id:'economy',    name:'Economy',     icon:'💰', desc:'Improve efficiency & storage' },
-  { id:'advanced',   name:'Advanced',    icon:'✨', desc:'Powerful late-game upgrades' },
+  { id:'production', name:'Production', icon:'🌾', desc:'Boost node output' },
+  { id:'tower',      name:'Towers',     icon:'🗼', desc:'Buff turret stats in battle' },
+  { id:'battle',     name:'Battle',     icon:'⚔️', desc:'Improve battle conditions' },
+  { id:'economy',    name:'Economy',    icon:'💰', desc:'Silo, crafting & research speed' },
+  { id:'advanced',   name:'Advanced',   icon:'✨', desc:'Powerful cross-domain upgrades' },
 ];
 
 const researchState = {};
@@ -2185,26 +2281,26 @@ RESEARCH_DEFS.forEach(r => {
 let activeResearchId = null;
 
 function getResearchBonuses() {
-  const b = { prod:{}, attack:0, defense:0, hp:0, craft_speed:0, research_speed:0, storage:0, all_prod:0, all_combat:0 };
+  const b = { prod:{}, all_prod:0, tower_dmg:0, tower_spd:0, tower_range:0, silo_cap:0, craft_cost:0, research_speed:0, start_gold:0, wave_gold:0, start_lives:0 };
   RESOURCE_DEFS.forEach(r => { b.prod[r.id] = 0; });
   RESEARCH_DEFS.forEach(rd => {
     if (!researchState[rd.id]?.done) return;
     const bx = rd.bonus;
-    if (bx.type === 'res_prod')        b.prod[bx.resId]   = (b.prod[bx.resId]||0) + bx.pct;
-    if (bx.type === 'res_prod_multi')  bx.resIds.forEach(id => { b.prod[id] = (b.prod[id]||0) + bx.pct; });
-    if (bx.type === 'attack')          b.attack           += bx.pct;
-    if (bx.type === 'defense')         b.defense          += bx.pct;
-    if (bx.type === 'hp')              b.hp               += bx.pct;
-    if (bx.type === 'craft_speed')     b.craft_speed      += bx.pct;
-    if (bx.type === 'research_speed')  b.research_speed   += bx.pct;
-    if (bx.type === 'storage')         b.storage          += bx.pct;
-    if (bx.type === 'all_prod')        b.all_prod         += bx.pct;
-    if (bx.type === 'all_combat')      b.all_combat       += bx.pct;
-    if (bx.type === 'everything') {
-      Object.keys(b.prod).forEach(id => { b.prod[id] += bx.pct; });
-      b.attack += bx.pct; b.defense += bx.pct; b.hp += bx.pct;
-      b.craft_speed += bx.pct; b.research_speed += bx.pct; b.all_prod += bx.pct;
-    }
+    if (bx.type === 'res_prod')        b.prod[bx.resId] = (b.prod[bx.resId]||0) + bx.pct;
+    if (bx.type === 'all_prod')        b.all_prod        += bx.pct;
+    if (bx.type === 'tower_dmg')       b.tower_dmg       += bx.pct;
+    if (bx.type === 'tower_spd')       b.tower_spd       += bx.pct;
+    if (bx.type === 'tower_range')     b.tower_range     += bx.pct;
+    if (bx.type === 'tower_dmg_spd') { b.tower_dmg += bx.pct_dmg; b.tower_spd += bx.pct_spd; }
+    if (bx.type === 'silo_cap')        b.silo_cap        += bx.pct;
+    if (bx.type === 'craft_cost')      b.craft_cost      += bx.pct;
+    if (bx.type === 'research_speed')  b.research_speed  += bx.pct;
+    if (bx.type === 'start_gold')      b.start_gold      += bx.flat;
+    if (bx.type === 'wave_gold')       b.wave_gold       += bx.pct;
+    if (bx.type === 'start_lives')     b.start_lives     += bx.flat;
+    if (bx.type === 'wave_gold_lives'){ b.wave_gold += bx.pct; b.start_lives += bx.flat; }
+    if (bx.type === 'research_prod') { b.research_speed += bx.res_spd; b.all_prod += bx.all_prod; }
+    if (bx.type === 'mastery') { b.tower_dmg += bx.tower_dmg; b.all_prod += bx.all_prod; b.start_gold += bx.gold; b.start_lives += bx.lives; }
   });
   return b;
 }
@@ -2217,7 +2313,7 @@ function researchProdBonus(resId) {
 function effectiveResearchMs(rd) {
   const b = getResearchBonuses();
   const speedBonus = b.research_speed + bonusResearch(playerLevel);
-  return Math.max(5000, Math.round(rd.durationMs * (1 - speedBonus)));
+  return Math.max(5000, Math.round(rd.durationMs / (1 + speedBonus)));
 }
 
 function isResearchUnlocked(rd) {
@@ -2336,7 +2432,8 @@ function updateResearchBars() {
       showToast(`🔬 ${rd.name} research complete!`);
       addXP(30, undefined, undefined);
       updateResearchCards();
-      if (rd.category === 'combat') { buildInvGrid('armory-grid', ARMORY_ITEMS, true); updateArmorySlotCount(); }
+      if (rd.category === 'battle' || rd.category === 'tower') { renderArmoryGrid(); updateArmorySlotCount(); }
+      syncPowerLevel();
       scheduleSave();
       if (researchModalId === rd.id) renderResearchModal();
       return;
@@ -2519,9 +2616,9 @@ function resolveOfflineResearch() {
 // ═══════════════════════════════════════════════
 function totalArmorySlots() {
   let slots = 5;
-  if (researchState['comb4']?.done) slots += 2;
-  if (researchState['comb5']?.done) slots += 3;
-  if (researchState['comb6']?.done) slots += 5;
+  if (researchState['bat3']?.done) slots += 2;
+  if (researchState['bat4']?.done) slots += 3;
+  if (researchState['bat5']?.done) slots += 5;
   return slots;
 }
 
@@ -2583,7 +2680,64 @@ function renderBoostsGrid() {
   const grid = document.getElementById('boosts-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  const BOOSTS = []; 
+
+  // PVP base upgrade mode
+  if (pvpUpgradingTile) {
+    const {tx, ty, idx} = pvpUpgradingTile;
+    const tile = pvpTiles[idx];
+    const currentLevel = tile?.level || 1;
+    const nextLevel = currentLevel + 1;
+    const upgCostOre   = Math.round(1000 * Math.pow(2, currentLevel - 1));
+    const upgCostStone = Math.round(1000 * Math.pow(2, currentLevel - 1));
+    const canAfford = (resources.ore||0) >= upgCostOre && (resources.stone||0) >= upgCostStone;
+    const oreRes   = RESOURCE_DEFS.find(r=>r.id==='ore');
+    const stoneRes = RESOURCE_DEFS.find(r=>r.id==='stone');
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'grid-column:1/-1;display:flex;flex-direction:column;gap:12px;padding:4px 0;';
+
+    // Back button
+    const backBtn = document.createElement('button');
+    backBtn.style.cssText = 'align-self:flex-start;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:7px;color:#8890b0;font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;font-family:Inter,sans-serif;';
+    backBtn.textContent = '← Back to Map';
+    backBtn.onclick = () => { pvpUpgradingTile = null; renderBoostsGrid(); switchSection('pvp'); };
+    wrap.appendChild(backBtn);
+
+    // Base info card
+    const infoCard = document.createElement('div');
+    infoCard.style.cssText = 'background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.25);border-radius:12px;padding:1rem 1.25rem;';
+    infoCard.innerHTML = `
+      <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:4px;">🗺️ Base (${tx}, ${ty})</div>
+      <div style="font-size:12px;color:var(--text3);">Current Stage: <span style="color:#f0c040;font-weight:700;">1-${currentLevel}</span></div>
+      ${currentLevel >= 10 ? '<div style="color:#3ecf8e;font-size:12px;margin-top:6px;font-weight:600;">✓ Maximum stage reached — this base is fully upgraded.</div>' : ''}`;
+    wrap.appendChild(infoCard);
+
+    if (currentLevel < 10) {
+      // Upgrade option card
+      const upgCard = document.createElement('div');
+      upgCard.style.cssText = 'background:rgba(240,192,64,0.07);border:1px solid rgba(240,192,64,0.25);border-radius:12px;padding:1rem 1.25rem;display:flex;flex-direction:column;gap:10px;';
+      upgCard.innerHTML = `
+        <div style="font-weight:700;color:#f0c040;font-size:14px;">⬆️ Upgrade to Stage 1-${nextLevel}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.6;">Increases the base difficulty, making it harder for enemies to capture. Attackers must beat Stage 1-${nextLevel}.</div>
+        <div style="display:flex;gap:12px;font-size:12px;">
+          <span style="color:${(resources.ore||0)>=upgCostOre?'#3ecf8e':'#f55a5a'}">${oreRes?.icon||''} ${upgCostOre.toLocaleString()} / ${Math.floor(resources.ore||0).toLocaleString()}</span>
+          <span style="color:${(resources.stone||0)>=upgCostStone?'#3ecf8e':'#f55a5a'}">${stoneRes?.icon||''} ${upgCostStone.toLocaleString()} / ${Math.floor(resources.stone||0).toLocaleString()}</span>
+        </div>`;
+      const applyBtn = document.createElement('button');
+      applyBtn.style.cssText = `border:none;border-radius:8px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;background:${canAfford?'linear-gradient(135deg,#c89a20,#f0c040)':'#20243a'};color:${canAfford?'#1a1200':'#6a7090'};`;
+      applyBtn.disabled = !canAfford;
+      applyBtn.textContent = canAfford ? '⬆️ Upgrade Base' : '❌ Not enough resources';
+      applyBtn.onclick = pvpApplyBaseUpgrade;
+      upgCard.appendChild(applyBtn);
+      wrap.appendChild(upgCard);
+    }
+
+    grid.appendChild(wrap);
+    return;
+  }
+
+  // Normal boosts (empty for now)
+  const BOOSTS = [];
   const TOTAL = 20;
   for (let i = 0; i < TOTAL; i++) {
     const item = BOOSTS[i];
@@ -2673,7 +2827,7 @@ function openItemModal(item) {
   `;
   document.getElementById('item-modal').classList.add('open');
 }
-function closeItemModal() { document.getElementById('item-modal').classList.remove('open'); }
+function closeItemModal() { document.getElementById('item-modal').classList.remove('open'); siloModalResId=null; siloModalTierIdx=null; }
 
 function disenchantTower(slotIdx) {
   const entry = armoryTowers[slotIdx];
@@ -2731,6 +2885,18 @@ async function upgradeTowerInArmory(slotIdx) {
 // TOWER DEFINITIONS
 // ═══════════════════════════════════════════════
 const TOWER_DEFS = [
+  {
+    id:'god_tower', name:'God Tower', icon:'⚡', color:'#FFD700',
+    unlockLevel:0,
+    desc:'An omnipotent tower that smites every enemy on the map simultaneously.',
+    type:'AoE',
+    typeBadge:{bg:'rgba(255,215,0,0.18)',color:'#FFD700',border:'#c8a000'},
+    baseStats:{dmg:99999,atkSpeed:1.0,range:50,projectiles:1},
+    special:'Hits ALL enemies on the map simultaneously — range covers the entire battlefield',
+    cost:{},
+    upgPctPerLevel:0.0,
+    upgCostMult:0,
+  },
   {
     id:'archer', name:'Archer Post', icon:'🏹', color:'#c8842a',
     unlockLevel:0,
@@ -2946,16 +3112,106 @@ function switchCraftTab(name) {
 // CAMPAIGN MAP
 // ═══════════════════════════════════════════════
 const CAMPAIGN_STAGES = [
-  { id:'1-1',  name:'1-1',  icon:'🌲', diff:1 },
-  { id:'1-2',  name:'1-2',  icon:'🌲', diff:1 },
-  { id:'1-3',  name:'1-3',  icon:'🏕️', diff:2 },
-  { id:'1-4',  name:'1-4',  icon:'🏕️', diff:2 },
-  { id:'1-5',  name:'1-5',  icon:'⚔️', diff:3 },
-  { id:'1-6',  name:'1-6',  icon:'🌊', diff:3 },
-  { id:'1-7',  name:'1-7',  icon:'🌊', diff:4 },
-  { id:'1-8',  name:'1-8',  icon:'🏔️', diff:4 },
-  { id:'1-9',  name:'1-9',  icon:'🏔️', diff:5 },
-  { id:'1-10', name:'1-10', icon:'🐉', diff:5 },
+  { id:'1-1', name:'1-1', icon:'🌲', diff:1, world:1 },
+  { id:'1-2', name:'1-2', icon:'🌲', diff:1, world:1 },
+  { id:'1-3', name:'1-3', icon:'🏕️', diff:2, world:1 },
+  { id:'1-4', name:'1-4', icon:'🏕️', diff:2, world:1 },
+  { id:'1-5', name:'1-5', icon:'⚔️', diff:3, world:1 },
+  { id:'1-6', name:'1-6', icon:'🌊', diff:3, world:1 },
+  { id:'1-7', name:'1-7', icon:'🌊', diff:4, world:1 },
+  { id:'1-8', name:'1-8', icon:'🏔️', diff:4, world:1 },
+  { id:'1-9', name:'1-9', icon:'🏔️', diff:5, world:1 },
+  { id:'1-10', name:'1-10', icon:'🐉', diff:5, world:1 },
+  { id:'2-1', name:'2-1', icon:'⛰️', diff:2, world:2 },
+  { id:'2-2', name:'2-2', icon:'⛰️', diff:2, world:2 },
+  { id:'2-3', name:'2-3', icon:'🗿', diff:3, world:2 },
+  { id:'2-4', name:'2-4', icon:'🗿', diff:3, world:2 },
+  { id:'2-5', name:'2-5', icon:'🪨', diff:4, world:2 },
+  { id:'2-6', name:'2-6', icon:'🏔️', diff:4, world:2 },
+  { id:'2-7', name:'2-7', icon:'🏔️', diff:5, world:2 },
+  { id:'2-8', name:'2-8', icon:'🌋', diff:5, world:2 },
+  { id:'2-9', name:'2-9', icon:'🌋', diff:5, world:2 },
+  { id:'2-10', name:'2-10', icon:'💀', diff:5, world:2 },
+  { id:'3-1', name:'3-1', icon:'🌿', diff:2, world:3 },
+  { id:'3-2', name:'3-2', icon:'🌿', diff:2, world:3 },
+  { id:'3-3', name:'3-3', icon:'🐸', diff:3, world:3 },
+  { id:'3-4', name:'3-4', icon:'🐸', diff:3, world:3 },
+  { id:'3-5', name:'3-5', icon:'🌾', diff:4, world:3 },
+  { id:'3-6', name:'3-6', icon:'🌊', diff:4, world:3 },
+  { id:'3-7', name:'3-7', icon:'🌊', diff:5, world:3 },
+  { id:'3-8', name:'3-8', icon:'🌑', diff:5, world:3 },
+  { id:'3-9', name:'3-9', icon:'🌑', diff:5, world:3 },
+  { id:'3-10', name:'3-10', icon:'🕷️', diff:5, world:3 },
+  { id:'4-1', name:'4-1', icon:'🌋', diff:2, world:4 },
+  { id:'4-2', name:'4-2', icon:'🌋', diff:2, world:4 },
+  { id:'4-3', name:'4-3', icon:'🔥', diff:3, world:4 },
+  { id:'4-4', name:'4-4', icon:'🔥', diff:3, world:4 },
+  { id:'4-5', name:'4-5', icon:'💥', diff:4, world:4 },
+  { id:'4-6', name:'4-6', icon:'🌡️', diff:4, world:4 },
+  { id:'4-7', name:'4-7', icon:'🌡️', diff:5, world:4 },
+  { id:'4-8', name:'4-8', icon:'⚡', diff:5, world:4 },
+  { id:'4-9', name:'4-9', icon:'⚡', diff:5, world:4 },
+  { id:'4-10', name:'4-10', icon:'🌩️', diff:5, world:4 },
+  { id:'5-1', name:'5-1', icon:'❄️', diff:2, world:5 },
+  { id:'5-2', name:'5-2', icon:'❄️', diff:2, world:5 },
+  { id:'5-3', name:'5-3', icon:'🌨️', diff:3, world:5 },
+  { id:'5-4', name:'5-4', icon:'🌨️', diff:3, world:5 },
+  { id:'5-5', name:'5-5', icon:'🧊', diff:4, world:5 },
+  { id:'5-6', name:'5-6', icon:'🦊', diff:4, world:5 },
+  { id:'5-7', name:'5-7', icon:'🦊', diff:5, world:5 },
+  { id:'5-8', name:'5-8', icon:'🐺', diff:5, world:5 },
+  { id:'5-9', name:'5-9', icon:'🐺', diff:5, world:5 },
+  { id:'5-10', name:'5-10', icon:'🐻', diff:5, world:5 },
+  { id:'6-1', name:'6-1', icon:'☀️', diff:2, world:6 },
+  { id:'6-2', name:'6-2', icon:'☀️', diff:2, world:6 },
+  { id:'6-3', name:'6-3', icon:'🏜️', diff:3, world:6 },
+  { id:'6-4', name:'6-4', icon:'🏜️', diff:3, world:6 },
+  { id:'6-5', name:'6-5', icon:'🦂', diff:4, world:6 },
+  { id:'6-6', name:'6-6', icon:'🌵', diff:4, world:6 },
+  { id:'6-7', name:'6-7', icon:'🌵', diff:5, world:6 },
+  { id:'6-8', name:'6-8', icon:'🌪️', diff:5, world:6 },
+  { id:'6-9', name:'6-9', icon:'🌪️', diff:5, world:6 },
+  { id:'6-10', name:'6-10', icon:'🌞', diff:5, world:6 },
+  { id:'7-1', name:'7-1', icon:'🏛️', diff:2, world:7 },
+  { id:'7-2', name:'7-2', icon:'🏛️', diff:2, world:7 },
+  { id:'7-3', name:'7-3', icon:'🗺️', diff:3, world:7 },
+  { id:'7-4', name:'7-4', icon:'🗺️', diff:3, world:7 },
+  { id:'7-5', name:'7-5', icon:'🗡️', diff:4, world:7 },
+  { id:'7-6', name:'7-6', icon:'🛡️', diff:4, world:7 },
+  { id:'7-7', name:'7-7', icon:'🛡️', diff:5, world:7 },
+  { id:'7-8', name:'7-8', icon:'👁️', diff:5, world:7 },
+  { id:'7-9', name:'7-9', icon:'👁️', diff:5, world:7 },
+  { id:'7-10', name:'7-10', icon:'⚗️', diff:5, world:7 },
+  { id:'8-1', name:'8-1', icon:'🌊', diff:2, world:8 },
+  { id:'8-2', name:'8-2', icon:'🌊', diff:2, world:8 },
+  { id:'8-3', name:'8-3', icon:'🐟', diff:3, world:8 },
+  { id:'8-4', name:'8-4', icon:'🐟', diff:3, world:8 },
+  { id:'8-5', name:'8-5', icon:'🦈', diff:4, world:8 },
+  { id:'8-6', name:'8-6', icon:'🐙', diff:4, world:8 },
+  { id:'8-7', name:'8-7', icon:'🐙', diff:5, world:8 },
+  { id:'8-8', name:'8-8', icon:'⚓', diff:5, world:8 },
+  { id:'8-9', name:'8-9', icon:'⚓', diff:5, world:8 },
+  { id:'8-10', name:'8-10', icon:'🌀', diff:5, world:8 },
+  { id:'9-1', name:'9-1', icon:'🏰', diff:2, world:9 },
+  { id:'9-2', name:'9-2', icon:'🏰', diff:2, world:9 },
+  { id:'9-3', name:'9-3', icon:'🗝️', diff:3, world:9 },
+  { id:'9-4', name:'9-4', icon:'🗝️', diff:3, world:9 },
+  { id:'9-5', name:'9-5', icon:'⚔️', diff:4, world:9 },
+  { id:'9-6', name:'9-6', icon:'🛡️', diff:4, world:9 },
+  { id:'9-7', name:'9-7', icon:'🛡️', diff:5, world:9 },
+  { id:'9-8', name:'9-8', icon:'👻', diff:5, world:9 },
+  { id:'9-9', name:'9-9', icon:'👻', diff:5, world:9 },
+  { id:'9-10', name:'9-10', icon:'💀', diff:5, world:9 },
+  { id:'10-1', name:'10-1', icon:'🔥', diff:2, world:10 },
+  { id:'10-2', name:'10-2', icon:'🔥', diff:2, world:10 },
+  { id:'10-3', name:'10-3', icon:'😈', diff:3, world:10 },
+  { id:'10-4', name:'10-4', icon:'😈', diff:3, world:10 },
+  { id:'10-5', name:'10-5', icon:'🔱', diff:4, world:10 },
+  { id:'10-6', name:'10-6', icon:'💀', diff:4, world:10 },
+  { id:'10-7', name:'10-7', icon:'💀', diff:5, world:10 },
+  { id:'10-8', name:'10-8', icon:'🌑', diff:5, world:10 },
+  { id:'10-9', name:'10-9', icon:'🌑', diff:5, world:10 },
+  { id:'10-10', name:'10-10', icon:'🐉', diff:5, world:10 },
 ];
 
 const CAMPAIGN_REWARDS = {
@@ -2969,71 +3225,211 @@ const CAMPAIGN_REWARDS = {
   '1-8': {'stone':900, 'ore':525, 'xp':203},
   '1-9': {'ore':1050, 'fiber':600, 'xp':240},
   '1-10': {'wood':3000, 'stone':3000, 'fiber':3000, 'leather':3000, 'ore':3000, 'xp':450},
+  '2-1': {'wood':540, 'fiber':270, 'xp':81},
+  '2-2': {'wood':810, 'stone':405, 'xp':108},
+  '2-3': {'stone':810, 'fiber':540, 'xp':135},
+  '2-4': {'stone':1080, 'ore':405, 'xp':176},
+  '2-5': {'ore':810, 'leather':540, 'xp':216},
+  '2-6': {'fiber':1080, 'leather':675, 'xp':257},
+  '2-7': {'leather':1350, 'ore':810, 'xp':311},
+  '2-8': {'stone':1620, 'ore':945, 'xp':365},
+  '2-9': {'ore':1890, 'fiber':1080, 'xp':432},
+  '2-10': {'wood':5400, 'stone':5400, 'fiber':5400, 'leather':5400, 'ore':5400, 'xp':810},
+  '3-1': {'wood':780, 'fiber':390, 'xp':117},
+  '3-2': {'wood':1170, 'stone':585, 'xp':156},
+  '3-3': {'stone':1170, 'fiber':780, 'xp':195},
+  '3-4': {'stone':1560, 'ore':585, 'xp':255},
+  '3-5': {'ore':1170, 'leather':780, 'xp':312},
+  '3-6': {'fiber':1560, 'leather':975, 'xp':372},
+  '3-7': {'leather':1950, 'ore':1170, 'xp':450},
+  '3-8': {'stone':2340, 'ore':1365, 'xp':528},
+  '3-9': {'ore':2730, 'fiber':1560, 'xp':624},
+  '3-10': {'wood':7800, 'stone':7800, 'fiber':7800, 'leather':7800, 'ore':7800, 'xp':1170},
+  '4-1': {'wood':1020, 'fiber':510, 'xp':153},
+  '4-2': {'wood':1530, 'stone':765, 'xp':204},
+  '4-3': {'stone':1530, 'fiber':1020, 'xp':255},
+  '4-4': {'stone':2040, 'ore':765, 'xp':333},
+  '4-5': {'ore':1530, 'leather':1020, 'xp':408},
+  '4-6': {'fiber':2040, 'leather':1275, 'xp':486},
+  '4-7': {'leather':2550, 'ore':1530, 'xp':588},
+  '4-8': {'stone':3060, 'ore':1785, 'xp':690},
+  '4-9': {'ore':3570, 'fiber':2040, 'xp':816},
+  '4-10': {'wood':10200, 'stone':10200, 'fiber':10200, 'leather':10200, 'ore':10200, 'xp':1530},
+  '5-1': {'wood':1260, 'fiber':630, 'xp':189},
+  '5-2': {'wood':1890, 'stone':945, 'xp':252},
+  '5-3': {'stone':1890, 'fiber':1260, 'xp':315},
+  '5-4': {'stone':2520, 'ore':945, 'xp':412},
+  '5-5': {'ore':1890, 'leather':1260, 'xp':504},
+  '5-6': {'fiber':2520, 'leather':1575, 'xp':601},
+  '5-7': {'leather':3150, 'ore':1890, 'xp':727},
+  '5-8': {'stone':3780, 'ore':2205, 'xp':853},
+  '5-9': {'ore':4410, 'fiber':2520, 'xp':1008},
+  '5-10': {'wood':12600, 'stone':12600, 'fiber':12600, 'leather':12600, 'ore':12600, 'xp':1890},
+  '6-1': {'wood':1500, 'fiber':750, 'xp':225},
+  '6-2': {'wood':2250, 'stone':1125, 'xp':300},
+  '6-3': {'stone':2250, 'fiber':1500, 'xp':375},
+  '6-4': {'stone':3000, 'ore':1125, 'xp':490},
+  '6-5': {'ore':2250, 'leather':1500, 'xp':600},
+  '6-6': {'fiber':3000, 'leather':1875, 'xp':715},
+  '6-7': {'leather':3750, 'ore':2250, 'xp':865},
+  '6-8': {'stone':4500, 'ore':2625, 'xp':1015},
+  '6-9': {'ore':5250, 'fiber':3000, 'xp':1200},
+  '6-10': {'wood':15000, 'stone':15000, 'fiber':15000, 'leather':15000, 'ore':15000, 'xp':2250},
+  '7-1': {'wood':1740, 'fiber':870, 'xp':261},
+  '7-2': {'wood':2610, 'stone':1305, 'xp':348},
+  '7-3': {'stone':2610, 'fiber':1740, 'xp':435},
+  '7-4': {'stone':3480, 'ore':1305, 'xp':568},
+  '7-5': {'ore':2610, 'leather':1740, 'xp':696},
+  '7-6': {'fiber':3480, 'leather':2175, 'xp':829},
+  '7-7': {'leather':4350, 'ore':2610, 'xp':1003},
+  '7-8': {'stone':5220, 'ore':3045, 'xp':1177},
+  '7-9': {'ore':6090, 'fiber':3480, 'xp':1392},
+  '7-10': {'wood':17400, 'stone':17400, 'fiber':17400, 'leather':17400, 'ore':17400, 'xp':2610},
+  '8-1': {'wood':1980, 'fiber':990, 'xp':297},
+  '8-2': {'wood':2970, 'stone':1485, 'xp':396},
+  '8-3': {'stone':2970, 'fiber':1980, 'xp':495},
+  '8-4': {'stone':3960, 'ore':1485, 'xp':647},
+  '8-5': {'ore':2970, 'leather':1980, 'xp':792},
+  '8-6': {'fiber':3960, 'leather':2475, 'xp':944},
+  '8-7': {'leather':4950, 'ore':2970, 'xp':1142},
+  '8-8': {'stone':5940, 'ore':3465, 'xp':1340},
+  '8-9': {'ore':6930, 'fiber':3960, 'xp':1584},
+  '8-10': {'wood':19800, 'stone':19800, 'fiber':19800, 'leather':19800, 'ore':19800, 'xp':2970},
+  '9-1': {'wood':2220, 'fiber':1110, 'xp':333},
+  '9-2': {'wood':3330, 'stone':1665, 'xp':444},
+  '9-3': {'stone':3330, 'fiber':2220, 'xp':555},
+  '9-4': {'stone':4440, 'ore':1665, 'xp':725},
+  '9-5': {'ore':3330, 'leather':2220, 'xp':888},
+  '9-6': {'fiber':4440, 'leather':2775, 'xp':1058},
+  '9-7': {'leather':5550, 'ore':3330, 'xp':1280},
+  '9-8': {'stone':6660, 'ore':3885, 'xp':1502},
+  '9-9': {'ore':7770, 'fiber':4440, 'xp':1776},
+  '9-10': {'wood':22200, 'stone':22200, 'fiber':22200, 'leather':22200, 'ore':22200, 'xp':3330},
+  '10-1': {'wood':2460, 'fiber':1230, 'xp':369},
+  '10-2': {'wood':3690, 'stone':1845, 'xp':492},
+  '10-3': {'stone':3690, 'fiber':2460, 'xp':615},
+  '10-4': {'stone':4920, 'ore':1845, 'xp':804},
+  '10-5': {'ore':3690, 'leather':2460, 'xp':984},
+  '10-6': {'fiber':4920, 'leather':3075, 'xp':1173},
+  '10-7': {'leather':6150, 'ore':3690, 'xp':1419},
+  '10-8': {'stone':7380, 'ore':4305, 'xp':1665},
+  '10-9': {'ore':8610, 'fiber':4920, 'xp':1968},
+  '10-10': {'wood':24600, 'stone':24600, 'fiber':24600, 'leather':24600, 'ore':24600, 'xp':3690},
 };
 let campCompletedStages = new Set();
 let campSelectedStage = null;
+let campCurrentWorld = 1;
+let campEliteMode = false;
+
+function isWorldUnlocked(world) {
+  if (world === 1) return true;
+  const prev = CAMPAIGN_STAGES.filter(s => s.world === world - 1);
+  return prev.every(s => campCompletedStages.has(s.id));
+}
+function isEliteCleared(stageId) { return campCompletedStages.has('elite:' + stageId); }
+function isEliteWorldUnlocked(world) {
+  if (world === 1) return true;
+  const prev = CAMPAIGN_STAGES.filter(s => s.world === world - 1);
+  return prev.every(s => isEliteCleared(s.id));
+}
+
+const ELITE_MODIFIERS = [
+  { id:'hp50',       label:'☠️ +50% Enemy HP',           apply:(bs,cfg)=>{ cfg.hpMult*=1.5; } },
+  { id:'speed20',    label:'💨 +20% Enemy Speed',         apply:(bs,cfg)=>{ cfg.speedMult*=1.2; } },
+  { id:'armor',      label:'🛡️ Enemies Take 30% Less Dmg',apply:(bs,cfg)=>{ cfg.dmgReduce=0.30; } },
+  { id:'count50',    label:'👾 +50% More Enemies',        apply:(bs,cfg)=>{ cfg.countMult*=1.5; } },
+  { id:'goldhalved', label:'💰 Half Wave Gold',           apply:(bs,cfg)=>{ cfg.waveBonusMult=0.5; } },
+  { id:'slowturret', label:'🐢 -20% Turret Attack Speed', apply:(bs,cfg)=>{ cfg.turretSlowMult=1.2; } },
+  { id:'regen',      label:'💚 Enemies Regenerate HP',    apply:(bs,cfg)=>{ cfg.enemyRegen=true; } },
+  { id:'doublewave', label:'🌊 Double Wave Size',          apply:(bs,cfg)=>{ cfg.countMult*=2.0; cfg.waveBonusMult=(cfg.waveBonusMult||1)*0.5; } },
+  { id:'nointerest', label:'🚫 No Wave Bonus Gold',       apply:(bs,cfg)=>{ cfg.waveBonusMult=0; } },
+];
+function seededRandom(seed) { let s=seed; return function(){ s=(s*1664525+1013904223)&0xffffffff; return (s>>>0)/0xffffffff; }; }
+function getEliteModifiers(stageId) {
+  const seed=stageId.split('').reduce((a,ch)=>a*31+ch.charCodeAt(0),0);
+  const rng=seededRandom(Math.abs(seed));
+  const count=rng()<0.4?2:1;
+  return [...ELITE_MODIFIERS].sort(()=>rng()-0.5).slice(0,count);
+}
+function toggleEliteMode() {
+  campEliteMode=!campEliteMode;
+  const btn=document.getElementById('camp-elite-btn');
+  const sec=document.getElementById('section-campaign');
+  if(campEliteMode){ btn.textContent='💀 Elite'; btn.style.background='rgba(240,192,64,0.15)'; btn.style.borderColor='#f0c040'; btn.style.color='#f0c040'; sec.classList.add('elite-mode-active'); }
+  else { btn.textContent='⚔️ Normal'; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; sec.classList.remove('elite-mode-active'); }
+  campSelectedStage=null; buildCampaignMap(); updateCampaignInfo();
+}
+function switchCampaignWorld(world) {
+  const unlocked = world===1||(campEliteMode?isEliteWorldUnlocked(world):isWorldUnlocked(world));
+  if(!unlocked){ showToast(`🔒 Complete all ${campEliteMode?'Elite ':''}stages in World ${world-1} first!`); document.getElementById('camp-world-select').value=campCurrentWorld; return; }
+  campCurrentWorld=world; campSelectedStage=null; buildCampaignMap(); updateCampaignInfo();
+}
 
 function buildCampaignMap() {
   const map = document.getElementById('campaign-map');
   if (!map) return;
   map.innerHTML = '';
+  const worldStages = CAMPAIGN_STAGES.filter(s => s.world === campCurrentWorld);
 
-  // Auto-select highest available stage if none selected or selected is now invalid
-  if (!campSelectedStage) {
-    // Find highest unlocked (first non-completed available, or last completed)
-    let highestAvailable = CAMPAIGN_STAGES[0].id;
-    CAMPAIGN_STAGES.forEach((s, i) => {
-      const available = i === 0 || campCompletedStages.has(CAMPAIGN_STAGES[i-1].id);
-      if (available) highestAvailable = s.id;
+  // Populate/update world dropdown
+  const sel = document.getElementById('camp-world-select');
+  if (sel) {
+    if (sel.options.length === 0) {
+      for (let w=1;w<=10;w++) { const o=document.createElement('option'); o.value=w; sel.appendChild(o); }
+    }
+    Array.from(sel.options).forEach((o,i)=>{
+      const w=i+1, unlocked=w===1||(campEliteMode?isEliteWorldUnlocked(w):isWorldUnlocked(w));
+      o.textContent=unlocked?WORLD_NAMES[i]:`🔒 World ${w}`; o.disabled=!unlocked;
     });
-    campSelectedStage = highestAvailable;
+    sel.value=campCurrentWorld;
+  }
+  document.getElementById('camp-stage-num').textContent=campCurrentWorld;
+
+  // Auto-select highest available
+  if (!campSelectedStage || !worldStages.find(s=>s.id===campSelectedStage)) {
+    const worldOk=campCurrentWorld===1||(campEliteMode?isEliteWorldUnlocked(campCurrentWorld):isWorldUnlocked(campCurrentWorld));
+    let best=worldStages[0].id;
+    if(worldOk) worldStages.forEach((s,i)=>{
+      const prevOk=i===0||(campEliteMode?isEliteCleared(worldStages[i-1].id):campCompletedStages.has(worldStages[i-1].id));
+      const normalOk=!campEliteMode||campCompletedStages.has(s.id);
+      if(prevOk&&normalOk) best=s.id;
+    });
+    campSelectedStage=best;
   }
 
   const row = document.createElement('div');
   row.className = 'camp-row';
-
-  CAMPAIGN_STAGES.forEach((stage, i) => {
+  worldStages.forEach((stage, i) => {
     if (i > 0) {
       const conn = document.createElement('div');
-      const prevDone = campCompletedStages.has(CAMPAIGN_STAGES[i-1].id);
+      const prevDone = campEliteMode ? isEliteCleared(worldStages[i-1].id) : campCompletedStages.has(worldStages[i-1].id);
       conn.className = 'camp-connector-h' + (prevDone ? ' done' : '');
-      conn.id = `camp-conn-${i}`;
       row.appendChild(conn);
     }
-
     const wrap = document.createElement('div');
     wrap.className = 'camp-node-wrap';
-
     const label = document.createElement('div');
     label.className = 'camp-node-label';
     label.textContent = stage.name;
-
     const node = document.createElement('div');
-    const done = campCompletedStages.has(stage.id);
-    const available = i === 0 || campCompletedStages.has(CAMPAIGN_STAGES[i-1].id);
-    const selected = campSelectedStage === stage.id;
-
-    node.className = 'camp-node' +
-      (done ? ' completed' : '') +
-      (selected ? ' selected' : '') +
-      (!available && !done ? ' locked' : '');
-
+    const normalDone = campCompletedStages.has(stage.id);
+    const eliteDone  = isEliteCleared(stage.id);
+    const done       = campEliteMode ? eliteDone : normalDone;
+    const worldOk    = campCurrentWorld===1||(campEliteMode?isEliteWorldUnlocked(campCurrentWorld):isWorldUnlocked(campCurrentWorld));
+    const prevCleared= i===0||(campEliteMode?isEliteCleared(worldStages[i-1].id):campCompletedStages.has(worldStages[i-1].id));
+    const eliteReq   = !campEliteMode||normalDone;
+    const available  = worldOk && prevCleared && eliteReq;
+    const selected   = campSelectedStage === stage.id;
+    node.className = 'camp-node'+(done?' completed':'')+(selected?' selected':'')+(!available&&!done?' locked':'');
     if (!done) node.textContent = stage.icon;
-    // Completed nodes: textContent cleared so CSS ::after checkmark shows cleanly
     node.onclick = () => {
-      if (!available && !done) return; // locked: not done and prev not done
+      if (!available && !done) return;
       campSelectedStage = stage.id;
-      buildCampaignMap();
-      updateCampaignInfo();
+      buildCampaignMap(); updateCampaignInfo();
     };
-
-    wrap.appendChild(label);
-    wrap.appendChild(node);
-    row.appendChild(wrap);
+    wrap.appendChild(label); wrap.appendChild(node); row.appendChild(wrap);
   });
-
   map.appendChild(row);
-
   const info = document.createElement('div');
   info.id = 'camp-stage-info-box';
   info.style.marginTop = '20px';
@@ -3044,52 +3440,47 @@ function buildCampaignMap() {
 function updateCampaignInfo() {
   const box = document.getElementById('camp-stage-info-box');
   if (!box) return;
-  if (!campSelectedStage) {
-    box.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:13px;padding:1.5rem;">Select a stage above to see details</div>`;
-    return;
-  }
-  const stage = CAMPAIGN_STAGES.find(s => s.id === campSelectedStage);
+  if (!campSelectedStage) { box.innerHTML=`<div style="text-align:center;color:var(--text3);font-size:13px;padding:1.5rem;">Select a stage</div>`; return; }
+  const baseId = campSelectedStage.startsWith('elite:') ? campSelectedStage.slice(6) : campSelectedStage;
+  const stage = CAMPAIGN_STAGES.find(s => s.id === baseId);
   if (!stage) return;
-  const done = campCompletedStages.has(stage.id);
-  const stageIdx = CAMPAIGN_STAGES.indexOf(stage);
-  const available = stageIdx === 0 || campCompletedStages.has(CAMPAIGN_STAGES[stageIdx-1].id);
-
-  const diffPips = Array.from({length:5}).map((_,i) =>
-    `<div class="camp-diff-pip${i < stage.diff ? ' filled' : ''}"></div>`
-  ).join('');
-
-  // Build reward preview
-  const stageRewards = CAMPAIGN_REWARDS[stage.id] || {};
-  const rewardPreview = Object.entries(stageRewards).map(([k,v]) => {
-    if (k === 'xp') return `<span style="color:var(--gold)">⭐ ${v} XP</span>`;
-    const def = RESOURCE_DEFS.find(r=>r.id===k);
-    return def ? `${def.icon} ${v.toLocaleString()} ${def.name}` : '';
+  const worldStages2 = CAMPAIGN_STAGES.filter(s => s.world === stage.world);
+  const stageIdx = worldStages2.findIndex(s => s.id === baseId);
+  const normalDone = campCompletedStages.has(stage.id);
+  const eliteDone  = isEliteCleared(stage.id);
+  const done       = campEliteMode ? eliteDone : normalDone;
+  const worldOk    = stage.world===1||(campEliteMode?isEliteWorldUnlocked(stage.world):isWorldUnlocked(stage.world));
+  const prevCleared= stageIdx===0||(campEliteMode?isEliteCleared(worldStages2[stageIdx-1].id):campCompletedStages.has(worldStages2[stageIdx-1].id));
+  const eliteReq   = !campEliteMode||normalDone;
+  const available  = worldOk && prevCleared && eliteReq;
+  const diffPips   = Array.from({length:5}).map((_,i)=>`<div class="camp-diff-pip${i<stage.diff?' filled':''}"></div>`).join('');
+  const baseRew = CAMPAIGN_REWARDS[stage.id]||{};
+  const mult = campEliteMode ? 3 : 1;
+  const rewardPreview = Object.entries(baseRew).map(([k,v])=>{
+    const val=Math.round(v*mult);
+    if(k==='xp') return `<span style="color:var(--gold)">⭐ ${val} XP</span>`;
+    const def=RESOURCE_DEFS.find(r=>r.id===k);
+    return def?`${def.icon} ${val.toLocaleString()} ${def.name}`:'';
   }).filter(Boolean).join('&nbsp;&nbsp;');
-
-  box.innerHTML = `
+  const eliteMods = campEliteMode ? getEliteModifiers(stage.id).map(m=>m.label).join('<br>') : '';
+  const lockReason = campEliteMode&&!normalDone ? '🔒 Clear Normal mode first' : '🔒 Complete previous stage';
+  box.innerHTML=`
     <div class="camp-stage-info">
       <div class="camp-stage-info-title">${stage.icon} Stage ${stage.name}</div>
-      <div class="camp-difficulty">
-        <span class="camp-diff-label">Difficulty:</span>
-        ${diffPips}
-      </div>
+      <div class="camp-difficulty"><span class="camp-diff-label">Difficulty:</span>${diffPips}</div>
+      ${campEliteMode&&eliteMods?`<div style="font-size:11px;color:var(--text3);margin-bottom:0.5rem;"><strong style="color:#f0a040;">⚡ Elite Modifiers:</strong><br>${eliteMods}</div>`:''}
       <div style="font-size:12px;color:var(--text2);margin-bottom:0.75rem;line-height:1.8;">
-    ${done
-      ? '<span style="color:var(--text3);font-size:11px;">No rewards (already cleared)</span>'
-      : `<span style="color:var(--text3);font-size:11px;">First clear reward:</span><br>${rewardPreview}`
-    }
-  </div>
-
-      ${(available || done)
-        ? `<button class="camp-play-btn" onclick="playCampaignStage('${stage.id}')">${done?'🔄 Replay':'⚔️ Deploy Defenses'}</button>`
-        : `<button class="camp-play-btn" style="opacity:0.3;cursor:not-allowed;" disabled>🔒 Complete previous stage</button>`
-      }
-    </div>
-  `;
+        ${done?'<span style="color:var(--text3);font-size:11px;">No rewards (already cleared)</span>':`<span style="color:var(--text3);font-size:11px;">${campEliteMode?'Elite first clear reward:':'First clear reward:'}</span><br>${rewardPreview}`}
+      </div>
+      ${(available||done)
+        ?`<button class="camp-play-btn" onclick="playCampaignStage('${stage.id}')">${done?'🔄 Replay':'⚔️ Deploy Defenses'}</button>`
+        :`<button class="camp-play-btn" style="opacity:0.3;cursor:not-allowed;" disabled>${lockReason}</button>`}
+    </div>`;
 }
 
 function playCampaignStage(stageId) {
-  openBattleSetup(stageId);
+  const effectiveId = campEliteMode ? 'elite:' + stageId : stageId;
+  openBattleSetup(effectiveId);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3099,45 +3490,23 @@ function playCampaignStage(stageId) {
 const TILE = 48; 
 
 const MAP_DEFS = {
-  'forest': {
-    name: 'Goblin Forest',
-    bg: '#1a2a15',
-    pathColor: '#5a4020',
-    pathWidth: 0.85,
-    waypoints: [
-      [0,2],[2,2],[2,4],[4,4],[4,1],[6,1],[6,5],[8,5],
-      [8,7],[10,7],[10,4],[12,4],[12,8],[14,8],[14,5],[16,5],
-      [16,2],[18,2],[18,6],[20,6],[20,3],[19,3]
-    ],
-  },
-  'canyon': {
-    name: 'Stone Canyon',
-    bg: '#1a1510',
-    pathColor: '#7a6040',
-    pathWidth: 0.85,
-    waypoints: [
-      [0,1],[2,1],[2,3],[4,3],[4,6],[2,6],[2,8],[5,8],
-      [5,5],[7,5],[7,2],[9,2],[9,6],[11,6],[11,3],[14,3],
-      [14,7],[16,7],[16,4],[18,4],[18,1],[20,1],[20,5],[19,5]
-    ],
-  },
-  'swamp': {
-    name: 'Dark Swamp',
-    bg: '#0f1a10',
-    pathColor: '#3a5030',
-    pathWidth: 0.85,
-    waypoints: [
-      [0,5],[2,5],[2,2],[4,2],[4,7],[6,7],[6,4],[8,4],
-      [8,8],[10,8],[10,5],[12,5],[12,1],[14,1],[14,4],[16,4],
-      [16,8],[18,8],[18,5],[20,5],[20,2],[19,2]
-    ],
-  },
+  'forest':   { name:'Goblin Forest',    bg:'#1a2a15', pathColor:'#5a4020', pathWidth:0.85, waypoints:[[0,2],[2,2],[2,4],[4,4],[4,1],[6,1],[6,5],[8,5],[8,7],[10,7],[10,4],[12,4],[12,8],[14,8],[14,5],[16,5],[16,2],[18,2],[18,6],[20,6],[20,3],[19,3]] },
+  'canyon':   { name:'Stone Canyon',     bg:'#1a1510', pathColor:'#7a6040', pathWidth:0.85, waypoints:[[0,1],[2,1],[2,3],[4,3],[4,6],[2,6],[2,8],[5,8],[5,5],[7,5],[7,2],[9,2],[9,6],[11,6],[11,3],[14,3],[14,7],[16,7],[16,4],[18,4],[18,1],[20,1],[20,5],[19,5]] },
+  'swamp':    { name:'Dark Swamp',       bg:'#0f1a10', pathColor:'#3a5030', pathWidth:0.85, waypoints:[[0,5],[2,5],[2,2],[4,2],[4,7],[6,7],[6,4],[8,4],[8,8],[10,8],[10,5],[12,5],[12,1],[14,1],[14,4],[16,4],[16,8],[18,8],[18,5],[20,5],[20,2],[19,2]] },
+  'volcano':  { name:'Volcanic Wastes',  bg:'#1a0a05', pathColor:'#8a3010', pathWidth:0.85, waypoints:[[0,4],[3,4],[3,1],[5,1],[5,6],[7,6],[7,3],[9,3],[9,8],[11,8],[11,5],[13,5],[13,2],[15,2],[15,7],[17,7],[17,4],[19,4],[19,1],[20,1]] },
+  'tundra':   { name:'Frozen Tundra',    bg:'#0d1520', pathColor:'#5080a0', pathWidth:0.85, waypoints:[[0,3],[2,3],[2,7],[4,7],[4,2],[7,2],[7,5],[9,5],[9,1],[11,1],[11,6],[13,6],[13,3],[15,3],[15,8],[17,8],[17,5],[19,5],[19,2],[20,2]] },
+  'desert':   { name:'Scorched Desert',  bg:'#1a1505', pathColor:'#a08020', pathWidth:0.85, waypoints:[[0,6],[2,6],[2,2],[4,2],[4,8],[6,8],[6,4],[9,4],[9,7],[11,7],[11,2],[13,2],[13,6],[15,6],[15,3],[17,3],[17,7],[19,7],[19,4],[20,4]] },
+  'ruins':    { name:'Ancient Ruins',    bg:'#100f18', pathColor:'#605870', pathWidth:0.85, waypoints:[[0,1],[2,1],[2,5],[4,5],[4,2],[6,2],[6,7],[8,7],[8,4],[10,4],[10,8],[12,8],[12,3],[14,3],[14,6],[16,6],[16,2],[18,2],[18,5],[20,5],[20,3],[19,3]] },
+  'ocean':    { name:'Sea Cliffs',       bg:'#050f1a', pathColor:'#206080', pathWidth:0.85, waypoints:[[0,2],[3,2],[3,5],[1,5],[1,8],[4,8],[4,6],[6,6],[6,1],[8,1],[8,4],[10,4],[10,8],[12,8],[12,5],[14,5],[14,2],[16,2],[16,6],[18,6],[18,3],[20,3]] },
+  'citadel':  { name:'Dark Citadel',     bg:'#0a0a12', pathColor:'#404050', pathWidth:0.85, waypoints:[[0,5],[2,5],[2,2],[5,2],[5,4],[3,4],[3,7],[6,7],[6,5],[8,5],[8,1],[10,1],[10,4],[12,4],[12,8],[14,8],[14,5],[16,5],[16,2],[18,2],[18,6],[19,6]] },
+  'hellgate': { name:'Hellgate',         bg:'#100005', pathColor:'#801010', pathWidth:0.85, waypoints:[[0,4],[2,4],[2,1],[4,1],[4,6],[6,6],[6,3],[8,3],[8,7],[10,7],[10,2],[12,2],[12,5],[14,5],[14,8],[16,8],[16,4],[18,4],[18,1],[20,1],[20,5],[19,5]] },
 };
 
-const STAGE_MAP = {
-  '1-1':'forest','1-2':'forest','1-3':'forest','1-4':'canyon',
-  '1-5':'canyon','1-6':'canyon','1-7':'swamp','1-8':'swamp','1-9':'swamp','1-10':'swamp',
-};
+const WORLD_MAPS = ['forest','canyon','swamp','volcano','tundra','desert','ruins','ocean','citadel','hellgate'];
+const WORLD_NAMES = ['🌲 Goblin Forest','🏔️ Stone Canyon','🌿 Dark Swamp','🌋 Volcanic Wastes','❄️ Frozen Tundra','☀️ Scorched Desert','🏛️ Ancient Ruins','🌊 Sea Cliffs','🏰 Dark Citadel','🔥 Hellgate'];
+
+const STAGE_MAP = {};
+for (let w=1;w<=10;w++) for (let s=1;s<=10;s++) STAGE_MAP[`${w}-${s}`] = WORLD_MAPS[w-1];
 
 const ENEMY_TYPES = {
   red:    { name:'Red Crawler',    color:'#e03030', size:9,  hp:30,  speed:51,  reward:1, spawnOnDeath:null },
@@ -3152,6 +3521,7 @@ const ENEMY_TYPES = {
 };
 
 function getWaveConfig(stageId, wave) {
+  if (stageId.startsWith('elite:')) stageId = stageId.slice(6);
   // PVP stages use difficulty level directly
   if (stageId.startsWith('pvp-')) {
     const diff = parseInt(stageId.split('-')[1]) || 1;
@@ -3265,9 +3635,9 @@ let selectedTowerId = null;
 
 function battleDeploySlots() {
   let slots = 2;
-  if (researchState['comb1']?.done) slots += 1;
-  if (researchState['comb3']?.done) slots += 1;
-  if (researchState['comb5']?.done) slots += 2;
+  if (researchState['bat1']?.done) slots += 1;
+  if (researchState['bat3']?.done) slots += 1;
+  if (researchState['bat5']?.done) slots += 2;
   return slots;
 }
 
@@ -3278,6 +3648,8 @@ const TOWER_RADIUS_PX = 15;
 function openBattleSetup(stageId) {
   battleSetupStageId = stageId;
   battleSelectedTowers = [];
+  const statsSection = document.getElementById('setup-stats-section');
+  if (statsSection) statsSection.style.visibility = 'hidden';
   const screen = document.getElementById('battle-screen');
   const setup  = document.getElementById('battle-setup');
   const game   = document.getElementById('battle-game');
@@ -3286,13 +3658,15 @@ function openBattleSetup(stageId) {
   game.style.display   = 'none';
 
   const isPvp = stageId.startsWith('pvp-');
-  const pvpDiff = isPvp ? parseInt(stageId.split('-')[1]) : null;
-  const mapKeys = Object.keys(MAP_DEFS);
-  const pvpMapKey = isPvp ? mapKeys[(pvpDiff - 1) % mapKeys.length] : (STAGE_MAP[stageId] || 'forest');
-  const mapDef = MAP_DEFS[pvpMapKey];
-  const stage = CAMPAIGN_STAGES.find(s=>s.id===stageId);
+  const isEliteBattle = stageId.startsWith('elite:');
+  const baseStageId = isEliteBattle ? stageId.slice(6) : stageId;
+  const mapKey0 = isPvp ? 'forest' : (STAGE_MAP[baseStageId] || 'forest');
+  const mapDef = MAP_DEFS[mapKey0];
+  const stage = CAMPAIGN_STAGES.find(s=>s.id===baseStageId);
 
-  document.getElementById('setup-title').textContent = isPvp ? `World Map — Difficulty ${pvpDiff}` : `Stage ${stageId}`;
+  const worldNum0 = isPvp?0:parseInt(baseStageId.split('-')[0]);
+  const worldLabel = isPvp?'World Map':(WORLD_NAMES[worldNum0-1]||`World ${worldNum0}`);
+  document.getElementById('setup-title').textContent = isPvp?`World Map`:`Stage ${baseStageId}${isEliteBattle?' [ELITE]':''} — ${worldLabel}`;
   document.getElementById('setup-sub').textContent   = `Select up to ${battleDeploySlots()} towers from your Armory to bring`;
 
   document.getElementById('setup-stage-info').innerHTML = `
@@ -3300,7 +3674,7 @@ function openBattleSetup(stageId) {
 
     <div class="setup-info-row"><span class="setup-info-label">Waves</span><span class="setup-info-val">10</span></div>
     <div class="setup-info-row"><span class="setup-info-label">Deploy slots</span><span class="setup-info-val">${battleDeploySlots()}</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 50</span></div>
+    <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 ${200 + getResearchBonuses().start_gold}</span></div>
     ${isPvp ? `<div class="setup-info-row"><span class="setup-info-label">Reward</span><span class="setup-info-val" style="color:#3ecf8e">🟢 Claim territory</span></div>` : ''}
   `;
   renderSetupArmory();
@@ -3324,12 +3698,50 @@ function renderSetupArmory() {
         <div class="setup-tower-check">✓</div>
         <div class="setup-tower-icon">${td?.icon||'🗼'}</div>
         <div class="setup-tower-name">${td?.name||'Tower'}</div>
+        <button class="setup-tower-info-btn" title="View stats">ℹ</button>
       `;
+      div.querySelector('.setup-tower-info-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        showSetupTowerStats(i);
+      });
       div.onclick = () => toggleSetupTower(i, maxSlots);
       grid.appendChild(div);
     });
   }
   updateSetupSlotBadge(maxSlots);
+}
+
+function showSetupTowerStats(armoryIdx) {
+  // Clear previous highlight
+  document.querySelectorAll('.setup-tower-slot.info-active').forEach(el => el.classList.remove('info-active'));
+  // Highlight the clicked card
+  const allSlots = document.querySelectorAll('#setup-armory-grid .setup-tower-slot');
+  if (allSlots[armoryIdx]) allSlots[armoryIdx].classList.add('info-active');
+
+  const validTowers = armoryTowers.filter(Boolean);
+  const entry = validTowers[armoryIdx];
+  if (!entry) return;
+  const td = TOWER_DEFS.find(t => t.id === entry.towerId);
+  if (!td) return;
+  const lvlMult = 1 + (entry.level - 1) * (td.upgPctPerLevel || 0.10);
+  const dmg   = Math.round(td.baseStats.dmg * lvlMult);
+  const spd   = td.baseStats.atkSpeed;
+  const range = td.baseStats.range;
+  const proj  = td.baseStats.projectiles;
+  const b = getResearchBonuses();
+  const dmgFinal = Math.round(dmg * (1 + b.tower_dmg));
+  document.getElementById('setup-stats-content').innerHTML = `
+    <div class="setup-stats-icon">${td.icon}</div>
+    <div class="setup-stats-name">${td.name}</div>
+    <span class="setup-stats-type" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
+    <div class="setup-stat-row"><span class="setup-stat-label">Level</span><span class="setup-stat-val">${entry.level}</span></div>
+    <div class="setup-stat-row"><span class="setup-stat-label">Damage</span><span class="setup-stat-val">${dmgFinal}</span></div>
+    <div class="setup-stat-row"><span class="setup-stat-label">Atk Speed</span><span class="setup-stat-val">${spd}s</span></div>
+    <div class="setup-stat-row"><span class="setup-stat-label">Range</span><span class="setup-stat-val">${range} tiles</span></div>
+    ${proj > 1 ? `<div class="setup-stat-row"><span class="setup-stat-label">Projectiles</span><span class="setup-stat-val">${proj}</span></div>` : ''}
+    ${td.special ? `<div class="setup-stats-special">✦ ${td.special}</div>` : ''}
+  `;
+  document.getElementById('setup-stats-section').style.visibility = 'visible';
 }
 
 function toggleSetupTower(idx, maxSlots) {
@@ -3356,25 +3768,30 @@ function closeBattleScreen(goToNextStage) {
   selectedTowerId = null;
   _lastHudGold = -1;
 
+  // PVP battles return to the PVP map
+  if (battleSetupStageId?.startsWith('pvp-')) {
+    switchSection('pvp');
+    return;
+  }
+
   // Always navigate to campaign tab on exit
   switchSection('campaign');
 
+  const isEliteExit = battleSetupStageId?.startsWith('elite:');
+  const baseExitId = isEliteExit ? battleSetupStageId.slice(6) : battleSetupStageId;
   if (goToNextStage) {
-    // Find and select the next stage after the one just played
-    const stageId = battleSetupStageId;
-    const idx = CAMPAIGN_STAGES.findIndex(s => s.id === stageId);
-    const nextStage = CAMPAIGN_STAGES[idx + 1];
-    if (nextStage && campCompletedStages.has(stageId)) {
-      campSelectedStage = nextStage.id;
-    } else {
-      campSelectedStage = stageId;
-    }
+    const curStage = CAMPAIGN_STAGES.find(s => s.id === baseExitId);
+    const worldStagesX = CAMPAIGN_STAGES.filter(s => s.world === curStage?.world);
+    const idxW = worldStagesX.findIndex(s => s.id === baseExitId);
+    const nextInWorld = worldStagesX[idxW + 1];
+    if (nextInWorld) { campSelectedStage = nextInWorld.id; campCurrentWorld = curStage.world; }
+    else if (curStage && (isEliteExit?isEliteWorldUnlocked(curStage.world+1):isWorldUnlocked(curStage.world+1))) {
+      campCurrentWorld = curStage.world + 1; campSelectedStage = null;
+    } else { campSelectedStage = baseExitId; campCurrentWorld = curStage?.world||1; }
   } else {
-    // Exit — scroll to highest unlocked stage
-    const highestIdx = CAMPAIGN_STAGES.reduce((best, s, i) =>
-      campCompletedStages.has(s.id) ? i + 1 : best, 0);
-    const target = CAMPAIGN_STAGES[Math.min(highestIdx, CAMPAIGN_STAGES.length - 1)];
-    campSelectedStage = target?.id || CAMPAIGN_STAGES[0].id;
+    let hw=1;
+    for(let w=10;w>=1;w--){ if(w===1||(campEliteMode?isEliteWorldUnlocked(w):isWorldUnlocked(w))){ hw=w; break; } }
+    campCurrentWorld=hw; campSelectedStage=null;
   }
 
   buildCampaignMap();
@@ -3394,7 +3811,9 @@ let pendingPlacingIdx = 0;
 async function startBattle() {
   const stageId = battleSetupStageId;
   const isPvpBattle = stageId.startsWith('pvp-');
-  const mapKey  = isPvpBattle ? 'forest' : (STAGE_MAP[stageId] || 'forest');
+  const isEliteBattleB = stageId.startsWith('elite:');
+  const baseStageIdB = isEliteBattleB ? stageId.slice(6) : stageId;
+  const mapKey  = isPvpBattle ? 'forest' : (STAGE_MAP[baseStageIdB] || 'forest');
   const mapDef  = MAP_DEFS[mapKey];
 
   let serverBattle;
@@ -3438,7 +3857,9 @@ async function startBattle() {
   const pixelWaypoints = mapDef.waypoints.map(([c,r]) => ({x: c * tw + tw/2, y: r * th + th/2}));
 
   bs = {stageId, mapKey, mapDef, tw, th, COLS, ROWS, waypoints: pixelWaypoints,
-    towers: [], enemies: [], projectiles: [], explosions: [], gold: 200, lives: 20,
+    towers: [], enemies: [], projectiles: [], explosions: [],
+    gold: 200 + getResearchBonuses().start_gold,
+    lives: 20 + getResearchBonuses().start_lives,
     wave: 0, wavesQueued: 0, waveActive: false, waveEnemiesLeft: 0, waveSpawnQueue: [],
     spawnTimer: 0, gameOver: false, victory: false, lastTime: null};
 
@@ -3563,22 +3984,23 @@ function makeTower(td, level, x, y, entry) {
   const atkSpeed   = (entry?.atkSpeed   !== undefined) ? entry.atkSpeed   : parseFloat(stats.atkSpeed);
   const range      = (entry?.range      !== undefined) ? entry.range      : td.baseStats.range;
   const projectiles= (entry?.projectiles!== undefined) ? entry.projectiles: td.baseStats.projectiles;
+  const rb = getResearchBonuses();
   return {
     id: Math.random(),
     towerId: td.id,
     td, level,
     x, y,
     r: TOWER_RADIUS_PX,
-    dmg,
-    atkSpeed,
-    range: range * tileW,
+    dmg:      Math.round(dmg * (1 + rb.tower_dmg)),
+    atkSpeed: atkSpeed / (1 + rb.tower_spd),
+    range:    range * tileW * (1 + rb.tower_range),
     projectiles,
     projectileSpeed: 280,
     piercing: 0,
     special: td.id,
     cooldown: 0,
     target: null,
-    targeting: 'first', // first | last | strongest | weakest
+    targeting: 'first',
     upgrades: [0, 0, 0],
   };
 }
@@ -3750,17 +4172,18 @@ function launchWave() {
   bs.wave++;
   bs.waveActive = true;
   const config = getWaveConfig(bs.stageId, bs.wave);
+  const thisWave = bs.wave;
   let newEnemiesCount = 0;
-  
-  // Append enemies instead of wiping the queue
   config.enemies.forEach(group => {
     newEnemiesCount += group.count;
     for (let i=0;i<group.count;i++) {
-      bs.waveSpawnQueue.push({ ...group, spawnDelay: bs.spawnTimer + i*(Math.max(350,1000-bs.wave*50)) });
+      bs.waveSpawnQueue.push({ ...group, waveNum:thisWave, spawnDelay: bs.spawnTimer + i*(Math.max(350,1000-bs.wave*50)) });
     }
   });
   bs.waveSpawnQueue.sort((a,b)=>a.spawnDelay-b.spawnDelay);
   bs.waveEnemiesLeft += newEnemiesCount;
+  if (!bs.waveEnemyCounts) bs.waveEnemyCounts = {};
+  bs.waveEnemyCounts[thisWave] = newEnemiesCount;
   updateBattleHUD();
 }
 
@@ -3886,6 +4309,7 @@ function spawnEnemy(template) {
   return {
     id: ++enemyIdCounter,
     type: template.type,
+    waveNum: template.waveNum || bs.wave,
     x: wp[0].x, y: wp[0].y,
     hp: template.hp, maxHp: template.hp,
     speed: template.speed,
@@ -3902,6 +4326,9 @@ function spawnEnemy(template) {
 }
 
 function spawnChildEnemy(parent, typeKey, count) {
+  if (parent.waveNum && bs.waveEnemyCounts) {
+    bs.waveEnemyCounts[parent.waveNum] = (bs.waveEnemyCounts[parent.waveNum]||0) + count;
+  }
   const t = ENEMY_TYPES[typeKey];
   if (!t) return;
   const stageIdx = CAMPAIGN_STAGES.findIndex(s=>s.id===bs.stageId);
@@ -3912,10 +4339,11 @@ function spawnChildEnemy(parent, typeKey, count) {
     bs.enemies.push({
       id: ++enemyIdCounter,
       type: typeKey,
+      waveNum: parent.waveNum,
       x: parent.x, y: parent.y,
       hp: Math.round(t.hp * mult), maxHp: Math.round(t.hp * mult),
       speed: t.speed,
-      reward: Math.max(1, Math.round(t.reward * 0.5)), 
+      reward: Math.max(1, Math.round(t.reward * 0.5)),
       size: t.size,
       color: t.color,
       spawnOnDeath: t.spawnOnDeath || null,
@@ -4064,9 +4492,19 @@ function updateTowers(dt) {
       case 'weakest':  inRange.sort((a,b) => a.hp - b.hp);    break; // lowest current hp
     }
 
-    // Inferno: hit all in range
+    // Inferno: hit all in range (capped at 6)
     if (t.towerId === 'inferno') {
       inRange.slice(0,6).forEach(e => {
+        e.hp -= t.dmg;
+        if (e.hp <= 0) killEnemy(e, t);
+      });
+      t.cooldown = t.atkSpeed;
+      return;
+    }
+
+    // God Tower: hit every enemy on the map with no cap
+    if (t.towerId === 'god_tower') {
+      inRange.forEach(e => {
         e.hp -= t.dmg;
         if (e.hp <= 0) killEnemy(e, t);
       });
@@ -4150,9 +4588,19 @@ function killEnemy(e, tower) {
   e.isDead = true;
   bs.gold += e.reward;
   bs.waveEnemiesLeft = Math.max(0, bs.waveEnemiesLeft - 1);
-  // Spawn children (Blood TD chain spawn)
   if (e.spawnOnDeath) {
     spawnChildEnemy(e, e.spawnOnDeath.type, e.spawnOnDeath.count);
+  }
+  // Per-wave gold: award when all enemies from that wave are dead
+  if (e.waveNum && bs.waveEnemyCounts) {
+    bs.waveEnemyCounts[e.waveNum] = Math.max(0, (bs.waveEnemyCounts[e.waveNum]||1) - 1);
+    if (bs.waveEnemyCounts[e.waveNum] === 0) {
+      const waveMult = bs.eliteCfg?.waveBonusMult ?? 1;
+      const bonus = Math.round(50 * waveMult);
+      bs.gold += bonus;
+      delete bs.waveEnemyCounts[e.waveNum];
+      showToast(`Wave ${e.waveNum} cleared! +💰${bonus}`);
+    }
   }
   updateBattleHUD();
   renderShop();
@@ -4166,22 +4614,17 @@ function updateExplosions(dt) {
 
 function checkWaveEnd() {
   if (!bs.waveActive) return;
-  if (bs.enemies.length === 0 && bs.waveSpawnQueue.length === 0) {
+  if (bs.enemies.filter(e=>!e.isDead&&!e.isReached).length === 0 && bs.waveSpawnQueue.length === 0) {
     bs.waveActive = false;
-    const bonus = 50; // flat 50 gold per wave
-    bs.gold += bonus;
     updateBattleHUD();
-
     if (bs.wave >= 10) {
       bs.victory = true;
       setTimeout(()=>showResultScreen(true), 800);
-    } else if (bs.wavesQueued > 0) {
-      bs.wavesQueued--;
-      setTimeout(launchWave, 300);
     } else {
-      showToast(`Wave ${bs.wave} cleared! +💰${bonus}`);
+      // Auto-advance to next wave after 1.5s
+      setTimeout(()=>{ if(bs&&!bs.gameOver&&!bs.victory&&bs.wave<10) launchWave(); }, 1500);
     }
-    renderShop(); // refresh affordability
+    renderShop();
   }
 }
 
@@ -4541,6 +4984,7 @@ async function showResultScreen(won) {
       console.log('Battle result:', { serverReward, firstClear, result });
       // Apply full server state (includes updated campCompleted, resources, XP)
       if (result?.state) applyServerPayload(result.state);
+      syncPowerLevel();
       // If first clear, also update local campCompletedStages immediately
       if (won && stage) {
         if (firstClear) campCompletedStages.add(stage);
@@ -4688,6 +5132,8 @@ const PVP_PAGE_SIZE = 11;    // tiles per page when navigating
 let pvpTiles        = {};
 let pvpMyUserId     = null;
 let pvpLoaded       = false;
+let pvpHomeTile      = null; // {tx,ty} of home base territory
+let pvpUpgradingTile = null; // {tx,ty,idx} tile currently being upgraded via boosts panel
 let pvpRefreshTimer = null;
 let pvpHoveredTile  = null;
 let pvpSelectedTile = null;
@@ -4744,7 +5190,9 @@ function pvpAnimateTile(idx, fromColor, toColor, duration=1200) {
 function pvpTileIdx(tx,ty){ return ty*PVP_GRID+tx; }
 
 function pvpTileDifficulty(tx,ty){
-  return 1; // All world map territories are stage 1-1
+  // Returns tile's stage level (1=stage 1-1, 2=stage 1-2 … 10=stage 1-10).
+  // Upgraded by owner via pvpApplyBaseUpgrade().
+  return pvpTiles[pvpTileIdx(tx,ty)]?.level || 1;
 }
 
 // Static version of pvpTileIdx usable at definition time
@@ -4753,7 +5201,8 @@ function pvpTileIdxStatic(tx,ty){ return ty*100+tx; }
 // ── Load & Refresh ──
 async function pvpLoad() {
   if(!currentUser) return;
-  pvpMyUserId=currentUser.id;
+  try { const{data:{user}}=await sb.auth.getUser(); pvpMyUserId=user?.id||currentUser.id; }
+  catch(e){ pvpMyUserId=currentUser.id; }
   pvpViewX=44; pvpViewY=44; pvpPixelOffsetX=0; pvpPixelOffsetY=0;
   await pvpRefresh(true);
 }
@@ -4761,25 +5210,44 @@ async function pvpLoad() {
 async function pvpRefresh(init=false) {
   if(!currentUser) return;
   const btn=document.getElementById('pvp-refresh-btn');
+  const overlay=document.getElementById('pvp-loading-overlay');
   if(btn){btn.disabled=true;btn.textContent='⟳ Loading…';}
+  if(overlay&&init) overlay.style.display='flex';
   try {
-    const{data,error}=await sb.from('pvp_world').select('tile_idx,owner_id,attacking_until').limit(10000);
+    const{data,error}=await sb.rpc('pvp_get_tiles');
     if(!error&&data){
       data.forEach(row=>{
         const newOwner=row.owner_id;
-        const newColor=newOwner===pvpMyUserId?'#3ecf8e':pvpUserColor(newOwner);
+        const isMineServer=row.is_mine===true;
+        const newColor=isMineServer?'#3ecf8e':pvpUserColor(newOwner);
         const existing=pvpTiles[row.tile_idx];
+        const tileLevel=row.level||1;
         if(existing&&existing.owner!==newOwner){
-          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null};
+          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel};
           pvpAnimateTile(row.tile_idx,existing.color||'#1a1d2e',newColor,1200);
         } else {
-          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null};
+          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel};
         }
       });
     }
   } catch(e){console.warn('pvpRefresh failed:',e.message);}
   pvpLoaded=true;
   if(btn){btn.disabled=false;btn.textContent='⟳ Refresh';}
+  if(overlay) overlay.style.display='none';
+  // Validate home tile — clear it if the tile is no longer owned by us
+  if(pvpHomeTile){
+    const homeIdx=pvpTileIdx(pvpHomeTile.tx,pvpHomeTile.ty);
+    if(!pvpTiles[homeIdx]?.isMine) pvpHomeTile=null;
+  }
+  // Auto-detect home tile as the first (lowest-index) owned territory
+  if(!pvpHomeTile){
+    const myTiles=Object.entries(pvpTiles).filter(([,t])=>t.isMine===true);
+    if(myTiles.length>0){
+      const [minIdx]=myTiles.reduce((a,b)=>Number(a[0])<Number(b[0])?a:b);
+      const idx=Number(minIdx);
+      pvpHomeTile={tx:idx%PVP_GRID, ty:Math.floor(idx/PVP_GRID)};
+    }
+  }
   pvpUpdateStats();
   if(init) pvpInitCanvas();
   else pvpDraw();
@@ -4793,7 +5261,7 @@ async function pvpRefresh(init=false) {
 function pvpUpdateStats(){
   const el=document.getElementById('pvp-stats');
   if(!el) return;
-  const mine=Object.values(pvpTiles).filter(t=>t.owner===pvpMyUserId).length;
+  const mine=Object.values(pvpTiles).filter(t=>t.isMine===true).length;
   const total=Object.keys(pvpTiles).length;
   el.textContent=`Your territory: ${mine} · Total claimed: ${total}/10,000`;
 }
@@ -4863,7 +5331,7 @@ function pvpInitCanvas() {
     if (pvpDragging) {
       const dx = e.clientX - pvpDragStartX;
       const dy = e.clientY - pvpDragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pvpDragMoved = true;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) { if (!pvpDragMoved) pvpHideTooltip(); pvpDragMoved = true; }
       const ts2 = pvpTileSize();
       // Accumulate pixel offset
       pvpPixelOffsetX += dx;
@@ -4924,7 +5392,7 @@ function pvpInitCanvas() {
   canvas.ontouchmove = (e) => {
     const dx = e.touches[0].clientX - touchStartX;
     const dy = e.touches[0].clientY - touchStartY;
-    if(Math.abs(dx)>3||Math.abs(dy)>3) touchMoved=true;
+    if(Math.abs(dx)>3||Math.abs(dy)>3) { if(!touchMoved) pvpHideTooltip(); touchMoved=true; }
     const ts2=pvpTileSize();
     pvpPixelOffsetX+=dx; pvpPixelOffsetY+=dy;
     touchStartX=e.touches[0].clientX; touchStartY=e.touches[0].clientY;
@@ -4979,9 +5447,38 @@ function pvpPan(dx,dy){
   const cols=pvpVisibleCols(), rows=pvpVisibleRows();
   pvpViewX=Math.max(0,Math.min(PVP_GRID-cols,pvpViewX+dx));
   pvpViewY=Math.max(0,Math.min(PVP_GRID-rows,pvpViewY+dy));
-  pvpPixelOffsetX=0; pvpPixelOffsetY=0; // snap on arrow press
+  pvpPixelOffsetX=0; pvpPixelOffsetY=0;
   pvpHideTooltip();
   pvpDraw();
+}
+
+function pvpGoHome() {
+  if(!pvpHomeTile){ showToast('No home base yet — conquer a territory first!'); return; }
+  const {tx, ty} = pvpHomeTile;
+  const cols = pvpVisibleCols(), rows = pvpVisibleRows();
+  pvpViewX = Math.max(0, Math.min(PVP_GRID - cols, Math.round(tx - cols / 2)));
+  pvpViewY = Math.max(0, Math.min(PVP_GRID - rows, Math.round(ty - rows / 2)));
+  pvpPixelOffsetX = 0; pvpPixelOffsetY = 0;
+  pvpDraw();
+  pvpClickTile(tx, ty, null);
+}
+
+function pvpGoToCoord() {
+  const x = parseInt(document.getElementById('pvp-coord-x')?.value);
+  const y = parseInt(document.getElementById('pvp-coord-y')?.value);
+  if (isNaN(x) || isNaN(y) || x < 0 || x >= PVP_GRID || y < 0 || y >= PVP_GRID) {
+    showToast('Enter valid coordinates (0 – ' + (PVP_GRID-1) + ')');
+    return;
+  }
+  const cols = pvpVisibleCols();
+  const rows = pvpVisibleRows();
+  // Center the coordinate in the viewport, clamped to map boundaries
+  pvpViewX = Math.max(0, Math.min(PVP_GRID - cols, Math.round(x - cols / 2)));
+  pvpViewY = Math.max(0, Math.min(PVP_GRID - rows, Math.round(y - rows / 2)));
+  pvpPixelOffsetX = 0;
+  pvpPixelOffsetY = 0;
+  pvpDraw();
+  pvpClickTile(x, y, null);
 }
 
 // ── Draw ──
@@ -5013,7 +5510,7 @@ function pvpDraw() {
       if(px+ts<0||px>canvas.width||py+ts<0||py>canvas.height) continue;
       const idx=pvpTileIdx(tx,ty);
       const tile=pvpTiles[idx];
-      const isMine=tile?.owner===pvpMyUserId;
+      const isMine=tile?.isMine===true;
       const isOwned=tile?.owner!=null;
       const isHovered=pvpHoveredTile?.tx===tx&&pvpHoveredTile?.ty===ty;
       const isSelected=pvpSelectedTile?.tx===tx&&pvpSelectedTile?.ty===ty;
@@ -5072,12 +5569,20 @@ function pvpDraw() {
         ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
         ctx.fillStyle=ringColor;
         ctx.fill();
+        // Home tile star in the donut center
+        const isHomeTile=pvpHomeTile&&pvpTileIdx(pvpHomeTile.tx,pvpHomeTile.ty)===idx;
+        if(isHomeTile){
+          ctx.font=`${Math.max(6,Math.round(ts*0.2))}px serif`;
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          ctx.fillText('⭐',cx2,cy2);
+        }
         if(ts>=28){
           ctx.fillStyle='rgba(255,255,255,0.85)';
           ctx.font=`bold ${Math.max(8,Math.round(ts*0.16))}px Inter`;
           ctx.textAlign='center';
           ctx.textBaseline='top';
-          ctx.fillText('1-1',cx2,cy2+outerR+2);
+          ctx.fillText(`1-${diff}`,cx2,cy2+outerR+2);
         }
       } else if(!isOwned && ts>=18){
         // Unclaimed PVP tile — show stage number muted
@@ -5085,7 +5590,7 @@ function pvpDraw() {
         ctx.font=`${Math.max(8,Math.round(ts*0.18))}px Inter`;
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        ctx.fillText('1-1',cx2,cy2);
+        ctx.fillText(`1-${diff}`,cx2,cy2);
       }
 
       // Under-attack icon
@@ -5135,7 +5640,7 @@ function pvpDraw() {
   Object.entries(pvpTiles).forEach(([idxStr,t])=>{
     if(!t.owner) return;
     const ti=parseInt(idxStr), ttx=ti%PVP_GRID, tty=Math.floor(ti/PVP_GRID);
-    ctx.fillStyle=t.owner===pvpMyUserId?'#3ecf8e':(t.color||'#888');
+    ctx.fillStyle=t.isMine?'#3ecf8e':(t.color||'#888');
     ctx.fillRect(mmX+ttx*mmTile, mmY+tty*mmTile, Math.max(1,mmTile), Math.max(1,mmTile));
   });
 
@@ -5154,7 +5659,7 @@ function pvpDraw() {
 function pvpClickTile(tx,ty,e) {
   const idx=pvpTileIdx(tx,ty);
   const tile=pvpTiles[idx];
-  const isMine=tile?.owner===pvpMyUserId;
+  const isMine=tile?.isMine===true;
   const isOwned=tile?.owner!=null;
   const diff=pvpTileDifficulty(tx,ty);
   const now=Date.now();
@@ -5168,20 +5673,30 @@ function pvpClickTile(tx,ty,e) {
   const sub=document.getElementById('pvp-tt-sub');
   const btn=document.getElementById('pvp-tt-btn');
 
-  title.textContent=`Tile (${tx}, ${ty}) · Stage 1-1`;
-  if(isUnderAttack){
-    const s=Math.ceil((tile.attackingUntil-now)/1000);
-    sub.innerHTML=`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
-  } else if(isMine){
-    sub.innerHTML=`<span style="color:#3ecf8e">✓ Your territory</span>`;
-  } else if(isOwned){
-    sub.innerHTML=`<span style="color:#f55a5a">Enemy territory</span> · Diff ${diff}`;
+  title.textContent=`Tile (${tx}, ${ty}) · Stage 1-${diff}`;
+  const mineBtns=document.getElementById('pvp-tt-mine-btns');
+  const homeBtn=document.getElementById('pvp-tt-home-btn');
+  if(isMine){
+    const isHome=pvpHomeTile&&pvpHomeTile.tx===tx&&pvpHomeTile.ty===ty;
+    sub.innerHTML=`<span style="color:#3ecf8e">✓ Your territory · Stage 1-${diff}</span>${isHome?'&nbsp;<span style="color:#f0c040">⭐ Home</span>':''}`;
+    if(mineBtns) mineBtns.style.display='flex';
+    if(homeBtn){ homeBtn.disabled=isHome; homeBtn.textContent=isHome?'⭐ Home Base':'🏠 Set as Home'; }
+    btn.style.display='none';
   } else {
-    sub.innerHTML=`Unclaimed · Difficulty ${diff}`;
+    if(mineBtns) mineBtns.style.display='none';
+    btn.style.display='';
+    if(isUnderAttack){
+      const s=Math.ceil((tile.attackingUntil-now)/1000);
+      sub.innerHTML=`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
+    } else if(isOwned){
+      sub.innerHTML=`<span style="color:#f55a5a">Enemy territory · Stage 1-${diff}</span>`;
+    } else {
+      sub.innerHTML=`Unclaimed · Stage 1-${diff}`;
+    }
+    btn.textContent=isUnderAttack?'🔒 Under Attack':onCooldown?`⏳ ${cooldownSecs}s cooldown`:`⚔️ Attack (Stage 1-${diff})`;
+    btn.disabled=isUnderAttack||onCooldown;
+    btn.onclick=(isUnderAttack||onCooldown)?null:pvpAttackTile;
   }
-  btn.textContent=isMine?'✓ Yours':isUnderAttack?'🔒 Under Attack':onCooldown?`⏳ ${cooldownSecs}s cooldown`:'⚔️ Attack (Stage 1-1)';
-  btn.disabled=isMine||isUnderAttack||onCooldown;
-  btn.onclick=(isMine||isUnderAttack||onCooldown)?null:pvpAttackTile;
 
   // Position tooltip near the clicked tile
   const canvas=document.getElementById('pvp-canvas');
@@ -5231,20 +5746,156 @@ async function pvpBattleEnded(tile,won){
     if(won){
       await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:currentUser.id,attacking_until:cooldownUntil,claimed_at:new Date().toISOString()});
       const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
-      pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',attackingUntil:Date.now()+10000};
+      pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+10000};
       pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
+      if(!pvpHomeTile) pvpHomeTile={tx:tile.tx, ty:tile.ty};
       showToast(`🟢 Tile (${tile.tx},${tile.ty}) conquered!`);
       pvpUpdateStats();
+      await pvpCheckAndApplyChain(tile.tx, tile.ty);
     } else {
       const prevOwner=pvpTiles[tile.idx]?.owner||null;
       await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:prevOwner,attacking_until:cooldownUntil});
       if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+10000;
       showToast('💀 Attack failed!');
+      pvpAttackCooldownUntil=Date.now()+60*1000;
     }
-    pvpAttackCooldownUntil=Date.now()+60*1000;
     pvpDraw();
     setTimeout(()=>pvpRefresh(),11000);
   }catch(e){console.warn('pvpBattleEnded failed:',e.message);}
+}
+
+function pvpSetHome() {
+  if(!pvpSelectedTile) return;
+  const {tx, ty} = pvpSelectedTile;
+  if(!pvpTiles[pvpSelectedTile.idx]?.isMine) return;
+  pvpHomeTile = {tx, ty};
+  pvpHideTooltip();
+  pvpDraw();
+  showToast('🏠 Home base updated!');
+}
+
+function pvpOpenUpgradePanel() {
+  if(!pvpSelectedTile) return;
+  if(!pvpTiles[pvpSelectedTile.idx]?.isMine) return;
+  pvpUpgradingTile = {...pvpSelectedTile};
+  pvpHideTooltip();
+  switchSection('base');
+  switchBaseTab('inventory');
+  switchInvTab('boosts');
+  renderBoostsGrid();
+}
+
+async function pvpApplyBaseUpgrade() {
+  if(!pvpUpgradingTile) return;
+  const tile = pvpTiles[pvpUpgradingTile.idx];
+  const currentLevel = tile?.level || 1;
+  if(currentLevel >= 10) { showToast('Already at max stage (1-10)!'); return; }
+  try {
+    await serverRpc('pvp_upgrade_base', {p_tile_idx: pvpUpgradingTile.idx});
+    await refreshFromServer();
+    if(pvpTiles[pvpUpgradingTile.idx]) pvpTiles[pvpUpgradingTile.idx].level = currentLevel + 1;
+    updateResourcePills();
+    renderBoostsGrid();
+    showToast(`⬆️ Base upgraded to Stage 1-${currentLevel + 1}!`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+// Chain/cascade mechanic: when a group of ≤10 enemy tiles is fully surrounded
+// by player-owned tiles (or map border), and the closing tile level ≥ max level
+// inside the group, all tiles in the group are captured. Cascades until no more
+// groups qualify.
+async function pvpCheckAndApplyChain(triggerTx, triggerTy) {
+  if(!currentUser) return;
+  const triggerLevel = pvpTileDifficulty(triggerTx, triggerTy);
+
+  // Queue of recently-captured tiles that may close new chains
+  const toCheck = [{tx: triggerTx, ty: triggerTy, level: triggerLevel}];
+  const checkedGroups = new Set(); // group root keys already processed
+
+  const DIRS = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+
+  while(toCheck.length > 0) {
+    const {tx: ctX, ty: ctY, level: closingLevel} = toCheck.shift();
+
+    // BFS from each enemy neighbor of the closing tile
+    for(const {dx, dy} of DIRS) {
+      const nx = ctX+dx, ny = ctY+dy;
+      if(nx<0||nx>=PVP_GRID||ny<0||ny>=PVP_GRID) continue;
+      const startIdx = pvpTileIdx(nx, ny);
+      const startTile = pvpTiles[startIdx];
+      // Must be an owned enemy tile (not mine, not unclaimed)
+      if(!startTile||!startTile.owner||startTile.isMine) continue;
+      // Skip if this group was already checked in this chain pass
+      if(checkedGroups.has(startIdx)) continue;
+
+      // BFS to collect the connected enemy group
+      const group = [];
+      const visited = new Set();
+      const queue = [startIdx];
+      visited.add(startIdx);
+      let enclosed = true;
+      let maxGroupLevel = 0;
+
+      while(queue.length > 0) {
+        const cur = queue.shift();
+        const curTile = pvpTiles[cur];
+        // If we encounter an unclaimed tile bordering the group → not enclosed
+        if(!curTile||!curTile.owner) { enclosed=false; break; }
+        if(curTile.isMine) continue; // player tile = wall, don't expand
+        group.push(cur);
+        const curTx = cur % PVP_GRID, curTy = Math.floor(cur / PVP_GRID);
+        maxGroupLevel = Math.max(maxGroupLevel, pvpTileDifficulty(curTx, curTy));
+
+        for(const {dx:dx2,dy:dy2} of DIRS) {
+          const ex=curTx+dx2, ey=curTy+dy2;
+          // Map border counts as wall (enclosed ok)
+          if(ex<0||ex>=PVP_GRID||ey<0||ey>=PVP_GRID) continue;
+          const eidx=pvpTileIdx(ex,ey);
+          if(visited.has(eidx)) continue;
+          const eTile=pvpTiles[eidx];
+          // Unclaimed → not enclosed
+          if(!eTile||!eTile.owner) { enclosed=false; break; }
+          visited.add(eidx);
+          queue.push(eidx);
+        }
+        if(!enclosed) break;
+      }
+
+      // Mark all group indices as checked so we don't re-process from another entry
+      for(const gi of group) checkedGroups.add(gi);
+
+      if(!enclosed) continue;
+      if(group.length === 0 || group.length > 10) continue;
+      if(closingLevel < maxGroupLevel) continue;
+
+      // All conditions met — capture the group
+      const cooldownUntil = new Date(Date.now()+10*1000).toISOString();
+      const upserts = group.map(gi=>({
+        tile_idx: gi,
+        owner_id: currentUser.id,
+        attacking_until: cooldownUntil,
+        claimed_at: new Date().toISOString()
+      }));
+      try {
+        await sb.from('pvp_world').upsert(upserts);
+      } catch(e) {
+        console.warn('pvpCheckAndApplyChain upsert failed:', e.message);
+        continue;
+      }
+
+      for(const gi of group) {
+        const oldColor = pvpTiles[gi]?.color||'#13151f';
+        pvpTiles[gi] = {owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+10000};
+        pvpAnimateTile(gi, oldColor, '#3ecf8e', 1200);
+        // Each newly captured tile may trigger further chains
+        const gtx=gi%PVP_GRID, gty=Math.floor(gi/PVP_GRID);
+        toCheck.push({tx:gtx, ty:gty, level:pvpTileDifficulty(gtx,gty)});
+      }
+      showToast(`⛓️ Chain! ${group.length} tile${group.length>1?'s':''} captured!`);
+      pvpUpdateStats();
+      pvpDraw();
+    }
+  }
 }
 
 
@@ -5274,21 +5925,46 @@ function buildSiloPanel(){
       const s = siloState[r.id][ti];
       const unlockReqLevel = LEVEL_UNLOCK[ti] || 0;
       const canUnlock = playerLevel >= unlockReqLevel;
+      const prevTierDone = ti===0 || siloState[r.id][ti-1].unlocked;
+      const isUpgrading = s.unlocked && s.upgrading;
       const slot = document.createElement('div');
-      slot.className = 'silo-slot' + (s.unlocked ? '' : ' locked');
-      const thisCap = Math.round(tier.cap * (1 + (s.level-1)*0.6));
-      const upgCost = Math.round(tier.upgCostBase * Math.pow(1.6, s.level-1));
+
       if(s.unlocked){
-        slot.innerHTML = `
-          <div class="silo-slot-lvl">Lv${s.level} · +${fmtCompact(thisCap)}</div>
-          <div class="silo-slot-cap">${r.icon} ${r.name}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Upgrade: ${fmtCompact(upgCost)} ${r.icon}</div>`;
+        if(isUpgrading){
+          const elapsed = Date.now() - s.upgradeStartMs;
+          const pct = Math.min((elapsed / s.upgradeDurationMs)*100, 100).toFixed(1);
+          const rem = Math.max(0, Math.ceil((s.upgradeDurationMs - elapsed)/1000));
+          slot.className = `node-card type-${r.type} upgrading`;
+          slot.innerHTML = `
+            <div class="nc-top">
+              <span class="nc-icon">${r.icon}</span>
+              <span class="nc-lvlbadge badge-${r.type}">⬆${s.level+1}</span>
+            </div>
+            <div class="nc-rate" style="color:var(--orange);font-size:7px;">Upgrading</div>
+            <div class="nc-timer" style="color:var(--orange)" id="silotimer-${r.id}-${ti}">${fmtCountdown(rem)}</div>
+            <div class="nc-upg-wrap" style="margin-top:auto;"><div class="nc-upg-bar" id="siloupg-${r.id}-${ti}" style="width:${pct}%"></div></div>`;
+        } else {
+          const thisCap = Math.round(tier.cap * (1 + (s.level-1)*0.6));
+          slot.className = `node-card type-${r.type}`;
+          slot.innerHTML = `
+            <div class="nc-top">
+              <span class="nc-icon">${r.icon}</span>
+              <span class="nc-lvlbadge badge-${r.type}">Lv${s.level}</span>
+            </div>
+            <div class="nc-rate">+${fmtCompact(thisCap)} cap</div>
+            <div style="font-size:8px;color:var(--text3);margin-top:auto;">Tap to upgrade</div>`;
+        }
         slot.onclick = () => openSiloModal(r.id, ti);
       } else {
-        const prevTierDone = ti===0 || siloState[r.id][ti-1].unlocked;
+        slot.className = `node-card type-${r.type} locked`;
+        const canAfford = (resources[r.id]||0) >= tier.unlockCost;
+        const lockText = !prevTierDone ? 'Unlock prev' : !canUnlock ? 'Need Lv '+unlockReqLevel : fmtCompact(tier.unlockCost)+' '+r.icon;
         slot.innerHTML = `
-          <div class="silo-slot-cap">${r.icon} Tier ${ti+1}</div>
-          <div class="silo-slot-lock">${!prevTierDone ? '🔒 Prev tier first' : !canUnlock ? `Need Lv ${unlockReqLevel}` : `${fmtCompact(tier.unlockCost)} ${r.icon} to unlock`}</div>`;
+          <div class="nc-top"><span class="nc-icon" style="opacity:0.4">${r.icon}</span></div>
+          <div class="nc-lock-body">
+            <span class="nc-lock-icon">🔒</span>
+            <div class="nc-lock-req" style="color:${canUnlock&&canAfford&&prevTierDone?'var(--green)':'var(--red)'};">${lockText}</div>
+          </div>`;
         if(prevTierDone && canUnlock) slot.onclick = () => openSiloModal(r.id, ti);
       }
       row.appendChild(slot);
@@ -5297,6 +5973,7 @@ function buildSiloPanel(){
 }
 
 function openSiloModal(resId, tierIdx){
+  siloModalResId = resId; siloModalTierIdx = tierIdx;
   const r = RESOURCE_DEFS.find(x=>x.id===resId);
   const s = siloState[resId][tierIdx];
   const tier = SILO_TIERS[tierIdx];
@@ -5323,7 +6000,25 @@ function openSiloModal(resId, tierIdx){
       <div class="bmodal-btns">
         <button class="bmodal-btn upgrade" ${!canAffordUnlock?'disabled':''} onclick="unlockSilo('${resId}',${tierIdx})">🔓 Unlock Silo</button>
       </div>`;
+  } else if (s.upgrading) {
+    const elapsed = Date.now() - s.upgradeStartMs;
+    const pct = Math.min((elapsed / s.upgradeDurationMs)*100, 100).toFixed(1);
+    const rem = Math.max(0, Math.ceil((s.upgradeDurationMs - elapsed)/1000));
+    modal.innerHTML = `
+      <div class="bmodal-header">
+        <div><span class="bmodal-icon">${r.icon}</span>
+          <div class="bmodal-title">${r.name} Silo Lv${s.level}</div>
+          <div class="bmodal-sub">Upgrading to Lv${s.level+1}…</div>
+        </div>
+        <button class="bmodal-close" onclick="closeItemModal()">✕</button>
+      </div>
+      <div class="upg-in-progress">
+        <div style="font-size:13px;color:var(--orange);font-weight:600;">⬆ Upgrading Silo to Lv${s.level+1}</div>
+        <div class="upg-progress-bar-wrap"><div class="upg-progress-bar" id="silo-modal-upg-bar" style="width:${pct}%"></div></div>
+        <div class="upg-eta" id="silo-modal-upg-eta">⏱ ${fmtCountdown(rem)} remaining</div>
+      </div>`;
   } else {
+    const durSecs = Math.round(20 * s.level * (1 + tierIdx * 0.5));
     modal.innerHTML = `
       <div class="bmodal-header">
         <div><span class="bmodal-icon">${r.icon}</span>
@@ -5332,14 +6027,27 @@ function openSiloModal(resId, tierIdx){
         </div>
         <button class="bmodal-close" onclick="closeItemModal()">✕</button>
       </div>
-      <div class="upg-preview" style="margin:0.75rem 0;">
-        <span class="upg-now">+${fmtCompact(thisCap)} · ${fmtCompact(totalCapacity(resId))} total</span>
-        <span class="upg-arrow">→</span>
-        <span class="upg-next">+${fmtCompact(nextCap)} · ${fmtCompact(totalCapacity(resId) - thisCap + nextCap)} total</span>
+      <div class="bmodal-stat-grid">
+        <div class="bmodal-stat"><div class="bmodal-stat-label">Level</div><div class="bmodal-stat-value">${s.level}</div></div>
+        <div class="bmodal-stat"><div class="bmodal-stat-label">This Tier Cap</div><div class="bmodal-stat-value">+${fmtCompact(thisCap)}</div></div>
+        <div class="bmodal-stat"><div class="bmodal-stat-label">Total Cap</div><div class="bmodal-stat-value">${fmtCompact(totalCapacity(resId))}</div></div>
       </div>
-      <div class="info-row"><span class="info-row-label">Upgrade cost</span><span style="color:${canAffordUpg?'var(--green)':'var(--red)'};">${fmtCompact(upgCost)} ${r.icon} ${r.name}</span></div>
+      <div class="bmodal-section">
+        <div class="bmodal-section-title">Upgrade to Lv ${s.level+1}</div>
+        <div class="upg-preview">
+          <span class="upg-now">+${fmtCompact(thisCap)} · ${fmtCompact(totalCapacity(resId))} total</span>
+          <span class="upg-arrow">→</span>
+          <span class="upg-next">+${fmtCompact(nextCap)} · ${fmtCompact(totalCapacity(resId) - thisCap + nextCap)} total</span>
+        </div>
+        <div class="info-row"><span class="info-row-label">Upgrade cost</span><span style="color:var(--gold);font-weight:600;">${r.icon} ${fmtCompact(upgCost)} ${r.name}</span></div>
+        <div class="info-row"><span class="info-row-label">You have</span><span style="color:${canAffordUpg?'var(--green)':'var(--red)'};">${r.icon} ${fmtCompact(resources[resId]||0)} ${r.name}</span></div>
+        <div class="info-row"><span class="info-row-label">Upgrade time</span><span style="color:var(--text2);">⏱ ${fmtTime(durSecs)}</span></div>
+      </div>
       <div class="bmodal-btns">
-        <button class="bmodal-btn upgrade" ${!canAffordUpg?'disabled':''} onclick="upgradeSilo('${resId}',${tierIdx})">⬆️ Upgrade Silo</button>
+        <button class="bmodal-btn upgrade" ${!canAffordUpg?'disabled':''} onclick="startSiloUpgrade('${resId}',${tierIdx})">
+          ⬆️ Upgrade Silo — ${r.icon} ${fmtCompact(upgCost)}
+          <div class="xp-note">+20 XP on complete</div>
+        </button>
       </div>`;
   }
   document.getElementById('item-modal').classList.add('open');
@@ -5356,15 +6064,20 @@ async function unlockSilo(resId, tierIdx){
   } catch(e) { /* toast shown by serverRpc */ }
 }
 
-async function upgradeSilo(resId, tierIdx){
+async function startSiloUpgrade(resId, tierIdx) {
   const r = RESOURCE_DEFS.find(x=>x.id===resId);
+  const s = siloState[resId][tierIdx];
+  const durSecs = Math.round(20 * s.level * (1 + tierIdx * 0.5));
   try {
-    await serverRpc('idw_upgrade_silo', {p_res_id: resId, p_tier_idx: tierIdx});
+    await serverRpc('idw_start_silo_upgrade', {p_res_id: resId, p_tier_idx: tierIdx});
     await refreshFromServer();
-    const s = siloState[resId][tierIdx];
+    // Use client clock so countdown matches the displayed duration exactly
+    siloState[resId][tierIdx].upgradeStartMs = Date.now();
+    siloState[resId][tierIdx].upgradeDurationMs = durSecs * 1000;
     closeItemModal();
     buildSiloPanel();
-    showToast(`${r.icon} ${r.name} Silo upgraded to Lv${s.level}!`);
+    updateResourcePills();
+    showToast(`${r.icon} ${r.name} Silo upgrading…`);
   } catch(e) { /* toast shown by serverRpc */ }
 }
 
@@ -5376,7 +6089,11 @@ function switchSection(name){
     if(btn) btn.classList.toggle('active',s===name);
   });
   // Init PVP map when switching to it
-  if(name === 'pvp' && !pvpLoaded) pvpLoad();
+  if(name === 'pvp' && !pvpLoaded) {
+    const overlay=document.getElementById('pvp-loading-overlay');
+    if(overlay) overlay.style.display='flex';
+    pvpLoad();
+  }
   else if(name === 'pvp') {
     pvpInitCanvas();
     pvpRefresh(); // always refresh when opening map
