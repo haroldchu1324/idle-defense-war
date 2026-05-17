@@ -4090,7 +4090,14 @@ async function startBattle() {
     }
   }
 
-  const toConsume = (serverBattle.consumedTowers || []).filter(Boolean);
+  // 🔧 FIX: Ensure armory towers are always consumed, even if server doesn't return them
+  let toConsume = (serverBattle.consumedTowers || []).filter(Boolean);
+
+  // Fallback: if server didn't return consumed towers, use selected armory towers directly
+  if (toConsume.length === 0 && battleSelectedTowers.length > 0) {
+    toConsume = battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean);
+    console.log('Using fallback: consuming armory towers directly', toConsume);
+  }
   pendingTowersQueue = toConsume.map(entry => ({
     entry,
     td: TOWER_DEFS.find(t=>t.id===entry.towerId),
@@ -5273,6 +5280,11 @@ async function showResultScreen(won) {
     });
   const xpGained = serverReward.xp || 0;
   const rewardText = rewardParts.join('  ');
+
+  // 🔧 FIX: Actually award the XP to the player
+  if (won && xpGained > 0) {
+    addXP(xpGained, undefined, undefined);
+  }
 
   // Check if there's a next stage available
   const stageIdx = CAMPAIGN_STAGES.findIndex(s => s.id === stage);
