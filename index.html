@@ -3586,6 +3586,32 @@ function isEliteWorldUnlocked(world) {
   return prev.every(s => isEliteCleared(s.id));
 }
 
+function getHighestAttackableStage() {
+  let highestStage = null;
+
+  // Check all stages across all worlds in current mode, but use mode-specific world unlocking
+  for (let w = 1; w <= 10; w++) {
+    const worldUnlocked = w === 1 || (campEliteMode ? isEliteWorldUnlocked(w) : isWorldUnlocked(w));
+    if (!worldUnlocked) break; // Stop at first locked world in current mode
+
+    const worldStages = CAMPAIGN_STAGES.filter(s => s.world === w);
+    for (let i = 0; i < worldStages.length; i++) {
+      const stage = worldStages[i];
+      const prevCleared = i === 0 || (campEliteMode ? isEliteCleared(worldStages[i-1].id) : campCompletedStages.has(worldStages[i-1].id));
+      const eliteReq = !campEliteMode || campCompletedStages.has(stage.id);
+      const available = worldUnlocked && prevCleared && eliteReq;
+
+      if (available) {
+        highestStage = stage.id; // Keep updating to get the HIGHEST available stage
+      } else {
+        break; // Stop at first unavailable stage in this world
+      }
+    }
+  }
+
+  return highestStage || '1-1'; // Fallback to first stage
+}
+
 const ELITE_MODIFIERS = [
   { id:'hp50',       label:'☠️ +50% Enemy HP',           apply:(bs,cfg)=>{ cfg.hpMult*=1.5; } },
   { id:'speed20',    label:'💨 +20% Enemy Speed',         apply:(bs,cfg)=>{ cfg.speedMult*=1.2; } },
@@ -3610,7 +3636,20 @@ function toggleEliteMode() {
   const sec=document.getElementById('section-campaign');
   if(campEliteMode){ btn.textContent='💀 Elite'; btn.style.background='rgba(240,192,64,0.15)'; btn.style.borderColor='#f0c040'; btn.style.color='#f0c040'; sec.classList.add('elite-mode-active'); }
   else { btn.textContent='⚔️ Normal'; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; sec.classList.remove('elite-mode-active'); }
-  campSelectedStage=null; buildCampaignMap(); updateCampaignInfo();
+
+  // Auto-navigate to highest attackable stage in the new mode
+  const highestStage = getHighestAttackableStage();
+  if (highestStage) {
+    // Extract world from stage ID (e.g., "3-4" -> world 3)
+    const stageWorld = parseInt(highestStage.split('-')[0]);
+    campCurrentWorld = stageWorld;
+    campSelectedStage = highestStage;
+  } else {
+    campSelectedStage = null;
+  }
+
+  buildCampaignMap();
+  updateCampaignInfo();
 }
 function switchCampaignWorld(world) {
   const unlocked = world===1||(campEliteMode?isEliteWorldUnlocked(world):isWorldUnlocked(world));
@@ -5232,6 +5271,14 @@ async function showResultScreen(won) {
     }
   } else if (currentBattleId) {
     try {
+      console.log('🎯 DEBUG: Submitting battle result:', {
+        battleId: currentBattleId,
+        stage,
+        won: !!won,
+        waves: bs.wave || 0,
+        lives: bs.lives || 0
+      });
+
       const result = await serverRpc('idw_submit_battle_result', {
         p_battle_id: currentBattleId,
         p_won: !!won,
@@ -5239,21 +5286,50 @@ async function showResultScreen(won) {
         p_lives: bs.lives || 0,
         p_client_gold: bs.gold || 0
       });
+
+      console.log('🎯 DEBUG: Server response:', result);
+
       serverReward = result?.reward || {};
       firstClear = result?.first_clear ?? true;
-      console.log('Battle result:', { serverReward, firstClear, result });
+
+      // Add XP from server response to reward display
+      if (result?.xp_gained > 0) {
+        serverReward.xp = result.xp_gained;
+      }
+
+      console.log('🎯 DEBUG: Processed data:', {
+        serverReward,
+        firstClear,
+        hasState: !!result?.state,
+        stage,
+        completedStagesBefore: [...campCompletedStages]
+      });
+
       // Apply full server state (includes updated campCompleted, resources, XP)
-      if (result?.state) applyServerPayload(result.state);
+      if (result?.state) {
+        console.log('🎯 DEBUG: Applying server state...');
+        applyServerPayload(result.state);
+      } else {
+        console.warn('🎯 DEBUG: No server state received!');
+      }
+
       syncPowerLevel();
-      // If first clear, also update local campCompletedStages immediately
+
+      // Server already handles campaign completion - buildCampaignMap to unlock next stage
       if (won && stage) {
-        if (firstClear) campCompletedStages.add(stage);
+        console.log(`🎯 DEBUG: Processing stage completion - Stage: ${stage}, Won: ${won}, FirstClear: ${firstClear}`);
+        // campCompletedStages already updated by applyServerPayload() from server response
+        console.log('🎯 DEBUG: Completed stages after server update:', [...campCompletedStages]);
         buildCampaignMap(); // unlock next stage right away
       }
     } catch(e) {
-      console.error('idw_submit_battle_result failed:', e);
+      console.error('🎯 DEBUG: idw_submit_battle_result failed:', e);
+      console.log('🎯 DEBUG: Using fallback completion logic');
+
       if (won && stage) {
-        campCompletedStages.add(stage);
+        console.log(`🎯 DEBUG: FALLBACK - Server call failed, manually updating campaign completion: ${stage}`);
+        campCompletedStages.add(stage); // Only add here since server call failed
+        console.log('🎯 DEBUG: FALLBACK - Completed stages:', [...campCompletedStages]);
         buildCampaignMap();
         // Show fallback rewards from client table so screen isn't empty
         const fallback = {
@@ -5281,10 +5357,8 @@ async function showResultScreen(won) {
   const xpGained = serverReward.xp || 0;
   const rewardText = rewardParts.join('  ');
 
-  // 🔧 FIX: Actually award the XP to the player
-  if (won && xpGained > 0) {
-    addXP(xpGained, undefined, undefined);
-  }
+  // Server already added XP to database - don't add it again locally
+  // (Removed duplicate addXP call to prevent double-counting)
 
   // Check if there's a next stage available
   const stageIdx = CAMPAIGN_STAGES.findIndex(s => s.id === stage);
@@ -6353,6 +6427,22 @@ function switchSection(name){
     const btn=document.getElementById('nav-'+s);
     if(btn) btn.classList.toggle('active',s===name);
   });
+
+  // Auto-navigate to highest attackable stage when opening campaign
+  if (name === 'campaign') {
+    const highestStage = getHighestAttackableStage();
+    if (highestStage) {
+      // Extract world from stage ID (e.g., "3-4" -> world 3)
+      const stageWorld = parseInt(highestStage.split('-')[0]);
+      if (campCurrentWorld !== stageWorld || campSelectedStage !== highestStage) {
+        campCurrentWorld = stageWorld;
+        campSelectedStage = highestStage;
+      }
+    }
+    buildCampaignMap(); // Ensure map updates with correct world/stage
+    updateCampaignInfo();
+  }
+
   // Init PVP map when switching to it
   if(name === 'pvp' && !pvpLoaded) {
     const overlay=document.getElementById('pvp-loading-overlay');

@@ -415,14 +415,52 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 
 /* ══ RESEARCH TREE ══ */
 .research-panel{padding-bottom:1rem;}
-.research-category{margin-bottom:2rem;}
+
+/* Research overview section */
+.research-overview{
+  background:linear-gradient(135deg,rgba(100,149,237,0.08),rgba(138,43,226,0.08));
+  border:1px solid rgba(100,149,237,0.2);border-radius:12px;
+  padding:1rem 1.2rem;margin-bottom:2rem;
+}
+.research-overview-header{
+  font-size:14px;font-weight:700;color:#fff;margin-bottom:0.8rem;
+  text-align:center;letter-spacing:0.5px;
+}
+.research-tier-progress{
+  display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;
+}
+.tier-prog{
+  font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;
+  border:1px solid;min-width:80px;text-align:center;
+}
+.tier-prog[data-tier="I"]{background:rgba(135,135,135,0.1);border-color:rgba(135,135,135,0.3);color:#888;}
+.tier-prog[data-tier="II"]{background:rgba(100,149,237,0.1);border-color:rgba(100,149,237,0.3);color:#6495ed;}
+.tier-prog[data-tier="III"]{background:rgba(255,165,0,0.1);border-color:rgba(255,165,0,0.3);color:#ffa500;}
+.tier-prog[data-tier="IV"]{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.3);color:#ffd700;}
+.tier-prog[data-tier="V"]{background:rgba(255,20,147,0.1);border-color:rgba(255,20,147,0.3);color:#ff1493;}
+.tier-prog.total{background:rgba(138,43,226,0.1);border-color:rgba(138,43,226,0.3);color:#8a2be2;font-weight:700;}
+
+.research-category{margin-bottom:2.5rem;}
 .research-cat-header{
   display:flex;align-items:center;gap:10px;margin-bottom:1rem;
-  padding-bottom:0.6rem;border-bottom:1px solid var(--border);
+  padding-bottom:0.8rem;border-bottom:2px solid var(--border);
+  position:relative;
 }
-.research-cat-icon{font-size:20px;}
-.research-cat-name{font-size:15px;font-weight:700;color:#fff;}
-.research-cat-desc{font-size:11px;color:var(--text3);margin-left:auto;}
+.research-cat-header::before{
+  content:'';position:absolute;bottom:-2px;left:0;height:2px;width:60px;
+  background:linear-gradient(90deg,var(--blue2),transparent);
+}
+.research-cat-icon{font-size:24px;}
+.research-cat-name{font-size:16px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.5px;}
+.research-cat-progress{font-size:12px;color:var(--blue2);font-weight:600;margin-left:auto;margin-right:1rem;padding:2px 8px;background:rgba(100,149,237,0.1);border:1px solid rgba(100,149,237,0.3);border-radius:4px;}
+.research-cat-desc{font-size:11px;color:var(--text3);font-style:italic;}
+
+/* Category-specific styling */
+.research-category[data-category="mastery"] .research-cat-header::before{background:linear-gradient(90deg,#ffd700,transparent);}
+.research-category[data-category="transcendent"] .research-cat-header::before{background:linear-gradient(90deg,#ff1493,transparent);}
+.research-category[data-category="magic"] .research-cat-header::before{background:linear-gradient(90deg,#9370db,transparent);}
+.research-category[data-category="defense"] .research-cat-header::before{background:linear-gradient(90deg,#dc143c,transparent);}
+.research-category[data-category="economy"] .research-cat-header::before{background:linear-gradient(90deg,#ffa500,transparent);}
 
 /* Horizontal tree row */
 .research-tree-row{
@@ -452,7 +490,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 /* Individual research node card */
 .rnode{
   background:var(--bg2);border:1px solid var(--border);border-radius:12px;
-  padding:0.85rem 0.9rem;flex-shrink:0;width:170px;
+  padding:0.85rem 0.9rem;flex-shrink:0;width:190px;
   cursor:pointer;transition:border-color 0.15s,transform 0.12s,box-shadow 0.12s;
   position:relative;overflow:hidden;
   display:flex;flex-direction:column;gap:5px;
@@ -466,10 +504,29 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .rnode-available{border-color:var(--blue2);}
 .rnode-available:hover{border-color:var(--blue)!important;}
 .rnode-researching{border-color:var(--orange);border-style:dashed;animation:rPulse 2s ease-in-out infinite;cursor:pointer;}
+
+/* Tier-specific styling */
+.rnode[data-tier="I"]{border-width:1px;}
+.rnode[data-tier="II"]{border-width:2px;box-shadow:0 0 8px rgba(100,149,237,0.2);}
+.rnode[data-tier="III"]{border-width:2px;box-shadow:0 0 12px rgba(255,165,0,0.3);}
+.rnode[data-tier="IV"]{border-width:3px;box-shadow:0 0 16px rgba(255,215,0,0.4);background:linear-gradient(135deg,var(--bg2),rgba(255,215,0,0.05));}
+.rnode[data-tier="V"]{border-width:3px;box-shadow:0 0 20px rgba(255,20,147,0.5);background:linear-gradient(135deg,var(--bg2),rgba(255,20,147,0.08));}
+
 @keyframes rPulse{0%,100%{opacity:1;}50%{opacity:0.8;}}
 
 .rnode-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;}
 .rnode-icon{font-size:22px;line-height:1;}
+.rnode-tier{
+  font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;
+  background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);
+  position:absolute;top:5px;right:5px;z-index:1;
+}
+.rnode-tier[data-tier="I"]{background:rgba(135,135,135,0.2);border-color:rgba(135,135,135,0.4);}
+.rnode-tier[data-tier="II"]{background:rgba(100,149,237,0.2);border-color:rgba(100,149,237,0.4);color:#6495ed;}
+.rnode-tier[data-tier="III"]{background:rgba(255,165,0,0.2);border-color:rgba(255,165,0,0.4);color:#ffa500;}
+.rnode-tier[data-tier="IV"]{background:rgba(255,215,0,0.2);border-color:rgba(255,215,0,0.4);color:#ffd700;}
+.rnode-tier[data-tier="V"]{background:rgba(255,20,147,0.2);border-color:rgba(255,20,147,0.4);color:#ff1493;}
+
 .rnode-status-badge{
   font-size:9px;font-weight:700;padding:2px 6px;border-radius:5px;border:1px solid;white-space:nowrap;
 }
@@ -478,7 +535,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .badge-locked{background:var(--bg3);color:var(--text3);border-color:var(--border);}
 .badge-researching{background:rgba(240,160,64,0.15);color:var(--orange);border-color:var(--orange);}
 
-.rnode-name{font-size:12px;font-weight:700;color:#fff;line-height:1.3;}
+.rnode-name{font-size:12px;font-weight:700;color:#fff;line-height:1.3;margin-top:8px;}
 .rnode-effect{font-size:10px;color:var(--green);font-weight:600;}
 .rnode-desc{font-size:10px;color:var(--text3);line-height:1.4;}
 .rnode-cost{font-size:10px;color:var(--text2);}
@@ -1470,6 +1527,9 @@ async function loadFromDB() {
     applyServerPayload(payload);
     if (s?.lastSeen) showOfflineTimeBanner(s.lastSeen);
     // Silo state loaded from idw_get_state payload (in applyServerPayload)
+
+    // Resolve any offline research that completed while away
+    await resolveOfflineResearch();
   } catch (e) {
     console.warn('server load failed, falling back to old game_saves:', e);
     // Old fallback kept so a bad SQL install does not freeze the login screen.
@@ -2231,46 +2291,119 @@ function cancelUpgrade(resId,tierIdx){
 }
 
 // ═══════════════════════════════════════════════
-// RESEARCH TREE DEFINITIONS
+// RESEARCH TREE DEFINITIONS & SECURITY
 // ═══════════════════════════════════════════════
+
+/*
+ * CRITICAL: BACKEND IMPLEMENTATION REQUIRED FOR SECURITY
+ *
+ * The following RPC functions MUST be implemented server-side to prevent cheating:
+ *
+ * 1. idw_start_research(p_research_id, p_cost, p_requires)
+ *    - Validate research exists and isn't already done/researching
+ *    - Verify ALL prerequisites are met (check researchState[req_id].done = true)
+ *    - Validate player has sufficient resources for p_cost
+ *    - Deduct resources from player account
+ *    - Set research state to researching with server timestamp
+ *
+ * 2. idw_cancel_research(p_research_id)
+ *    - Validate research is currently researching by this player
+ *    - Calculate and refund 50% of original cost
+ *    - Reset research state
+ *
+ * 3. idw_check_research_completion() & idw_resolve_offline_research()
+ *    - Complete research where (current_time >= start_time + duration)
+ *    - Award XP and return completed research IDs
+ *
+ * 4. Enhanced idw_get_state() to include research state in payload
+ *
+ * WITHOUT SERVER VALIDATION: Players can cheat via browser dev tools!
+ */
 const RESEARCH_DEFS = [
-  // ── PRODUCTION ──
-  { id:'prod1', name:'Sharpened Axes',     icon:'🪓', category:'production', desc:'Better tools increase wood node output.',    effect:'+10% Wood Production',       bonus:{type:'res_prod',resId:'wood',pct:0.10},    requires:[], cost:{wood:200,fiber:100}, durationMs:5*60*1000 },
-  { id:'prod2', name:'Iron Drills',        icon:'⛏️', category:'production', desc:'Reinforced drill bits increase ore yield.',  effect:'+10% Ore Production',        bonus:{type:'res_prod',resId:'ore',pct:0.10},     requires:['prod1'], cost:{wood:300,ore:150}, durationMs:12*60*1000 },
-  { id:'prod3', name:'Fiber Looms',        icon:'🌀', category:'production', desc:'Efficient looms process fiber faster.',      effect:'+10% Fiber Production',      bonus:{type:'res_prod',resId:'fiber',pct:0.10},   requires:['prod1'], cost:{fiber:300,stone:150}, durationMs:20*60*1000 },
-  { id:'prod4', name:'Tanning Techniques', icon:'📜', category:'production', desc:'Advanced tanning increases leather yield.',  effect:'+10% Leather Production',    bonus:{type:'res_prod',resId:'leather',pct:0.10}, requires:['prod2'], cost:{leather:250,ore:200}, durationMs:35*60*1000 },
-  { id:'prod5', name:'Masonry Guild',      icon:'🏛️', category:'production', desc:'Organized quarrying improves stone output.', effect:'+10% Stone Production',      bonus:{type:'res_prod',resId:'stone',pct:0.10},   requires:['prod3'], cost:{stone:400,wood:300}, durationMs:50*60*1000 },
-  { id:'prod6', name:'Supply Chains',      icon:'🔗', category:'production', desc:'Logistics boost all resource production.',   effect:'+8% All Production',         bonus:{type:'all_prod',pct:0.08},                 requires:['prod4','prod5'], cost:{wood:500,stone:400,fiber:300,leather:300,ore:300}, durationMs:2*60*60*1000 },
-  // ── TOWER ──
-  { id:'tow1', name:'Tempered Steel',      icon:'⚔️', category:'tower',      desc:'Better alloys increase turret damage.',      effect:'+10% Tower Damage',          bonus:{type:'tower_dmg',pct:0.10},                requires:[], cost:{ore:200,wood:100}, durationMs:8*60*1000 },
-  { id:'tow2', name:'Rapid Mechanisms',    icon:'⚙️', category:'tower',      desc:'Precision mechanisms increase attack speed.', effect:'+10% Tower Attack Speed',    bonus:{type:'tower_spd',pct:0.10},                requires:['tow1'], cost:{ore:300,leather:150}, durationMs:20*60*1000 },
-  { id:'tow3', name:'Optic Sights',        icon:'🔭', category:'tower',      desc:'Improved optics extend turret range.',        effect:'+15% Tower Range',           bonus:{type:'tower_range',pct:0.15},              requires:['tow2'], cost:{stone:300,ore:200}, durationMs:40*60*1000 },
-  { id:'tow4', name:'Explosive Tips',      icon:'💥', category:'tower',      desc:'Explosive tips deal bonus damage.',           effect:'+15% Tower Damage',          bonus:{type:'tower_dmg',pct:0.15},                requires:['tow3'], cost:{ore:500,fiber:300}, durationMs:75*60*1000 },
-  { id:'tow5', name:'Elite Armaments',     icon:'🗡️', category:'tower',      desc:'Master-crafted weapons for elite towers.',    effect:'+20% Dmg · +10% Speed',      bonus:{type:'tower_dmg_spd',pct_dmg:0.20,pct_spd:0.10}, requires:['tow4'], cost:{ore:700,leather:500,wood:400}, durationMs:3*60*60*1000 },
-  // ── BATTLE ──
-  { id:'bat1', name:'War Treasury',        icon:'💰', category:'battle',     desc:'Better funding increases starting gold.',    effect:'+50 Starting Gold',          bonus:{type:'start_gold',flat:50},                requires:[], cost:{wood:300,stone:200}, durationMs:10*60*1000 },
-  { id:'bat2', name:'Bounty Contracts',    icon:'📋', category:'battle',     desc:'Contracts reward more gold per wave.',       effect:'+20% Wave Clear Gold',       bonus:{type:'wave_gold',pct:0.20},                requires:['bat1'], cost:{leather:300,fiber:200}, durationMs:25*60*1000 },
-  { id:'bat3', name:'Fortified Walls',     icon:'🏯', category:'battle',     desc:'Stronger defenses give more lives.',         effect:'+3 Starting Lives',          bonus:{type:'start_lives',flat:3},                requires:['bat2'], cost:{stone:500,ore:300}, durationMs:50*60*1000 },
-  { id:'bat4', name:'Combat Rations',      icon:'🍖', category:'battle',     desc:'Sustained supplies give more lives.',        effect:'+5 Starting Lives',          bonus:{type:'start_lives',flat:5},                requires:['bat3'], cost:{leather:400,fiber:400,wood:300}, durationMs:90*60*1000 },
-  { id:'bat5', name:'War Doctrine',        icon:'📯', category:'battle',     desc:'Advanced tactics increase gold and lives.',  effect:'+30% Wave Gold · +5 Lives',  bonus:{type:'wave_gold_lives',pct:0.30,flat:5},   requires:['bat4','tow3'], cost:{ore:600,stone:500,leather:400}, durationMs:4*60*60*1000 },
-  // ── ECONOMY ──
-  { id:'econ1', name:'Storage Vaults',     icon:'🏦', category:'economy',    desc:'Reinforced vaults increase silo capacity.',  effect:'+20% Silo Capacity',         bonus:{type:'silo_cap',pct:0.20},                 requires:[], cost:{stone:400,wood:300}, durationMs:20*60*1000 },
-  { id:'econ2', name:'Rapid Forges',       icon:'🔥', category:'economy',    desc:'Faster forges reduce crafting costs.',       effect:'-15% Crafting Cost',         bonus:{type:'craft_cost',pct:-0.15},              requires:['econ1'], cost:{ore:300,fiber:200}, durationMs:40*60*1000 },
-  { id:'econ3', name:'Scholar Guild',      icon:'📚', category:'economy',    desc:'Organized scholars speed up research.',      effect:'-25% Research Time',         bonus:{type:'research_speed',pct:0.25},           requires:['econ2'], cost:{fiber:500,leather:300}, durationMs:60*60*1000 },
-  { id:'econ4', name:'Resource Surplus',   icon:'📦', category:'economy',    desc:'Surplus planning boosts all production.',    effect:'+10% All Production',        bonus:{type:'all_prod',pct:0.10},                 requires:['econ3','prod6'], cost:{wood:600,stone:500,fiber:400,leather:400,ore:300}, durationMs:3*60*60*1000 },
-  // ── ADVANCED ──
-  { id:'adv1', name:'Arcane Metallurgy',   icon:'✨', category:'advanced',   desc:'Arcane alloys — towers hit harder.',         effect:'+20% Tower Damage',          bonus:{type:'tower_dmg',pct:0.20},                requires:['prod6','tow4'], cost:{ore:600,leather:500}, durationMs:5*60*60*1000 },
-  { id:'adv2', name:'Ancient Blueprints',  icon:'🗂️', category:'advanced',   desc:'Forgotten schematics speed research.',       effect:'-30% Research Time · +10% Prod', bonus:{type:'research_prod',res_spd:0.30,all_prod:0.10}, requires:['econ3','adv1'], cost:{stone:700,fiber:600,ore:500}, durationMs:8*60*60*1000 },
-  { id:'adv3', name:'Golem Workforce',     icon:'🤖', category:'advanced',   desc:'Stone golems boost all production.',         effect:'+20% All Production',        bonus:{type:'all_prod',pct:0.20},                 requires:['adv2','econ4'], cost:{stone:900,ore:700,wood:600}, durationMs:12*60*60*1000 },
-  { id:'adv4', name:'Kingdom Mastery',     icon:'👑', category:'advanced',   desc:'Total mastery across all domains.',          effect:'+15% Dmg · +15% Prod · +50 Gold · +5 Lives', bonus:{type:'mastery',tower_dmg:0.15,all_prod:0.15,gold:50,lives:5}, requires:['adv3','bat5'], cost:{wood:1200,stone:1200,fiber:1000,leather:1000,ore:1000}, durationMs:24*60*60*1000 },
+  // ══════════ TIER I - BASIC RESEARCH ══════════
+  // ── PRODUCTION I ──
+  { id:'prod1_i', name:'Tool Crafting I', tier:'I', icon:'🪓', category:'production', desc:'Basic tools improve efficiency.',    effect:'+8% Wood Production',       bonus:{type:'res_prod',resId:'wood',pct:0.08},    requires:[], cost:{wood:150,fiber:75}, durationMs:5*60*1000 },
+  { id:'prod2_i', name:'Mining I',        tier:'I', icon:'⛏️', category:'production', desc:'Simple drilling techniques.',      effect:'+8% Ore Production',        bonus:{type:'res_prod',resId:'ore',pct:0.08},     requires:[], cost:{stone:150,wood:100}, durationMs:8*60*1000 },
+  { id:'prod3_i', name:'Weaving I',       tier:'I', icon:'🌀', category:'production', desc:'Basic fiber processing.',          effect:'+8% Fiber Production',      bonus:{type:'res_prod',resId:'fiber',pct:0.08},   requires:[], cost:{fiber:200,stone:100}, durationMs:10*60*1000 },
+  { id:'prod4_i', name:'Tanning I',       tier:'I', icon:'📜', category:'production', desc:'Simple leather preparation.',     effect:'+8% Leather Production',    bonus:{type:'res_prod',resId:'leather',pct:0.08}, requires:[], cost:{leather:150,wood:100}, durationMs:12*60*1000 },
+  { id:'prod5_i', name:'Quarrying I',     tier:'I', icon:'🏛️', category:'production', desc:'Basic stone extraction.',          effect:'+8% Stone Production',      bonus:{type:'res_prod',resId:'stone',pct:0.08},   requires:[], cost:{stone:200,fiber:100}, durationMs:15*60*1000 },
+
+  // ── DEFENSE I ──
+  { id:'def1_i', name:'Blacksmithing I',  tier:'I', icon:'⚔️', category:'defense',    desc:'Basic weapon forging.',           effect:'+8% Tower Damage',          bonus:{type:'tower_dmg',pct:0.08},                requires:[], cost:{ore:150,wood:100}, durationMs:10*60*1000 },
+  { id:'def2_i', name:'Engineering I',    tier:'I', icon:'⚙️', category:'defense',    desc:'Simple mechanisms.',              effect:'+6% Tower Attack Speed',    bonus:{type:'tower_spd',pct:0.06},                requires:[], cost:{ore:200,leather:100}, durationMs:15*60*1000 },
+  { id:'def3_i', name:'Fortification I',  tier:'I', icon:'🏯', category:'defense',    desc:'Basic defensive structures.',     effect:'+2 Starting Lives',         bonus:{type:'start_lives',flat:2},                requires:[], cost:{stone:250,wood:150}, durationMs:18*60*1000 },
+
+  // ── ECONOMY I ──
+  { id:'econ1_i', name:'Storage I',       tier:'I', icon:'🏦', category:'economy',    desc:'Basic storage systems.',          effect:'+15% Silo Capacity',        bonus:{type:'silo_cap',pct:0.15},                 requires:[], cost:{stone:300,wood:200}, durationMs:20*60*1000 },
+  { id:'econ2_i', name:'Trade I',         tier:'I', icon:'💰', category:'economy',    desc:'Basic commerce routes.',          effect:'+25 Starting Gold',         bonus:{type:'start_gold',flat:25},                requires:[], cost:{wood:200,fiber:150}, durationMs:22*60*1000 },
+
+  // ── MAGIC I ──
+  { id:'mag1_i', name:'Arcane Studies I', tier:'I', icon:'🔮', category:'magic',      desc:'Basic magical understanding.',    effect:'-15% Research Time',        bonus:{type:'research_speed',pct:0.15},           requires:[], cost:{fiber:300,leather:200}, durationMs:25*60*1000 },
+  { id:'mag2_i', name:'Enchanting I',     tier:'I', icon:'✨', category:'magic',      desc:'Simple item enhancement.',       effect:'+5% Tower Range',           bonus:{type:'tower_range',pct:0.05},              requires:[], cost:{ore:250,fiber:200}, durationMs:30*60*1000 },
+
+  // ══════════ TIER II - INTERMEDIATE RESEARCH ══════════
+  // ── PRODUCTION II ──
+  { id:'prod1_ii', name:'Tool Crafting II', tier:'II', icon:'🪓', category:'production', desc:'Improved tool metallurgy.',      effect:'+12% Wood Production',      bonus:{type:'res_prod',resId:'wood',pct:0.12},    requires:['prod1_i'], cost:{wood:400,fiber:300,ore:150}, durationMs:35*60*1000 },
+  { id:'prod2_ii', name:'Mining II',        tier:'II', icon:'⛏️', category:'production', desc:'Advanced extraction methods.',   effect:'+12% Ore Production',       bonus:{type:'res_prod',resId:'ore',pct:0.12},     requires:['prod2_i'], cost:{stone:450,ore:250,wood:200}, durationMs:40*60*1000 },
+  { id:'prod3_ii', name:'Weaving II',       tier:'II', icon:'🌀', category:'production', desc:'Enhanced fiber processing.',     effect:'+12% Fiber Production',     bonus:{type:'res_prod',resId:'fiber',pct:0.12},   requires:['prod3_i'], cost:{fiber:500,stone:300,leather:150}, durationMs:45*60*1000 },
+  { id:'prod4_ii', name:'Tanning II',       tier:'II', icon:'📜', category:'production', desc:'Advanced leather techniques.',   effect:'+12% Leather Production',   bonus:{type:'res_prod',resId:'leather',pct:0.12}, requires:['prod4_i'], cost:{leather:400,fiber:300,ore:200}, durationMs:50*60*1000 },
+  { id:'prod5_ii', name:'Quarrying II',     tier:'II', icon:'🏛️', category:'production', desc:'Mechanized stone cutting.',      effect:'+12% Stone Production',     bonus:{type:'res_prod',resId:'stone',pct:0.12},   requires:['prod5_i'], cost:{stone:600,wood:400,ore:300}, durationMs:55*60*1000 },
+  { id:'prod_syn_ii', name:'Supply Networks', tier:'II', icon:'🔗', category:'production', desc:'Cross-resource optimization.',   effect:'+6% All Production',        bonus:{type:'all_prod',pct:0.06},                 requires:['prod1_ii','prod2_ii','prod3_ii'], cost:{wood:800,stone:600,fiber:500,leather:400,ore:400}, durationMs:2*60*60*1000 },
+
+  // ── DEFENSE II ──
+  { id:'def1_ii', name:'Blacksmithing II',  tier:'II', icon:'⚔️', category:'defense',    desc:'Alloy forging techniques.',      effect:'+12% Tower Damage',         bonus:{type:'tower_dmg',pct:0.12},                requires:['def1_i'], cost:{ore:400,stone:250,wood:200}, durationMs:50*60*1000 },
+  { id:'def2_ii', name:'Engineering II',    tier:'II', icon:'⚙️', category:'defense',    desc:'Precision gear systems.',        effect:'+10% Tower Attack Speed',   bonus:{type:'tower_spd',pct:0.10},                requires:['def2_i'], cost:{ore:500,leather:300,fiber:250}, durationMs:60*60*1000 },
+  { id:'def3_ii', name:'Fortification II',  tier:'II', icon:'🏯', category:'defense',    desc:'Reinforced defenses.',           effect:'+3 Starting Lives',         bonus:{type:'start_lives',flat:3},                requires:['def3_i'], cost:{stone:700,wood:500,ore:300}, durationMs:75*60*1000 },
+  { id:'def4_ii', name:'Tactics II',        tier:'II', icon:'🛡️', category:'defense',    desc:'Coordinated defensive strategy.', effect:'+15% Wave Clear Gold',      bonus:{type:'wave_gold',pct:0.15},                requires:['def1_ii','def3_ii'], cost:{leather:600,fiber:500,stone:400}, durationMs:90*60*1000 },
+
+  // ── ECONOMY II ──
+  { id:'econ1_ii', name:'Storage II',       tier:'II', icon:'🏦', category:'economy',    desc:'Advanced storage solutions.',    effect:'+25% Silo Capacity',        bonus:{type:'silo_cap',pct:0.25},                 requires:['econ1_i'], cost:{stone:800,wood:600,ore:400}, durationMs:75*60*1000 },
+  { id:'econ2_ii', name:'Trade II',         tier:'II', icon:'💰', category:'economy',    desc:'Merchant guild networks.',       effect:'+50 Starting Gold',         bonus:{type:'start_gold',flat:50},                requires:['econ2_i'], cost:{wood:600,fiber:500,leather:400}, durationMs:85*60*1000 },
+  { id:'econ3_ii', name:'Banking II',       tier:'II', icon:'🏛️', category:'economy',    desc:'Financial infrastructure.',      effect:'-10% Crafting Cost',        bonus:{type:'craft_cost',pct:-0.10},              requires:['econ1_ii','econ2_ii'], cost:{stone:1000,fiber:800,ore:600}, durationMs:120*60*1000 },
+
+  // ── MAGIC II ──
+  { id:'mag1_ii', name:'Arcane Studies II', tier:'II', icon:'🔮', category:'magic',      desc:'Advanced magical theory.',       effect:'-25% Research Time',        bonus:{type:'research_speed',pct:0.25},           requires:['mag1_i'], cost:{fiber:800,leather:600,ore:400}, durationMs:90*60*1000 },
+  { id:'mag2_ii', name:'Enchanting II',     tier:'II', icon:'✨', category:'magic',      desc:'Intermediate enchantments.',     effect:'+8% Tower Range',           bonus:{type:'tower_range',pct:0.08},              requires:['mag2_i'], cost:{ore:600,fiber:500,stone:400}, durationMs:100*60*1000 },
+  { id:'mag3_ii', name:'Ward Magic II',     tier:'II', icon:'🛡️', category:'magic',      desc:'Protective magical barriers.',   effect:'+4 Starting Lives',         bonus:{type:'start_lives',flat:4},                requires:['mag1_ii','def3_ii'], cost:{leather:700,fiber:600,stone:500}, durationMs:110*60*1000 },
+
+  // ══════════ TIER III - ADVANCED RESEARCH ══════════
+  // ── PRODUCTION III ──
+  { id:'prod1_iii', name:'Tool Crafting III', tier:'III', icon:'🪓', category:'production', desc:'Master tool engineering.',       effect:'+18% Wood Production',      bonus:{type:'res_prod',resId:'wood',pct:0.18},    requires:['prod1_ii'], cost:{wood:1000,fiber:800,ore:600,stone:400}, durationMs:3*60*60*1000 },
+  { id:'prod2_iii', name:'Mining III',        tier:'III', icon:'⛏️', category:'production', desc:'Deep extraction technology.',    effect:'+18% Ore Production',       bonus:{type:'res_prod',resId:'ore',pct:0.18},     requires:['prod2_ii'], cost:{stone:1200,ore:800,wood:600,leather:400}, durationMs:3.5*60*60*1000 },
+  { id:'prod_mega_iii', name:'Industrial Revolution', tier:'III', icon:'🏭', category:'production', desc:'Mechanized mass production.',    effect:'+15% All Production',       bonus:{type:'all_prod',pct:0.15},                 requires:['prod_syn_ii','prod1_iii','prod2_iii'], cost:{wood:2000,stone:1800,fiber:1500,leather:1200,ore:1500}, durationMs:6*60*60*1000 },
+
+  // ── DEFENSE III ──
+  { id:'def1_iii', name:'Blacksmithing III', tier:'III', icon:'⚔️', category:'defense',    desc:'Legendary weapon forging.',      effect:'+25% Tower Damage',         bonus:{type:'tower_dmg',pct:0.25},                requires:['def1_ii'], cost:{ore:1200,stone:800,wood:600,fiber:400}, durationMs:4*60*60*1000 },
+  { id:'def2_iii', name:'Engineering III',   tier:'III', icon:'⚙️', category:'defense',    desc:'Clockwork precision systems.',   effect:'+18% Tower Attack Speed',   bonus:{type:'tower_spd',pct:0.18},                requires:['def2_ii'], cost:{ore:1500,leather:1000,fiber:800,stone:600}, durationMs:4.5*60*60*1000 },
+  { id:'def3_iii', name:'Fortress III',      tier:'III', icon:'🏯', category:'defense',    desc:'Impregnable fortress design.',   effect:'+8 Starting Lives',         bonus:{type:'start_lives',flat:8},                requires:['def3_ii','def4_ii'], cost:{stone:2000,wood:1500,ore:1200,leather:800}, durationMs:5*60*60*1000 },
+
+  // ── ECONOMY III ──
+  { id:'econ1_iii', name:'Storage III',      tier:'III', icon:'🏦', category:'economy',    desc:'Dimensional storage systems.',   effect:'+40% Silo Capacity',        bonus:{type:'silo_cap',pct:0.40},                 requires:['econ1_ii'], cost:{stone:1800,wood:1400,ore:1000,fiber:800}, durationMs:5*60*60*1000 },
+  { id:'econ2_iii', name:'Trade III',        tier:'III', icon:'💰', category:'economy',    desc:'International commerce.',        effect:'+100 Gold · +25% Wave Gold', bonus:{type:'trade_mastery',start_gold:100,wave_gold:0.25}, requires:['econ2_ii','econ3_ii'], cost:{wood:1600,fiber:1400,leather:1200,stone:1000}, durationMs:5.5*60*60*1000 },
+
+  // ── MAGIC III ──
+  { id:'mag1_iii', name:'Arcane Mastery III', tier:'III', icon:'🔮', category:'magic',     desc:'Arcane knowledge mastery.',      effect:'-35% Research Time',        bonus:{type:'research_speed',pct:0.35},           requires:['mag1_ii'], cost:{fiber:1500,leather:1200,ore:1000,stone:800}, durationMs:6*60*60*1000 },
+  { id:'mag2_iii', name:'Enchanting III',     tier:'III', icon:'✨', category:'magic',     desc:'Greater enchantment arts.',      effect:'+15% Tower Range',          bonus:{type:'tower_range',pct:0.15},              requires:['mag2_ii'], cost:{ore:1400,fiber:1200,stone:1000,wood:800}, durationMs:6.5*60*60*1000 },
+  { id:'mag_syn_iii', name:'Magitech Fusion', tier:'III', icon:'⚡', category:'magic',     desc:'Magic-technology synthesis.',    effect:'+20% Dmg · +12% Speed',     bonus:{type:'magitech',tower_dmg:0.20,tower_spd:0.12}, requires:['mag2_iii','def1_iii','def2_iii'], cost:{ore:2500,fiber:2000,leather:1800,stone:1500}, durationMs:8*60*60*1000 },
+
+  // ══════════ TIER IV - MASTER RESEARCH ══════════
+  // ── UNIFIED MASTERY IV ──
+  { id:'unified_prod_iv', name:'Resource Mastery IV', tier:'IV', icon:'🌟', category:'mastery', desc:'Total resource dominance.',       effect:'+25% All Production',       bonus:{type:'all_prod',pct:0.25},                 requires:['prod_mega_iii','econ1_iii'], cost:{wood:3000,stone:3000,fiber:2500,leather:2000,ore:2500}, durationMs:12*60*60*1000 },
+  { id:'unified_def_iv', name:'War Mastery IV',      tier:'IV', icon:'⚔️', category:'mastery', desc:'Ultimate warfare expertise.',    effect:'+35% Dmg · +25% Speed · +12 Lives', bonus:{type:'war_mastery',tower_dmg:0.35,tower_spd:0.25,start_lives:12}, requires:['def3_iii','mag_syn_iii'], cost:{ore:4000,stone:3500,wood:3000,leather:2500}, durationMs:15*60*60*1000 },
+  { id:'unified_econ_iv', name:'Empire Mastery IV',  tier:'IV', icon:'👑', category:'mastery', desc:'Economic empire control.',       effect:'+200 Gold · +50% Wave Gold · +60% Silo', bonus:{type:'empire_mastery',start_gold:200,wave_gold:0.50,silo_cap:0.60}, requires:['econ2_iii','mag1_iii'], cost:{wood:3500,fiber:3000,leather:2500,stone:2000,ore:2000}, durationMs:18*60*60*1000 },
+
+  // ══════════ TIER V - LEGENDARY RESEARCH ══════════
+  // ── TRANSCENDENT POWER V ──
+  { id:'transcendent_v', name:'Transcendent Power', tier:'V', icon:'🔥', category:'transcendent', desc:'Power beyond mortal understanding.', effect:'+50% All · +50% Dmg · +100% Speed · +300 Gold · +20 Lives', bonus:{type:'transcendent',all_prod:0.50,tower_dmg:0.50,tower_spd:1.00,start_gold:300,start_lives:20}, requires:['unified_prod_iv','unified_def_iv','unified_econ_iv'], cost:{wood:10000,stone:10000,fiber:8000,leather:6000,ore:8000}, durationMs:48*60*60*1000 },
 ];
 
 const RESEARCH_CATEGORIES = [
-  { id:'production', name:'Production', icon:'🌾', desc:'Boost node output' },
-  { id:'tower',      name:'Towers',     icon:'🗼', desc:'Buff turret stats in battle' },
-  { id:'battle',     name:'Battle',     icon:'⚔️', desc:'Improve battle conditions' },
-  { id:'economy',    name:'Economy',    icon:'💰', desc:'Silo, crafting & research speed' },
-  { id:'advanced',   name:'Advanced',   icon:'✨', desc:'Powerful cross-domain upgrades' },
+  { id:'production', name:'Production', icon:'🌾', desc:'Resource generation and efficiency' },
+  { id:'defense',    name:'Defense',    icon:'🗼', desc:'Tower and defensive capabilities' },
+  { id:'economy',    name:'Economy',    icon:'💰', desc:'Storage, trade, and economic systems' },
+  { id:'magic',      name:'Magic',      icon:'🔮', desc:'Arcane arts and enchantments' },
+  { id:'mastery',    name:'Mastery',    icon:'🌟', desc:'Cross-domain expertise' },
+  { id:'transcendent', name:'Transcendent', icon:'🔥', desc:'Ultimate power' },
 ];
 
 const researchState = {};
@@ -2301,6 +2434,12 @@ function getResearchBonuses() {
     if (bx.type === 'wave_gold_lives'){ b.wave_gold += bx.pct; b.start_lives += bx.flat; }
     if (bx.type === 'research_prod') { b.research_speed += bx.res_spd; b.all_prod += bx.all_prod; }
     if (bx.type === 'mastery') { b.tower_dmg += bx.tower_dmg; b.all_prod += bx.all_prod; b.start_gold += bx.gold; b.start_lives += bx.lives; }
+    // New advanced bonus types
+    if (bx.type === 'trade_mastery') { b.start_gold += bx.start_gold; b.wave_gold += bx.wave_gold; }
+    if (bx.type === 'magitech') { b.tower_dmg += bx.tower_dmg; b.tower_spd += bx.tower_spd; }
+    if (bx.type === 'war_mastery') { b.tower_dmg += bx.tower_dmg; b.tower_spd += bx.tower_spd; b.start_lives += bx.start_lives; }
+    if (bx.type === 'empire_mastery') { b.start_gold += bx.start_gold; b.wave_gold += bx.wave_gold; b.silo_cap += bx.silo_cap; }
+    if (bx.type === 'transcendent') { b.all_prod += bx.all_prod; b.tower_dmg += bx.tower_dmg; b.tower_spd += bx.tower_spd; b.start_gold += bx.start_gold; b.start_lives += bx.start_lives; }
   });
   return b;
 }
@@ -2320,21 +2459,92 @@ function isResearchUnlocked(rd) {
   return rd.requires.every(id => researchState[id]?.done);
 }
 
+function getResearchProgress() {
+  let progress = {I: 0, II: 0, III: 0, IV: 0, V: 0, total: 0};
+  RESEARCH_DEFS.forEach(rd => {
+    if (researchState[rd.id]?.done) {
+      progress[rd.tier]++;
+      progress.total++;
+    }
+  });
+  return progress;
+}
+
+function getCompletedResearchByCategory(category) {
+  return RESEARCH_DEFS.filter(rd => rd.category === category && researchState[rd.id]?.done).length;
+}
+
+function getTotalResearchByCategory(category) {
+  return RESEARCH_DEFS.filter(rd => rd.category === category).length;
+}
+
+function getUnlockableResearch() {
+  return RESEARCH_DEFS.filter(rd => {
+    if (researchState[rd.id]?.done || researchState[rd.id]?.researching) return false;
+    const prereqsCount = rd.requires.length;
+    const completedPrereqs = rd.requires.filter(reqId => researchState[reqId]?.done).length;
+    return completedPrereqs > 0 && completedPrereqs < prereqsCount; // Partially unlocked
+  });
+}
+
+function getResearchSynergies(rd) {
+  const synergies = [];
+
+  // Find research that becomes unlockable when this is completed
+  RESEARCH_DEFS.forEach(rd2 => {
+    if (rd2.requires.includes(rd.id) && !researchState[rd2.id]?.done) {
+      const otherPrereqs = rd2.requires.filter(reqId => reqId !== rd.id);
+      const otherPrereqsDone = otherPrereqs.every(reqId => researchState[reqId]?.done);
+      if (otherPrereqsDone) {
+        synergies.push(rd2);
+      }
+    }
+  });
+
+  return synergies;
+}
+
 function buildResearchPanel() {
   const panel = document.getElementById('research-panel');
   if (!panel) return;
   panel.innerHTML = '';
 
+  // Add research overview panel
+  const progress = getResearchProgress();
+  const overviewDiv = document.createElement('div');
+  overviewDiv.className = 'research-overview';
+  overviewDiv.innerHTML = `
+    <div class="research-overview-header">📊 Research Progress Overview</div>
+    <div class="research-tier-progress">
+      <div class="tier-prog" data-tier="I">Tier I: ${progress.I}/${RESEARCH_DEFS.filter(r => r.tier === 'I').length}</div>
+      <div class="tier-prog" data-tier="II">Tier II: ${progress.II}/${RESEARCH_DEFS.filter(r => r.tier === 'II').length}</div>
+      <div class="tier-prog" data-tier="III">Tier III: ${progress.III}/${RESEARCH_DEFS.filter(r => r.tier === 'III').length}</div>
+      <div class="tier-prog" data-tier="IV">Tier IV: ${progress.IV}/${RESEARCH_DEFS.filter(r => r.tier === 'IV').length}</div>
+      <div class="tier-prog" data-tier="V">Tier V: ${progress.V}/${RESEARCH_DEFS.filter(r => r.tier === 'V').length}</div>
+      <div class="tier-prog total">Total: ${progress.total}/${RESEARCH_DEFS.length}</div>
+    </div>
+  `;
+  panel.appendChild(overviewDiv);
+
+  // Group research by tiers for better organization
+  const tiers = ['I', 'II', 'III', 'IV', 'V'];
+
   RESEARCH_CATEGORIES.forEach(cat => {
     const nodes = RESEARCH_DEFS.filter(r => r.category === cat.id);
     if (!nodes.length) return;
 
+    const completed = getCompletedResearchByCategory(cat.id);
+    const total = getTotalResearchByCategory(cat.id);
+    const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
     const catDiv = document.createElement('div');
     catDiv.className = 'research-category';
+    catDiv.setAttribute('data-category', cat.id);
     catDiv.innerHTML = `
       <div class="research-cat-header">
         <span class="research-cat-icon">${cat.icon}</span>
         <span class="research-cat-name">${cat.name}</span>
+        <span class="research-cat-progress">${completed}/${total} (${progressPct}%)</span>
         <span class="research-cat-desc">${cat.desc}</span>
       </div>
       <div class="research-tree-row" id="rtree-${cat.id}"></div>
@@ -2342,20 +2552,26 @@ function buildResearchPanel() {
     panel.appendChild(catDiv);
 
     const row = document.getElementById('rtree-' + cat.id);
-    nodes.forEach((rd, i) => {
-      if (i > 0) {
-        const prevRd = nodes[i - 1];
-        const conn = document.createElement('div');
-        const prevDone = researchState[prevRd.id]?.done;
-        const prevResearching = researchState[prevRd.id]?.researching;
-        conn.className = 'research-connector' + (prevDone ? ' unlocked' : prevResearching ? ' researching' : '');
-        conn.id = `rconn-${prevRd.id}-${rd.id}`;
-        row.appendChild(conn);
-      }
-      const card = document.createElement('div');
-      card.id = 'rnode-' + rd.id;
-      card.onclick = () => openResearchModal(rd.id);
-      row.appendChild(card);
+
+    // Group nodes by tier for better visual organization
+    tiers.forEach(tier => {
+      const tierNodes = nodes.filter(n => n.tier === tier);
+      if (!tierNodes.length) return;
+
+      tierNodes.forEach((rd, i) => {
+        if (row.children.length > 0) {
+          const conn = document.createElement('div');
+          conn.className = 'research-connector';
+          conn.id = `rconn-to-${rd.id}`;
+          row.appendChild(conn);
+        }
+
+        const card = document.createElement('div');
+        card.id = 'rnode-' + rd.id;
+        card.setAttribute('data-tier', rd.tier);
+        card.onclick = () => openResearchModal(rd.id);
+        row.appendChild(card);
+      });
     });
   });
 
@@ -2377,6 +2593,7 @@ function updateResearchCards() {
     else                  { statusClass='rnode-locked';     badgeClass='badge-locked';     badgeText='Locked'; }
 
     card.className = 'rnode ' + statusClass;
+    card.setAttribute('data-tier', rd.tier);
 
     let progHtml = '';
     if (rs.researching) {
@@ -2389,7 +2606,8 @@ function updateResearchCards() {
     } else if (!rs.done) {
       const costs = Object.entries(rd.cost).map(([k,v]) => {
         const icon = RESOURCE_DEFS.find(x=>x.id===k)?.icon||'';
-        return `${icon}${v.toLocaleString()}`;
+        const hasEnough = (resources[k] || 0) >= v;
+        return `<span style="color:${hasEnough ? 'var(--green)' : 'var(--red)'}">${icon}${v.toLocaleString()}</span>`;
       }).join(' ');
       const dur = effectiveResearchMs(rd);
       progHtml = `
@@ -2401,6 +2619,7 @@ function updateResearchCards() {
     card.innerHTML = `
       <div class="rnode-top">
         <span class="rnode-icon">${rd.icon}</span>
+        <span class="rnode-tier" data-tier="${rd.tier}">Tier ${rd.tier}</span>
         <span class="rnode-status-badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="rnode-name">${rd.name}</div>
@@ -2409,36 +2628,34 @@ function updateResearchCards() {
       ${progHtml}
     `;
 
+    // Update connectors for research that depends on this one
     RESEARCH_DEFS.forEach(rd2 => {
-      if (rd2.requires.includes(rd.id) && rd2.category === rd.category) {
-        const conn = document.getElementById(`rconn-${rd.id}-${rd2.id}`);
+      if (rd2.requires.includes(rd.id)) {
+        const conn = document.getElementById(`rconn-to-${rd2.id}`);
         if (conn) {
-          conn.className = 'research-connector' + (rs.done ? ' unlocked' : rs.researching ? ' researching' : '');
+          const prereqsMet = rd2.requires.every(reqId => researchState[reqId]?.done);
+          const anyInProgress = rd2.requires.some(reqId => researchState[reqId]?.researching);
+          conn.className = 'research-connector' + (prereqsMet ? ' unlocked' : anyInProgress ? ' researching' : '');
         }
       }
     });
   });
 }
 
-function updateResearchBars() {
+async function updateResearchBars() {
   const now = Date.now();
+  let needsServerCheck = false;
+
   RESEARCH_DEFS.forEach(rd => {
     const rs = researchState[rd.id];
     if (!rs.researching) return;
 
     if (now >= rs.startMs + rs.durationMs) {
-      rs.done = true; rs.researching = false; rs.startMs = 0; rs.durationMs = 0;
-      activeResearchId = null;
-      showToast(`🔬 ${rd.name} research complete!`);
-      addXP(30, undefined, undefined);
-      updateResearchCards();
-      if (rd.category === 'battle' || rd.category === 'tower') { renderArmoryGrid(); updateArmorySlotCount(); }
-      syncPowerLevel();
-      scheduleSave();
-      if (researchModalId === rd.id) renderResearchModal();
+      needsServerCheck = true;
       return;
     }
 
+    // Update progress bars for ongoing research
     const bar = document.getElementById('rprog-' + rd.id);
     if (bar) {
       const pct = Math.min(((now - rs.startMs) / rs.durationMs) * 100, 100);
@@ -2455,6 +2672,29 @@ function updateResearchBars() {
       if (eta) eta.textContent = '⏱ ' + fmtCountdown(rem) + ' remaining';
     }
   });
+
+  // Check with server for completed research (but don't block the UI)
+  if (needsServerCheck) {
+    try {
+      const result = await serverRpc('idw_check_research_completion');
+      if (result?.completed_research?.length > 0) {
+        // Refresh from server to get updated state
+        await refreshFromServer();
+        result.completed_research.forEach(research_id => {
+          const rd = RESEARCH_DEFS.find(x => x.id === research_id);
+          if (rd) {
+            showToast(`🔬 ${rd.name} research complete!`);
+            addXP(30, undefined, undefined);
+            if (rd.category === 'battle' || rd.category === 'tower') { renderArmoryGrid(); updateArmorySlotCount(); }
+            if (researchModalId === rd.id) renderResearchModal();
+          }
+        });
+        syncPowerLevel();
+      }
+    } catch(e) {
+      console.warn('Check research completion failed:', e);
+    }
+  }
 }
 
 // ── RESEARCH MODAL ───────────────────────────────
@@ -2558,7 +2798,7 @@ function renderResearchModal() {
   `;
 }
 
-function startResearch(id) {
+async function startResearch(id) {
   const rd = RESEARCH_DEFS.find(x=>x.id===id);
   const rs = researchState[id];
   if (rs.done || rs.researching) return;
@@ -2567,48 +2807,61 @@ function startResearch(id) {
 
   const ok = Object.entries(rd.cost).every(([k,v]) => (resources[k]||0) >= v);
   if (!ok) { showToast('Not enough resources!'); return; }
-  Object.entries(rd.cost).forEach(([k,v]) => { resources[k] -= v; });
 
-  const dur = effectiveResearchMs(rd);
-  rs.researching = true;
-  rs.startMs = Date.now();
-  rs.durationMs = dur;
-  activeResearchId = id;
+  try {
+    // Server-side research start with validation
+    await serverRpc('idw_start_research', {
+      p_research_id: id,
+      p_cost: rd.cost,
+      p_requires: rd.requires
+    });
 
-  renderResearchModal();
-  updateResearchCards();
-  updateResourcePills();
-  showToast(`🔬 ${rd.name} research started — ${fmtTime(dur/1000)}`);
-  scheduleSave();
+    // Only update client state after server confirms
+    await refreshFromServer();
+    closeModal();
+    showToast(`🔬 ${rd.name} research started!`);
+  } catch(e) {
+    console.error('Start research failed:', e);
+    // Server should handle error toasts via serverRpc
+  }
 }
 
-function cancelResearch(id) {
-  const rd = RESEARCH_DEFS.find(x=>x.id===id);
+async function cancelResearch(id) {
   const rs = researchState[id];
   if (!rs.researching) return;
-  Object.entries(rd.cost).forEach(([k,v]) => {
-    resources[k] = (resources[k]||0) + Math.floor(v*0.5);
-  });
-  rs.researching = false; rs.startMs = 0; rs.durationMs = 0;
-  if (activeResearchId === id) activeResearchId = null;
-  renderResearchModal();
-  updateResearchCards();
-  updateResourcePills();
-  showToast(`Research cancelled — 50% materials refunded`);
-  scheduleSave();
+
+  try {
+    // Server-side research cancellation with validation
+    await serverRpc('idw_cancel_research', {
+      p_research_id: id
+    });
+
+    // Refresh from server to get updated state and refunded resources
+    await refreshFromServer();
+    closeModal();
+    showToast(`Research cancelled — 50% materials refunded`);
+  } catch(e) {
+    console.error('Cancel research failed:', e);
+    // Server should handle error toasts via serverRpc
+  }
 }
 
-function resolveOfflineResearch() {
-  const now = Date.now();
-  RESEARCH_DEFS.forEach(rd => {
-    const rs = researchState[rd.id];
-    if (!rs.researching) return;
-    if (now >= rs.startMs + rs.durationMs) {
-      rs.done = true; rs.researching = false; rs.startMs = 0; rs.durationMs = 0;
-      if (activeResearchId === rd.id) activeResearchId = null;
-      addXP(30, undefined, undefined);
+async function resolveOfflineResearch() {
+  // Server handles offline research completion validation
+  try {
+    const result = await serverRpc('idw_resolve_offline_research');
+    if (result?.completed_research?.length > 0) {
+      result.completed_research.forEach(research_id => {
+        const rd = RESEARCH_DEFS.find(x => x.id === research_id);
+        if (rd) {
+          showToast(`🔬 ${rd.name} research completed offline!`);
+          addXP(30, undefined, undefined);
+        }
+      });
     }
-  });
+  } catch(e) {
+    console.warn('Resolve offline research failed:', e);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -3333,6 +3586,32 @@ function isEliteWorldUnlocked(world) {
   return prev.every(s => isEliteCleared(s.id));
 }
 
+function getHighestAttackableStage() {
+  let highestStage = null;
+
+  // Check all stages across all worlds in current mode, but use mode-specific world unlocking
+  for (let w = 1; w <= 10; w++) {
+    const worldUnlocked = w === 1 || (campEliteMode ? isEliteWorldUnlocked(w) : isWorldUnlocked(w));
+    if (!worldUnlocked) break; // Stop at first locked world in current mode
+
+    const worldStages = CAMPAIGN_STAGES.filter(s => s.world === w);
+    for (let i = 0; i < worldStages.length; i++) {
+      const stage = worldStages[i];
+      const prevCleared = i === 0 || (campEliteMode ? isEliteCleared(worldStages[i-1].id) : campCompletedStages.has(worldStages[i-1].id));
+      const eliteReq = !campEliteMode || campCompletedStages.has(stage.id);
+      const available = worldUnlocked && prevCleared && eliteReq;
+
+      if (available) {
+        highestStage = stage.id; // Keep updating to get the HIGHEST available stage
+      } else {
+        break; // Stop at first unavailable stage in this world
+      }
+    }
+  }
+
+  return highestStage || '1-1'; // Fallback to first stage
+}
+
 const ELITE_MODIFIERS = [
   { id:'hp50',       label:'☠️ +50% Enemy HP',           apply:(bs,cfg)=>{ cfg.hpMult*=1.5; } },
   { id:'speed20',    label:'💨 +20% Enemy Speed',         apply:(bs,cfg)=>{ cfg.speedMult*=1.2; } },
@@ -3837,7 +4116,14 @@ async function startBattle() {
     }
   }
 
-  const toConsume = (serverBattle.consumedTowers || []).filter(Boolean);
+  // 🔧 FIX: Ensure armory towers are always consumed, even if server doesn't return them
+  let toConsume = (serverBattle.consumedTowers || []).filter(Boolean);
+
+  // Fallback: if server didn't return consumed towers, use selected armory towers directly
+  if (toConsume.length === 0 && battleSelectedTowers.length > 0) {
+    toConsume = battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean);
+    console.log('Using fallback: consuming armory towers directly', toConsume);
+  }
   pendingTowersQueue = toConsume.map(entry => ({
     entry,
     td: TOWER_DEFS.find(t=>t.id===entry.towerId),
@@ -4972,6 +5258,14 @@ async function showResultScreen(won) {
     }
   } else if (currentBattleId) {
     try {
+      console.log('🎯 DEBUG: Submitting battle result:', {
+        battleId: currentBattleId,
+        stage,
+        won: !!won,
+        waves: bs.wave || 0,
+        lives: bs.lives || 0
+      });
+
       const result = await serverRpc('idw_submit_battle_result', {
         p_battle_id: currentBattleId,
         p_won: !!won,
@@ -4979,21 +5273,50 @@ async function showResultScreen(won) {
         p_lives: bs.lives || 0,
         p_client_gold: bs.gold || 0
       });
+
+      console.log('🎯 DEBUG: Server response:', result);
+
       serverReward = result?.reward || {};
       firstClear = result?.first_clear ?? true;
-      console.log('Battle result:', { serverReward, firstClear, result });
+
+      // Add XP from server response to reward display
+      if (result?.xp_gained > 0) {
+        serverReward.xp = result.xp_gained;
+      }
+
+      console.log('🎯 DEBUG: Processed data:', {
+        serverReward,
+        firstClear,
+        hasState: !!result?.state,
+        stage,
+        completedStagesBefore: [...campCompletedStages]
+      });
+
       // Apply full server state (includes updated campCompleted, resources, XP)
-      if (result?.state) applyServerPayload(result.state);
+      if (result?.state) {
+        console.log('🎯 DEBUG: Applying server state...');
+        applyServerPayload(result.state);
+      } else {
+        console.warn('🎯 DEBUG: No server state received!');
+      }
+
       syncPowerLevel();
-      // If first clear, also update local campCompletedStages immediately
+
+      // Server already handles campaign completion - buildCampaignMap to unlock next stage
       if (won && stage) {
-        if (firstClear) campCompletedStages.add(stage);
+        console.log(`🎯 DEBUG: Processing stage completion - Stage: ${stage}, Won: ${won}, FirstClear: ${firstClear}`);
+        // campCompletedStages already updated by applyServerPayload() from server response
+        console.log('🎯 DEBUG: Completed stages after server update:', [...campCompletedStages]);
         buildCampaignMap(); // unlock next stage right away
       }
     } catch(e) {
-      console.error('idw_submit_battle_result failed:', e);
+      console.error('🎯 DEBUG: idw_submit_battle_result failed:', e);
+      console.log('🎯 DEBUG: Using fallback completion logic');
+
       if (won && stage) {
-        campCompletedStages.add(stage);
+        console.log(`🎯 DEBUG: FALLBACK - Server call failed, manually updating campaign completion: ${stage}`);
+        campCompletedStages.add(stage); // Only add here since server call failed
+        console.log('🎯 DEBUG: FALLBACK - Completed stages:', [...campCompletedStages]);
         buildCampaignMap();
         // Show fallback rewards from client table so screen isn't empty
         const fallback = {
@@ -5020,6 +5343,9 @@ async function showResultScreen(won) {
     });
   const xpGained = serverReward.xp || 0;
   const rewardText = rewardParts.join('  ');
+
+  // Server already added XP to database - don't add it again locally
+  // (Removed duplicate addXP call to prevent double-counting)
 
   // Check if there's a next stage available
   const stageIdx = CAMPAIGN_STAGES.findIndex(s => s.id === stage);
@@ -6088,6 +6414,22 @@ function switchSection(name){
     const btn=document.getElementById('nav-'+s);
     if(btn) btn.classList.toggle('active',s===name);
   });
+
+  // Auto-navigate to highest attackable stage when opening campaign
+  if (name === 'campaign') {
+    const highestStage = getHighestAttackableStage();
+    if (highestStage) {
+      // Extract world from stage ID (e.g., "3-4" -> world 3)
+      const stageWorld = parseInt(highestStage.split('-')[0]);
+      if (campCurrentWorld !== stageWorld || campSelectedStage !== highestStage) {
+        campCurrentWorld = stageWorld;
+        campSelectedStage = highestStage;
+      }
+    }
+    buildCampaignMap(); // Ensure map updates with correct world/stage
+    updateCampaignInfo();
+  }
+
   // Init PVP map when switching to it
   if(name === 'pvp' && !pvpLoaded) {
     const overlay=document.getElementById('pvp-loading-overlay');
