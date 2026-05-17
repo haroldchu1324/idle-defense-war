@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\index.html\" | Measure-Object -Line\\).Lines)"
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\index.html\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(echo $PWD)",
+      "Bash(python -m http.server 8000)",
+      "Bash(grep -n -A 5 -B 5 \"];$\\\\|}\\\\s*;$\" index.html)",
+      "Bash(grep *)",
+      "Bash(node -c index.html)"
     ]
   }
 }

@@ -953,6 +953,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
           <div class="pvp-tooltip" id="pvp-tooltip">
             <div class="pvp-tooltip-title" id="pvp-tt-title">Tile (0,0)</div>
             <div class="pvp-tooltip-sub" id="pvp-tt-sub">Unclaimed</div>
+            <div id="pvp-tt-mine-btns" style="display:none;flex-direction:column;gap:5px;">
+              <button class="pvp-tooltip-btn" id="pvp-tt-home-btn" style="background:rgba(255,215,0,0.15);color:#f0c040;border:1px solid rgba(255,215,0,0.35);" onclick="pvpSetHome()">🏠 Set as Home</button>
+              <button class="pvp-tooltip-btn" style="background:rgba(90,150,255,0.15);color:#8aabff;border:1px solid rgba(90,150,255,0.35);" onclick="pvpOpenUpgradePanel()">⬆️ Upgrade Base</button>
+            </div>
             <button class="pvp-tooltip-btn" id="pvp-tt-btn" onclick="pvpAttackTile()">⚔️ Attack</button>
           </div>
         </div>
@@ -2676,7 +2680,64 @@ function renderBoostsGrid() {
   const grid = document.getElementById('boosts-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  const BOOSTS = []; 
+
+  // PVP base upgrade mode
+  if (pvpUpgradingTile) {
+    const {tx, ty, idx} = pvpUpgradingTile;
+    const tile = pvpTiles[idx];
+    const currentLevel = tile?.level || 1;
+    const nextLevel = currentLevel + 1;
+    const upgCostOre   = Math.round(1000 * Math.pow(2, currentLevel - 1));
+    const upgCostStone = Math.round(1000 * Math.pow(2, currentLevel - 1));
+    const canAfford = (resources.ore||0) >= upgCostOre && (resources.stone||0) >= upgCostStone;
+    const oreRes   = RESOURCE_DEFS.find(r=>r.id==='ore');
+    const stoneRes = RESOURCE_DEFS.find(r=>r.id==='stone');
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'grid-column:1/-1;display:flex;flex-direction:column;gap:12px;padding:4px 0;';
+
+    // Back button
+    const backBtn = document.createElement('button');
+    backBtn.style.cssText = 'align-self:flex-start;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:7px;color:#8890b0;font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;font-family:Inter,sans-serif;';
+    backBtn.textContent = '← Back to Map';
+    backBtn.onclick = () => { pvpUpgradingTile = null; renderBoostsGrid(); switchSection('pvp'); };
+    wrap.appendChild(backBtn);
+
+    // Base info card
+    const infoCard = document.createElement('div');
+    infoCard.style.cssText = 'background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.25);border-radius:12px;padding:1rem 1.25rem;';
+    infoCard.innerHTML = `
+      <div style="font-weight:700;color:#fff;font-size:15px;margin-bottom:4px;">🗺️ Base (${tx}, ${ty})</div>
+      <div style="font-size:12px;color:var(--text3);">Current Stage: <span style="color:#f0c040;font-weight:700;">1-${currentLevel}</span></div>
+      ${currentLevel >= 10 ? '<div style="color:#3ecf8e;font-size:12px;margin-top:6px;font-weight:600;">✓ Maximum stage reached — this base is fully upgraded.</div>' : ''}`;
+    wrap.appendChild(infoCard);
+
+    if (currentLevel < 10) {
+      // Upgrade option card
+      const upgCard = document.createElement('div');
+      upgCard.style.cssText = 'background:rgba(240,192,64,0.07);border:1px solid rgba(240,192,64,0.25);border-radius:12px;padding:1rem 1.25rem;display:flex;flex-direction:column;gap:10px;';
+      upgCard.innerHTML = `
+        <div style="font-weight:700;color:#f0c040;font-size:14px;">⬆️ Upgrade to Stage 1-${nextLevel}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.6;">Increases the base difficulty, making it harder for enemies to capture. Attackers must beat Stage 1-${nextLevel}.</div>
+        <div style="display:flex;gap:12px;font-size:12px;">
+          <span style="color:${(resources.ore||0)>=upgCostOre?'#3ecf8e':'#f55a5a'}">${oreRes?.icon||''} ${upgCostOre.toLocaleString()} / ${Math.floor(resources.ore||0).toLocaleString()}</span>
+          <span style="color:${(resources.stone||0)>=upgCostStone?'#3ecf8e':'#f55a5a'}">${stoneRes?.icon||''} ${upgCostStone.toLocaleString()} / ${Math.floor(resources.stone||0).toLocaleString()}</span>
+        </div>`;
+      const applyBtn = document.createElement('button');
+      applyBtn.style.cssText = `border:none;border-radius:8px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;background:${canAfford?'linear-gradient(135deg,#c89a20,#f0c040)':'#20243a'};color:${canAfford?'#1a1200':'#6a7090'};`;
+      applyBtn.disabled = !canAfford;
+      applyBtn.textContent = canAfford ? '⬆️ Upgrade Base' : '❌ Not enough resources';
+      applyBtn.onclick = pvpApplyBaseUpgrade;
+      upgCard.appendChild(applyBtn);
+      wrap.appendChild(upgCard);
+    }
+
+    grid.appendChild(wrap);
+    return;
+  }
+
+  // Normal boosts (empty for now)
+  const BOOSTS = [];
   const TOTAL = 20;
   for (let i = 0; i < TOTAL; i++) {
     const item = BOOSTS[i];
@@ -5071,7 +5132,8 @@ const PVP_PAGE_SIZE = 11;    // tiles per page when navigating
 let pvpTiles        = {};
 let pvpMyUserId     = null;
 let pvpLoaded       = false;
-let pvpHomeTile     = null; // {tx,ty} of first conquered territory
+let pvpHomeTile      = null; // {tx,ty} of home base territory
+let pvpUpgradingTile = null; // {tx,ty,idx} tile currently being upgraded via boosts panel
 let pvpRefreshTimer = null;
 let pvpHoveredTile  = null;
 let pvpSelectedTile = null;
@@ -5128,10 +5190,9 @@ function pvpAnimateTile(idx, fromColor, toColor, duration=1200) {
 function pvpTileIdx(tx,ty){ return ty*PVP_GRID+tx; }
 
 function pvpTileDifficulty(tx,ty){
-  // Returns a comparable integer: stage W-S → (W-1)*10 + S
-  // e.g. 1-1=1, 1-10=10, 2-1=11, 2-2=12 …
-  // All tiles are currently stage 1-1; update with spatial zones when ready.
-  return 1;
+  // Returns tile's stage level (1=stage 1-1, 2=stage 1-2 … 10=stage 1-10).
+  // Upgraded by owner via pvpApplyBaseUpgrade().
+  return pvpTiles[pvpTileIdx(tx,ty)]?.level || 1;
 }
 
 // Static version of pvpTileIdx usable at definition time
@@ -5160,11 +5221,12 @@ async function pvpRefresh(init=false) {
         const isMineServer=row.is_mine===true;
         const newColor=isMineServer?'#3ecf8e':pvpUserColor(newOwner);
         const existing=pvpTiles[row.tile_idx];
+        const tileLevel=row.level||1;
         if(existing&&existing.owner!==newOwner){
-          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null};
+          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel};
           pvpAnimateTile(row.tile_idx,existing.color||'#1a1d2e',newColor,1200);
         } else {
-          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null};
+          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel};
         }
       });
     }
@@ -5507,12 +5569,20 @@ function pvpDraw() {
         ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
         ctx.fillStyle=ringColor;
         ctx.fill();
+        // Home tile star in the donut center
+        const isHomeTile=pvpHomeTile&&pvpTileIdx(pvpHomeTile.tx,pvpHomeTile.ty)===idx;
+        if(isHomeTile){
+          ctx.font=`${Math.max(6,Math.round(ts*0.2))}px serif`;
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          ctx.fillText('⭐',cx2,cy2);
+        }
         if(ts>=28){
           ctx.fillStyle='rgba(255,255,255,0.85)';
           ctx.font=`bold ${Math.max(8,Math.round(ts*0.16))}px Inter`;
           ctx.textAlign='center';
           ctx.textBaseline='top';
-          ctx.fillText('1-1',cx2,cy2+outerR+2);
+          ctx.fillText(`1-${diff}`,cx2,cy2+outerR+2);
         }
       } else if(!isOwned && ts>=18){
         // Unclaimed PVP tile — show stage number muted
@@ -5520,7 +5590,7 @@ function pvpDraw() {
         ctx.font=`${Math.max(8,Math.round(ts*0.18))}px Inter`;
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        ctx.fillText('1-1',cx2,cy2);
+        ctx.fillText(`1-${diff}`,cx2,cy2);
       }
 
       // Under-attack icon
@@ -5603,20 +5673,30 @@ function pvpClickTile(tx,ty,e) {
   const sub=document.getElementById('pvp-tt-sub');
   const btn=document.getElementById('pvp-tt-btn');
 
-  title.textContent=`Tile (${tx}, ${ty}) · Stage 1-1`;
-  if(isUnderAttack){
-    const s=Math.ceil((tile.attackingUntil-now)/1000);
-    sub.innerHTML=`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
-  } else if(isMine){
-    sub.innerHTML=`<span style="color:#3ecf8e">✓ Your territory</span>`;
-  } else if(isOwned){
-    sub.innerHTML=`<span style="color:#f55a5a">Enemy territory</span> · Diff ${diff}`;
+  title.textContent=`Tile (${tx}, ${ty}) · Stage 1-${diff}`;
+  const mineBtns=document.getElementById('pvp-tt-mine-btns');
+  const homeBtn=document.getElementById('pvp-tt-home-btn');
+  if(isMine){
+    const isHome=pvpHomeTile&&pvpHomeTile.tx===tx&&pvpHomeTile.ty===ty;
+    sub.innerHTML=`<span style="color:#3ecf8e">✓ Your territory · Stage 1-${diff}</span>${isHome?'&nbsp;<span style="color:#f0c040">⭐ Home</span>':''}`;
+    if(mineBtns) mineBtns.style.display='flex';
+    if(homeBtn){ homeBtn.disabled=isHome; homeBtn.textContent=isHome?'⭐ Home Base':'🏠 Set as Home'; }
+    btn.style.display='none';
   } else {
-    sub.innerHTML=`Unclaimed · Difficulty ${diff}`;
+    if(mineBtns) mineBtns.style.display='none';
+    btn.style.display='';
+    if(isUnderAttack){
+      const s=Math.ceil((tile.attackingUntil-now)/1000);
+      sub.innerHTML=`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
+    } else if(isOwned){
+      sub.innerHTML=`<span style="color:#f55a5a">Enemy territory · Stage 1-${diff}</span>`;
+    } else {
+      sub.innerHTML=`Unclaimed · Stage 1-${diff}`;
+    }
+    btn.textContent=isUnderAttack?'🔒 Under Attack':onCooldown?`⏳ ${cooldownSecs}s cooldown`:`⚔️ Attack (Stage 1-${diff})`;
+    btn.disabled=isUnderAttack||onCooldown;
+    btn.onclick=(isUnderAttack||onCooldown)?null:pvpAttackTile;
   }
-  btn.textContent=isMine?'✓ Yours':isUnderAttack?'🔒 Under Attack':onCooldown?`⏳ ${cooldownSecs}s cooldown`:'⚔️ Attack (Stage 1-1)';
-  btn.disabled=isMine||isUnderAttack||onCooldown;
-  btn.onclick=(isMine||isUnderAttack||onCooldown)?null:pvpAttackTile;
 
   // Position tooltip near the clicked tile
   const canvas=document.getElementById('pvp-canvas');
@@ -5682,6 +5762,42 @@ async function pvpBattleEnded(tile,won){
     pvpDraw();
     setTimeout(()=>pvpRefresh(),11000);
   }catch(e){console.warn('pvpBattleEnded failed:',e.message);}
+}
+
+function pvpSetHome() {
+  if(!pvpSelectedTile) return;
+  const {tx, ty} = pvpSelectedTile;
+  if(!pvpTiles[pvpSelectedTile.idx]?.isMine) return;
+  pvpHomeTile = {tx, ty};
+  pvpHideTooltip();
+  pvpDraw();
+  showToast('🏠 Home base updated!');
+}
+
+function pvpOpenUpgradePanel() {
+  if(!pvpSelectedTile) return;
+  if(!pvpTiles[pvpSelectedTile.idx]?.isMine) return;
+  pvpUpgradingTile = {...pvpSelectedTile};
+  pvpHideTooltip();
+  switchSection('base');
+  switchBaseTab('inventory');
+  switchInvTab('boosts');
+  renderBoostsGrid();
+}
+
+async function pvpApplyBaseUpgrade() {
+  if(!pvpUpgradingTile) return;
+  const tile = pvpTiles[pvpUpgradingTile.idx];
+  const currentLevel = tile?.level || 1;
+  if(currentLevel >= 10) { showToast('Already at max stage (1-10)!'); return; }
+  try {
+    await serverRpc('pvp_upgrade_base', {p_tile_idx: pvpUpgradingTile.idx});
+    await refreshFromServer();
+    if(pvpTiles[pvpUpgradingTile.idx]) pvpTiles[pvpUpgradingTile.idx].level = currentLevel + 1;
+    updateResourcePills();
+    renderBoostsGrid();
+    showToast(`⬆️ Base upgraded to Stage 1-${currentLevel + 1}!`);
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
 // Chain/cascade mechanic: when a group of ≤10 enemy tiles is fully surrounded
