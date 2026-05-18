@@ -2214,95 +2214,50 @@ function generateEnchantStrip() {
     return;
   }
 
-  // Generate enchants based on rarity weights to reflect actual probabilities
-  const stripEnchants = [];
-  const totalItems = 60; // More items for better distribution
+  // Generate a base pattern with correct rarity distribution
+  const basePattern = [];
+  const patternLength = 30; // Shorter base pattern
 
-  // Calculate how many of each rarity we should have
+  // Calculate how many of each rarity in base pattern
   const rarityCount = {
-    common: Math.floor(totalItems * 0.70),      // 70% = 42 items
-    uncommon: Math.floor(totalItems * 0.20),    // 20% = 12 items
-    rare: Math.floor(totalItems * 0.07),        // 7% = 4 items
-    epic: Math.floor(totalItems * 0.025),       // 2.5% = 1 item
-    legendary: Math.floor(totalItems * 0.005)   // 0.5% = 1 item (minimum 1)
+    common: Math.floor(patternLength * 0.70),      // 70% = 21 items
+    uncommon: Math.floor(patternLength * 0.20),    // 20% = 6 items
+    rare: Math.floor(patternLength * 0.07),        // 7% = 2 items
+    epic: Math.floor(patternLength * 0.025),       // 2.5% = 1 item (rounded up)
+    legendary: Math.floor(patternLength * 0.005)   // 0.5% = 0 item
   };
 
-  // Ensure we have at least 1 legendary
+  // Ensure we have at least 1 legendary and fill to exact pattern length
   if (rarityCount.legendary === 0) rarityCount.legendary = 1;
+  rarityCount.common = patternLength - rarityCount.uncommon - rarityCount.rare - rarityCount.epic - rarityCount.legendary;
 
-  console.log('Rarity distribution:', rarityCount);
+  console.log('Base pattern rarity distribution:', rarityCount);
 
-  // Generate enchants for each rarity
+  // Generate base pattern with distributed rarities
   Object.entries(rarityCount).forEach(([rarity, count]) => {
     const enchantsOfRarity = ENCHANT_TYPES.filter(e => e.rarity === rarity);
-
-    for (let i = 0; i < count; i++) {
-      const enchant = enchantsOfRarity[i % enchantsOfRarity.length]; // Cycle through available enchants
-      stripEnchants.push(enchant);
-    }
-  });
-
-  // Instead of random shuffle, create a more visually distributed pattern
-  // Create separate arrays for each rarity
-  const commonEnchants = [], uncommonEnchants = [], rareEnchants = [], epicEnchants = [], legendaryEnchants = [];
-
-  Object.entries(rarityCount).forEach(([rarity, count]) => {
-    const enchantsOfRarity = ENCHANT_TYPES.filter(e => e.rarity === rarity);
-    const targetArray = rarity === 'common' ? commonEnchants :
-                       rarity === 'uncommon' ? uncommonEnchants :
-                       rarity === 'rare' ? rareEnchants :
-                       rarity === 'epic' ? epicEnchants : legendaryEnchants;
-
     for (let i = 0; i < count; i++) {
       const enchant = enchantsOfRarity[i % enchantsOfRarity.length];
-      targetArray.push(enchant);
+      basePattern.push(enchant);
     }
   });
 
-  // Rebuild stripEnchants with distributed pattern
-  stripEnchants.length = 0;
-
-  // Distribute items to create visual variety while maintaining percentages
-  const pattern = [];
-
-  // First, place all non-common items at strategic intervals
-  let nonCommonItems = [...uncommonEnchants, ...rareEnchants, ...epicEnchants, ...legendaryEnchants];
-
-  // Shuffle non-common items for variety
-  for (let i = nonCommonItems.length - 1; i > 0; i--) {
+  // Shuffle the base pattern for variety
+  for (let i = basePattern.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [nonCommonItems[i], nonCommonItems[j]] = [nonCommonItems[j], nonCommonItems[i]];
+    [basePattern[i], basePattern[j]] = [basePattern[j], basePattern[i]];
   }
 
-  // Place items with strategic spacing to avoid long stretches of just common
-  const totalSlots = totalItems;
-  const interval = Math.floor(totalSlots / nonCommonItems.length);
+  // Create repeating strip - repeat base pattern multiple times for smooth spinning
+  const stripEnchants = [];
+  const repeatCount = 10; // Repeat pattern 10 times = 300 total items
 
-  // Initialize all slots with null
-  const slots = new Array(totalSlots).fill(null);
-
-  // Place non-common items at intervals
-  nonCommonItems.forEach((item, index) => {
-    const position = Math.floor(index * interval + Math.random() * Math.max(1, interval * 0.8));
-    slots[Math.min(position, totalSlots - 1)] = item;
-  });
-
-  // Fill remaining slots with common items
-  let commonIndex = 0;
-  for (let i = 0; i < totalSlots; i++) {
-    if (slots[i] === null) {
-      if (commonIndex < commonEnchants.length) {
-        slots[i] = commonEnchants[commonIndex % commonEnchants.length];
-        commonIndex++;
-      }
-    }
+  for (let repeat = 0; repeat < repeatCount; repeat++) {
+    stripEnchants.push(...basePattern);
   }
-
-  // Final array is our distributed pattern
-  stripEnchants.push(...slots.filter(item => item !== null));
 
   console.log('Generated strip enchantments:', stripEnchants.length, 'total');
-  console.log('Breakdown:', stripEnchants.reduce((acc, e) => {
+  console.log('Base pattern breakdown:', basePattern.reduce((acc, e) => {
     acc[e.rarity] = (acc[e.rarity] || 0) + 1;
     return acc;
   }, {}));
@@ -2323,6 +2278,7 @@ function generateEnchantStrip() {
   });
 
   strip.enchantments = stripEnchants;
+  strip.basePatternLength = patternLength;
   console.log('Strip generated with', stripEnchants.length, 'items');
 }
 
@@ -2396,14 +2352,21 @@ function spinEnchantStrip() {
   const viewportWidth = 600; // Viewport is 600px
   const centerOffset = viewportWidth / 2; // Center position - align with golden indicator
 
-  // Random final position within the strip
-  const maxItems = strip.enchantments.length;
-  const finalItemIndex = Math.floor(Math.random() * maxItems);
+  // Use only base pattern for selection to maintain rarity distribution
+  const basePatternLength = strip.basePatternLength || 30;
+  const finalItemIndex = Math.floor(Math.random() * basePatternLength);
 
-  // Add multiple passes through the strip + final position
-  // Position the LEFT EDGE of the target item to align its center with the golden indicator
-  const extraPasses = 3 + Math.random() * 2; // 3-5 full passes
-  const finalPosition = -(finalItemIndex * itemWidth) + centerOffset - (itemWidth / 2) - (extraPasses * maxItems * itemWidth);
+  // Calculate position to center the selected item in the golden indicator
+  // We want the center of the item to align with the center of the viewport (300px)
+  // So the left edge of the item should be at 300px - 50px = 250px from viewport left
+  const targetItemLeftPosition = centerOffset - (itemWidth / 2); // 250px
+
+  // Add some spin passes for visual effect, but keep it reasonable
+  const spinPasses = 3 + Math.random() * 2; // 3-5 passes through base pattern
+  const totalSpinDistance = spinPasses * basePatternLength * itemWidth;
+
+  // Final position: move strip left so target item ends up at the right position
+  const finalPosition = -(finalItemIndex * itemWidth) - totalSpinDistance + targetItemLeftPosition;
 
   console.log('Spinning to position:', finalPosition, 'target item:', finalItemIndex);
 
@@ -2414,10 +2377,11 @@ function spinEnchantStrip() {
   setTimeout(() => {
     wheelSpinning = false;
 
-    // The winning enchantment is at the calculated index
-    const wonEnchant = strip.enchantments[finalItemIndex];
+    // The winning enchantment is at the calculated index from base pattern
+    const basePattern = strip.enchantments.slice(0, strip.basePatternLength || 30);
+    const wonEnchant = basePattern[finalItemIndex];
 
-    console.log('Won enchantment:', wonEnchant.name, 'at index:', finalItemIndex);
+    console.log('Won enchantment:', wonEnchant.name, 'at base pattern index:', finalItemIndex);
 
     // Apply enchantment to tower
     applyEnchantment(wonEnchant);
