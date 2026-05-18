@@ -2350,23 +2350,25 @@ function spinEnchantStrip() {
   // Calculate strip movement
   const itemWidth = 100; // Each item is 100px wide
   const viewportWidth = 600; // Viewport is 600px
-  const centerOffset = viewportWidth / 2; // Center position - align with golden indicator
+
+  // The golden indicator is centered at viewportWidth/2 = 300px from left edge
+  // We want the CENTER of the selected item to align with this position
+  // So the selected item's left edge should be at 300px - 50px = 250px
 
   // Use only base pattern for selection to maintain rarity distribution
   const basePatternLength = strip.basePatternLength || 30;
   const finalItemIndex = Math.floor(Math.random() * basePatternLength);
 
-  // Calculate position to center the selected item in the golden indicator
-  // We want the center of the item to align with the center of the viewport (300px)
-  // So the left edge of the item should be at 300px - 50px = 250px from viewport left
-  const targetItemLeftPosition = centerOffset - (itemWidth / 2); // 250px
+  // Add extra spinning for visual effect
+  const extraSpins = 3 + Math.random() * 2; // 3-5 extra full cycles
+  const totalItemsInFullCycle = basePatternLength;
 
-  // Add some spin passes for visual effect, but keep it reasonable
-  const spinPasses = 3 + Math.random() * 2; // 3-5 passes through base pattern
-  const totalSpinDistance = spinPasses * basePatternLength * itemWidth;
-
-  // Final position: move strip left so target item ends up at the right position
-  const finalPosition = -(finalItemIndex * itemWidth) - totalSpinDistance + targetItemLeftPosition;
+  // Calculate final position:
+  // 1. Start with the target item position in the strip: finalItemIndex * itemWidth
+  // 2. Add extra spinning distance: extraSpins * totalItemsInFullCycle * itemWidth
+  // 3. Position so the target item's center aligns with golden indicator center (300px)
+  const targetItemPosition = (finalItemIndex + extraSpins * totalItemsInFullCycle) * itemWidth;
+  const finalPosition = -targetItemPosition + (viewportWidth / 2) - (itemWidth / 2);
 
   console.log('Spinning to position:', finalPosition, 'target item:', finalItemIndex);
 
