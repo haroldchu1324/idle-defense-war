@@ -6,7 +6,11 @@
       "Bash(python -m http.server 8000)",
       "Bash(grep -n -A 5 -B 5 \"];$\\\\|}\\\\s*;$\" index.html)",
       "Bash(grep *)",
-      "Bash(node -c index.html)"
+      "Bash(node -c index.html)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git branch *)"
     ]
   }
 }

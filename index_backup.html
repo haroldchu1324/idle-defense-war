@@ -96,7 +96,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 /* Resource pills — all fixed equal width */
 .res-strip{flex:1;display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0;justify-content:center;}
 .res-strip::-webkit-scrollbar{display:none;}
-.res-pill{display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:6px 0 6px 10px;width:140px;min-width:140px;max-width:140px;flex-shrink:0;}
+.res-pill{display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:6px 0 6px 10px;width:180px;min-width:180px;max-width:180px;flex-shrink:0;}
 .res-pill-icon{font-size:18px;flex-shrink:0;}
 .res-pill-info{flex:1;min-width:0;}
 .res-pill-name{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;line-height:1;}
@@ -106,8 +106,62 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .rp-fiber .res-pill-val{color:var(--fiber);}
 .rp-leather .res-pill-val{color:var(--leather);}
 .rp-ore .res-pill-val{color:var(--ore);}
+
+/* Clickable resource pills */
+.res-pill{cursor:pointer;transition:opacity 0.15s;}
+.res-pill:hover{opacity:0.9;}
+
 .top-user{display:flex;align-items:center;gap:9px;flex-shrink:0;}
 .username-tag{font-size:14px;color:var(--text2);white-space:nowrap;}
+
+/* ══ ENCHANTING SYSTEM ══ */
+.enchant-container{display:flex;gap:24px;height:100%;padding:16px;}
+.enchant-inventory{flex:1;min-width:280px;max-width:350px;}
+.enchant-wheel-area{flex:1;display:flex;flex-direction:column;}
+.enchant-section-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+
+/* Inventory List */
+.enchant-inventory-list{max-height:300px;overflow-y:auto;margin-bottom:16px;}
+.enchant-tower-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:12px;}
+.enchant-tower-item:hover{background:var(--bg4);border-color:var(--border2);}
+.enchant-tower-item.selected{border-color:var(--blue);background:rgba(74,143,255,0.1);}
+.enchant-tower-icon{font-size:20px;flex-shrink:0;}
+.enchant-tower-info{flex:1;min-width:0;}
+.enchant-tower-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.enchant-tower-stats{font-size:11px;color:var(--text3);display:flex;gap:8px;flex-wrap:wrap;}
+.enchant-tower-enchants{font-size:10px;color:var(--text3);margin-top:4px;}
+
+/* Selected Tower */
+.selected-tower-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;}
+
+/* Enchanting Strip */
+.strip-container{display:flex;flex-direction:column;align-items:center;gap:16px;flex:1;justify-content:center;position:relative;}
+.selection-indicator{position:absolute;top:calc(50% - 48px);left:50%;transform:translateX(-50%);width:100px;height:84px;border:3px solid var(--gold);border-radius:12px;z-index:10;box-shadow:0 0 20px rgba(240,192,64,0.6), inset 0 0 20px rgba(240,192,64,0.3);background:rgba(240,192,64,0.15);pointer-events:none;}
+.strip-viewport{width:600px;height:84px;overflow:hidden;position:relative;border-radius:8px;background:var(--bg2);border:2px solid var(--border);}
+.enchant-strip{display:flex;height:100%;transition:transform 5s cubic-bezier(0.23,1,0.320,1);will-change:transform;}
+
+/* Strip items */
+.strip-item{min-width:100px;width:100px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,0.8);color:white;border-right:1px solid rgba(255,255,255,0.1);position:relative;}
+.strip-item.common{background:linear-gradient(135deg,#8e8e8e,#b8b8b8);}
+.strip-item.uncommon{background:linear-gradient(135deg,#1eff00,#4eff4e);}
+.strip-item.rare{background:linear-gradient(135deg,#0099cc,#66d9ef);}
+.strip-item.epic{background:linear-gradient(135deg,#a335ee,#c969ff);}
+.strip-item.legendary{background:linear-gradient(135deg,#ff8000,#ffb84d);}
+.strip-item-icon{font-size:20px;margin-bottom:2px;}
+.strip-item-name{font-size:9px;text-align:center;line-height:1;opacity:0.9;}
+
+/* Spin button */
+.spin-button{background:linear-gradient(135deg,var(--gold2),var(--gold));border:none;border-radius:12px;color:#000;font-size:16px;font-weight:700;padding:12px 24px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;box-shadow:0 4px 12px rgba(240,192,64,0.3);}
+.spin-button:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px);}
+.spin-button:disabled{opacity:0.5;cursor:not-allowed;filter:grayscale(1);}
+
+/* Result display */
+.wheel-result{background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:16px;text-align:center;max-width:280px;}
+.result-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;}
+.result-enchant{font-size:13px;padding:8px 12px;border-radius:8px;font-weight:500;}
+
+/* Enchant info */
+.enchant-info{margin-top:auto;padding-top:16px;}
 .logout-btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:14px;padding:7px 13px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;white-space:nowrap;}
 .logout-btn:hover{background:var(--bg4);color:var(--text);}
 
@@ -300,7 +354,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .ph-title{font-size:18px;font-weight:600;color:var(--text2);}
 .ph-sub{font-size:14px;color:var(--text3);text-align:center;max-width:320px;line-height:1.6;}
 .ph-badge{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-size:12px;color:var(--text3);}
-.offline-banner{background:var(--green3);border:1px solid var(--green2);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.75rem;font-size:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;}
+.offline-banner{background:var(--green3);border:1px solid var(--green2);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.75rem;font-size:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;transition:opacity 1s ease-out;}
+.offline-banner.fade-out{opacity:0;}
 .offline-banner-close{background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;line-height:1;padding:0;flex-shrink:0;font-family:'Inter',sans-serif;}
 .toast{position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;font-size:13px;color:var(--text);z-index:300;transition:transform 0.3s ease;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
 .toast.show{transform:translateX(-50%) translateY(0);}
@@ -496,7 +551,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
   display:flex;flex-direction:column;gap:5px;
 }
 .rnode::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.02),transparent);pointer-events:none;}
-.rnode:hover:not(.rnode-locked):not(.rnode-researching){transform:translateY(-2px);box-shadow:0 5px 18px rgba(0,0,0,0.35);}
+.rnode:hover:not(.rnode-locked):not(.rnode-researching){transform:translateY(2px);box-shadow:0 8px 20px rgba(0,0,0,0.4);}
 .rnode-locked{opacity:0.45;cursor:default;}
 .rnode-locked:hover{transform:none!important;box-shadow:none!important;}
 .rnode-done{border-color:var(--green2);}
@@ -947,7 +1002,54 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
             <div class="tower-grid" id="tower-grid"></div>
           </div>
           <div class="craft-panel" id="craft-enchants">
-            <div class="placeholder-page"><div class="ph-icon">✨</div><div class="ph-title">Enchants</div><div class="ph-sub">Enchant your towers and weapons with powerful magical properties.</div><div class="ph-badge">Coming soon</div></div>
+            <div class="enchant-container">
+              <!-- Inventory List -->
+              <div class="enchant-inventory">
+                <div class="enchant-section-title">📦 Your Towers</div>
+                <div class="enchant-inventory-list" id="enchant-inventory-list">
+                  <!-- Inventory items will be populated here -->
+                </div>
+                <div class="enchant-selected-item" id="enchant-selected-item" style="display:none;">
+                  <div class="enchant-section-title">🎯 Selected Tower</div>
+                  <div class="selected-tower-card" id="selected-tower-card">
+                    <!-- Selected tower info -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Enchanting Strip -->
+              <div class="enchant-wheel-area">
+                <div class="enchant-section-title">✨ Enchantment Spinner</div>
+                <div class="strip-container">
+                  <!-- Golden selection indicator -->
+                  <div class="selection-indicator"></div>
+
+                  <!-- Spinning strip viewport -->
+                  <div class="strip-viewport">
+                    <div class="enchant-strip" id="enchant-strip">
+                      <!-- Strip items will be populated here -->
+                    </div>
+                  </div>
+
+                  <!-- Result display -->
+                  <div class="wheel-result" id="wheel-result" style="display:none;">
+                    <div class="result-title">🎉 Enchantment Result!</div>
+                    <div class="result-enchant" id="result-enchant"></div>
+                  </div>
+
+                  <!-- Spin button -->
+                  <button class="spin-button" id="spin-button" onclick="spinEnchantStrip()" disabled>
+                    🎰 Spin Strip
+                  </button>
+                </div>
+
+                <div class="enchant-info">
+                  <div style="font-size:12px;color:var(--text2);text-align:center;margin-top:12px;">
+                    Select a tower from your inventory, then spin the strip to add powerful enchantments!
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="panel" id="base-panel-settings"><div class="placeholder-page"><div class="ph-icon">⚙️</div><div class="ph-title">Settings</div><div class="ph-sub">Game settings, account options, and data management.</div><div class="ph-badge">Coming soon</div></div></div>
@@ -1032,6 +1134,51 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 
 <div class="modal-overlay" id="item-modal" onclick="if(event.target===this)closeItemModal()">
   <div class="bmodal" id="item-modal-content"></div>
+</div>
+
+<!-- RESOURCE INFO MODAL -->
+<div class="modal-overlay" id="res-info-modal" onclick="if(event.target===this)closeResourceInfoModal()">
+  <div class="bmodal" style="max-width:400px;">
+    <div class="bmodal-header">
+      <span id="res-info-title">📊 Resource Information</span>
+      <button class="bmodal-close" onclick="closeResourceInfoModal()">✕</button>
+    </div>
+    <div class="bmodal-body">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span id="res-info-icon" style="font-size:32px;">🪵</span>
+        <div>
+          <div id="res-info-name" style="font-size:18px;font-weight:600;color:var(--text);">Wood</div>
+          <div id="res-info-desc" style="font-size:12px;color:var(--text2);margin-top:2px;">Resource description</div>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;">
+          <span style="color:var(--text2);">Storage</span>
+          <span id="res-info-progress-text" style="color:var(--text);font-weight:600;">1.2M / 2.5M</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:6px;height:8px;overflow:hidden;">
+          <div id="res-info-progress-bar" style="background:var(--green);height:100%;width:48%;border-radius:6px;transition:width 0.3s ease;"></div>
+        </div>
+      </div>
+
+      <div class="res-info-stats">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--text2);">Current Amount:</span>
+          <span id="res-info-current" style="color:var(--text);font-weight:600;">1,234,567</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--text2);">Storage Capacity:</span>
+          <span id="res-info-capacity" style="color:var(--text);font-weight:600;">2,500,000</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--text2);">Production Rate:</span>
+          <span id="res-info-rate" style="color:var(--text);font-weight:600;">125,000/hr</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="battle-screen" style="display:none;">
@@ -1273,7 +1420,7 @@ function totalCapacity(resId) {
   let cap = BASE_CAPACITY;
   const silo = siloState[resId];
   if (silo) silo.forEach((s,ti) => {
-    if (s.unlocked) cap += Math.round(SILO_TIERS[ti].cap * (1 + (s.level-1)*0.6));
+    if (s.unlocked) cap += Math.round(SILO_TIERS[ti].cap * Math.pow(1.5, s.level-1));
   });
   const siloBonus = getResearchBonuses().silo_cap || 0;
   return Math.round(cap * (1 + siloBonus));
@@ -1310,11 +1457,11 @@ const TIER_TABLE = [
 
 const BASE_CAPACITY = 5000;
 const SILO_TIERS = [
-  { cap: 10000,  upgCostBase: 200,  unlockCost: 0    },
-  { cap: 25000,  upgCostBase: 500,  unlockCost: 300  },
-  { cap: 60000,  upgCostBase: 1200, unlockCost: 700  },
-  { cap: 150000, upgCostBase: 3000, unlockCost: 1500 },
-  { cap: 400000, upgCostBase: 8000, unlockCost: 3500 },
+  { cap: 10000,  upgCostBase: 2500,  unlockCost: 0    },
+  { cap: 25000,  upgCostBase: 6250,  unlockCost: 300  },
+  { cap: 60000,  upgCostBase: 15000, unlockCost: 700  },
+  { cap: 150000, upgCostBase: 37500, unlockCost: 1500 },
+  { cap: 400000, upgCostBase: 100000, unlockCost: 3500 },
 ];
 const siloState = {};
 
@@ -1609,11 +1756,15 @@ function showOfflineBanner(ts,lines){
   const resPanel = document.getElementById('base-panel-resources');
   if(!resPanel || !resPanel.classList.contains('active')) return;
   slot.innerHTML=`<div class="offline-banner" id="offline-banner-el"><div><div style="color:var(--green);font-weight:600;margin-bottom:4px;">⏰ Offline ${ts} — gathered while away:</div><div style="color:var(--text2);font-size:11px;line-height:1.7;">${lines.join('<br>')}</div></div><button class="offline-banner-close" onclick="pendingOfflineBanner=null;this.closest('.offline-banner').remove()">✕</button></div>`;
-  // Auto-dismiss after 10 seconds
+  // Auto-dismiss after 10 seconds with fade
   setTimeout(()=>{
     pendingOfflineBanner=null;
     const el=document.getElementById('offline-banner-el');
-    if(el) el.remove();
+    if(el) {
+      el.classList.add('fade-out');
+      // Remove element after fade completes
+      setTimeout(() => el.remove(), 1000);
+    }
   }, 10000);
 }
 
@@ -1868,7 +2019,487 @@ function updateResourcePills(){
     el.textContent = fmtCompact(amt) + ' / ' + fmtCompact(cap);
     el.classList.toggle('capped', atCap);
     el.classList.toggle('pill-cap-warn', atCap);
+
+    // Add click event listener to the entire pill
+    const pillContainer = el.closest('.res-pill');
+    if (pillContainer && !pillContainer.dataset.clickListenerAdded) {
+      pillContainer.addEventListener('click', () => openResourceInfoModal(r.id));
+      pillContainer.dataset.clickListenerAdded = 'true';
+    }
   });
+}
+
+function openResourceInfoModal(resourceId) {
+  const r = RESOURCE_DEFS.find(rd => rd.id === resourceId);
+  if (!r) return;
+
+  const amt = Math.floor(resources[resourceId] || 0);
+  const cap = totalCapacity(resourceId);
+
+  // Calculate total production rate
+  let totalProdPerHour = 0;
+  r.tiers.forEach((_, ti) => {
+    const ns = nodeState[resourceId] && nodeState[resourceId][ti];
+    if (ns && ns.unlocked && !ns.upgrading) {
+      totalProdPerHour += nodeProdPerHour(r, ti, ns.upgradeLevel);
+    }
+  });
+
+  // Calculate progress percentage
+  const progressPercent = cap > 0 ? Math.min(100, (amt / cap) * 100) : 0;
+
+  // Update modal content
+  document.getElementById('res-info-title').textContent = `📊 ${r.name} Information`;
+  document.getElementById('res-info-icon').textContent = r.icon;
+  document.getElementById('res-info-name').textContent = r.name;
+  document.getElementById('res-info-desc').textContent = r.desc;
+  document.getElementById('res-info-current').textContent = fmtCompact(amt);
+  document.getElementById('res-info-capacity').textContent = fmtCompact(cap);
+  document.getElementById('res-info-rate').textContent = totalProdPerHour > 0 ? fmtCompact(totalProdPerHour) + '/hr' : '0/hr';
+
+  // Update progress bar
+  document.getElementById('res-info-progress-text').textContent = `${fmtCompact(amt)} / ${fmtCompact(cap)}`;
+  document.getElementById('res-info-progress-bar').style.width = `${progressPercent}%`;
+
+  // Show modal
+  document.getElementById('res-info-modal').style.display = 'flex';
+}
+
+function closeResourceInfoModal() {
+  document.getElementById('res-info-modal').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════
+// ENCHANTING SYSTEM
+// ═══════════════════════════════════════════════
+
+const ENCHANT_TYPES = [
+  // Common enchants (70%)
+  {id:'speed1', name:'Swift I', desc:'+5% Attack Speed', rarity:'common', effect:{type:'atkSpeed',value:0.05}},
+  {id:'damage1', name:'Power I', desc:'+5% Damage', rarity:'common', effect:{type:'damage',value:0.05}},
+  {id:'range1', name:'Range I', desc:'+5% Range', rarity:'common', effect:{type:'range',value:0.05}},
+
+  // Uncommon enchants (20%)
+  {id:'speed2', name:'Swift II', desc:'+10% Attack Speed', rarity:'uncommon', effect:{type:'atkSpeed',value:0.10}},
+  {id:'damage2', name:'Power II', desc:'+10% Damage', rarity:'uncommon', effect:{type:'damage',value:0.10}},
+  {id:'range2', name:'Range II', desc:'+10% Range', rarity:'uncommon', effect:{type:'range',value:0.10}},
+  {id:'projectile1', name:'Multi-Shot', desc:'+1 Projectile', rarity:'uncommon', effect:{type:'projectiles',value:1}},
+
+  // Rare enchants (7%)
+  {id:'speed3', name:'Swift III', desc:'+15% Attack Speed', rarity:'rare', effect:{type:'atkSpeed',value:0.15}},
+  {id:'damage3', name:'Power III', desc:'+15% Damage', rarity:'rare', effect:{type:'damage',value:0.15}},
+  {id:'levelup1', name:'Ascension', desc:'+1 Tower Level', rarity:'rare', effect:{type:'level',value:1}},
+
+  // Epic enchants (2.5%)
+  {id:'aoe1', name:'Area Blast', desc:'+1 Tile AoE', rarity:'epic', effect:{type:'aoe',value:1}},
+  {id:'projectile2', name:'Barrage', desc:'+2 Projectiles', rarity:'epic', effect:{type:'projectiles',value:2}},
+
+  // Legendary enchants (0.5%)
+  {id:'ultimate', name:'Godlike', desc:'+25% All Stats', rarity:'legendary', effect:{type:'allStats',value:0.25}},
+  {id:'levelup2', name:'Divine Ascension', desc:'+2 Tower Levels', rarity:'legendary', effect:{type:'level',value:2}},
+];
+
+const RARITY_WEIGHTS = {
+  common: 70,
+  uncommon: 20,
+  rare: 7,
+  epic: 2.5,
+  legendary: 0.5
+};
+
+let selectedTowerForEnchant = null;
+let wheelSpinning = false;
+
+function buildEnchantInventory() {
+  const list = document.getElementById('enchant-inventory-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+
+  // Filter out null/empty slots and get actual towers
+  const validTowers = armoryTowers ? armoryTowers.filter(tower => tower && tower.towerId) : [];
+
+  if (validTowers.length === 0) {
+    list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:20px;font-size:12px;">No towers in inventory.<br>Craft some towers first!</div>`;
+    return;
+  }
+
+  validTowers.forEach((tower, index) => {
+    const towerDef = TOWER_DEFS.find(td => td.id === tower.towerId);
+    if (!towerDef) return;
+
+    // Find the original index in the full armory array
+    const originalIndex = armoryTowers.findIndex(t => t === tower);
+    const enchantCount = tower.enchantments ? tower.enchantments.length : 0;
+
+    const item = document.createElement('div');
+    item.className = `enchant-tower-item ${selectedTowerForEnchant === originalIndex ? 'selected' : ''}`;
+    item.onclick = () => selectTowerForEnchant(originalIndex);
+
+    item.innerHTML = `
+      <div class="enchant-tower-icon">${towerDef.icon}</div>
+      <div class="enchant-tower-info">
+        <div class="enchant-tower-name">${towerDef.name} Lv.${tower.level || 1}</div>
+        <div class="enchant-tower-stats">
+          DMG: ${Math.round(tower.dmg || towerDef.baseStats.dmg)} | SPD: ${(tower.atkSpeed || towerDef.baseStats.atkSpeed).toFixed(2)} | RNG: ${Math.round(tower.range || towerDef.baseStats.range)}
+        </div>
+        <div class="enchant-tower-enchants">
+          Enchants: ${enchantCount}
+        </div>
+      </div>
+    `;
+
+    list.appendChild(item);
+  });
+}
+
+function selectTowerForEnchant(index) {
+  if (!armoryTowers || !armoryTowers[index]) {
+    console.log('Invalid tower index:', index);
+    return;
+  }
+
+  selectedTowerForEnchant = index;
+  const tower = armoryTowers[index];
+  const towerDef = TOWER_DEFS.find(td => td.id === tower.towerId);
+
+  if (!towerDef) {
+    console.log('Tower definition not found for:', tower.towerId);
+    return;
+  }
+
+  console.log('Selected tower:', towerDef.name, 'at index:', index);
+
+  // Update UI
+  buildEnchantInventory();
+
+  // Show selected tower info
+  const selectedArea = document.getElementById('enchant-selected-item');
+  const selectedCard = document.getElementById('selected-tower-card');
+
+  if (selectedArea && selectedCard) {
+    selectedArea.style.display = 'block';
+    selectedCard.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <span style="font-size:24px;">${towerDef.icon}</span>
+        <div>
+          <div style="font-weight:600;color:var(--text);">${towerDef.name} Level ${tower.level || 1}</div>
+          <div style="font-size:12px;color:var(--text2);">${towerDef.desc}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.4;">
+        DMG: ${Math.round(tower.dmg || towerDef.baseStats.dmg)} | Speed: ${(tower.atkSpeed || towerDef.baseStats.atkSpeed).toFixed(2)} | Range: ${Math.round(tower.range || towerDef.baseStats.range)}
+        ${tower.enchantments && tower.enchantments.length > 0 ?
+          '<br>Enchants: ' + tower.enchantments.map(e => e.name).join(', ') : ''}
+      </div>
+    `;
+  }
+
+  // Enable spin button
+  const spinBtn = document.getElementById('spin-button');
+  if (spinBtn) {
+    spinBtn.disabled = false;
+    spinBtn.textContent = '🎰 Spin Wheel';
+    console.log('Spin button enabled for tower:', towerDef.name);
+  }
+
+  // Generate new strip
+  generateEnchantStrip();
+}
+
+function generateEnchantStrip() {
+  const strip = document.getElementById('enchant-strip');
+  if (!strip) {
+    console.log('Strip element not found');
+    return;
+  }
+
+  // Generate enchants based on rarity weights to reflect actual probabilities
+  const stripEnchants = [];
+  const totalItems = 60; // More items for better distribution
+
+  // Calculate how many of each rarity we should have
+  const rarityCount = {
+    common: Math.floor(totalItems * 0.70),      // 70% = 42 items
+    uncommon: Math.floor(totalItems * 0.20),    // 20% = 12 items
+    rare: Math.floor(totalItems * 0.07),        // 7% = 4 items
+    epic: Math.floor(totalItems * 0.025),       // 2.5% = 1 item
+    legendary: Math.floor(totalItems * 0.005)   // 0.5% = 1 item (minimum 1)
+  };
+
+  // Ensure we have at least 1 legendary
+  if (rarityCount.legendary === 0) rarityCount.legendary = 1;
+
+  console.log('Rarity distribution:', rarityCount);
+
+  // Generate enchants for each rarity
+  Object.entries(rarityCount).forEach(([rarity, count]) => {
+    const enchantsOfRarity = ENCHANT_TYPES.filter(e => e.rarity === rarity);
+
+    for (let i = 0; i < count; i++) {
+      const enchant = enchantsOfRarity[i % enchantsOfRarity.length]; // Cycle through available enchants
+      stripEnchants.push(enchant);
+    }
+  });
+
+  // Instead of random shuffle, create a more visually distributed pattern
+  // Create separate arrays for each rarity
+  const commonEnchants = [], uncommonEnchants = [], rareEnchants = [], epicEnchants = [], legendaryEnchants = [];
+
+  Object.entries(rarityCount).forEach(([rarity, count]) => {
+    const enchantsOfRarity = ENCHANT_TYPES.filter(e => e.rarity === rarity);
+    const targetArray = rarity === 'common' ? commonEnchants :
+                       rarity === 'uncommon' ? uncommonEnchants :
+                       rarity === 'rare' ? rareEnchants :
+                       rarity === 'epic' ? epicEnchants : legendaryEnchants;
+
+    for (let i = 0; i < count; i++) {
+      const enchant = enchantsOfRarity[i % enchantsOfRarity.length];
+      targetArray.push(enchant);
+    }
+  });
+
+  // Rebuild stripEnchants with distributed pattern
+  stripEnchants.length = 0;
+
+  // Distribute items to create visual variety while maintaining percentages
+  const pattern = [];
+
+  // First, place all non-common items at strategic intervals
+  let nonCommonItems = [...uncommonEnchants, ...rareEnchants, ...epicEnchants, ...legendaryEnchants];
+
+  // Shuffle non-common items for variety
+  for (let i = nonCommonItems.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [nonCommonItems[i], nonCommonItems[j]] = [nonCommonItems[j], nonCommonItems[i]];
+  }
+
+  // Place items with strategic spacing to avoid long stretches of just common
+  const totalSlots = totalItems;
+  const interval = Math.floor(totalSlots / nonCommonItems.length);
+
+  // Initialize all slots with null
+  const slots = new Array(totalSlots).fill(null);
+
+  // Place non-common items at intervals
+  nonCommonItems.forEach((item, index) => {
+    const position = Math.floor(index * interval + Math.random() * Math.max(1, interval * 0.8));
+    slots[Math.min(position, totalSlots - 1)] = item;
+  });
+
+  // Fill remaining slots with common items
+  let commonIndex = 0;
+  for (let i = 0; i < totalSlots; i++) {
+    if (slots[i] === null) {
+      if (commonIndex < commonEnchants.length) {
+        slots[i] = commonEnchants[commonIndex % commonEnchants.length];
+        commonIndex++;
+      }
+    }
+  }
+
+  // Final array is our distributed pattern
+  stripEnchants.push(...slots.filter(item => item !== null));
+
+  console.log('Generated strip enchantments:', stripEnchants.length, 'total');
+  console.log('Breakdown:', stripEnchants.reduce((acc, e) => {
+    acc[e.rarity] = (acc[e.rarity] || 0) + 1;
+    return acc;
+  }, {}));
+
+  strip.innerHTML = '';
+
+  stripEnchants.forEach((enchant, index) => {
+    const item = document.createElement('div');
+    item.className = `strip-item ${enchant.rarity}`;
+
+    const icon = getEnchantIcon(enchant.effect.type);
+    item.innerHTML = `
+      <div class="strip-item-icon">${icon}</div>
+      <div class="strip-item-name">${enchant.name}</div>
+    `;
+
+    strip.appendChild(item);
+  });
+
+  strip.enchantments = stripEnchants;
+  console.log('Strip generated with', stripEnchants.length, 'items');
+}
+
+function getRandomEnchant() {
+  const totalWeight = Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
+  let random = Math.random() * totalWeight;
+
+  for (const [rarity, weight] of Object.entries(RARITY_WEIGHTS)) {
+    random -= weight;
+    if (random <= 0) {
+      const enchantsOfRarity = ENCHANT_TYPES.filter(e => e.rarity === rarity);
+      return enchantsOfRarity[Math.floor(Math.random() * enchantsOfRarity.length)];
+    }
+  }
+
+  // Fallback to common
+  const commonEnchants = ENCHANT_TYPES.filter(e => e.rarity === 'common');
+  return commonEnchants[Math.floor(Math.random() * commonEnchants.length)];
+}
+
+function getEnchantIcon(effectType) {
+  const icons = {
+    atkSpeed: '⚡',
+    damage: '⚔️',
+    range: '🎯',
+    projectiles: '🏹',
+    level: '⬆️',
+    aoe: '💥',
+    allStats: '👑'
+  };
+  return icons[effectType] || '✨';
+}
+
+function spinEnchantStrip() {
+  if (wheelSpinning || selectedTowerForEnchant === null) {
+    console.log('Cannot spin: wheelSpinning =', wheelSpinning, 'selectedTower =', selectedTowerForEnchant);
+    return;
+  }
+
+  const strip = document.getElementById('enchant-strip');
+  const spinBtn = document.getElementById('spin-button');
+  const result = document.getElementById('wheel-result');
+
+  if (!strip) {
+    console.log('Strip element not found');
+    return;
+  }
+
+  if (!strip.enchantments || strip.enchantments.length === 0) {
+    console.log('No enchantments on strip, generating...');
+    generateEnchantStrip();
+    if (!strip.enchantments) return;
+  }
+
+  console.log('Starting spin with', strip.enchantments.length, 'enchantments');
+
+  wheelSpinning = true;
+  spinBtn.disabled = true;
+  spinBtn.textContent = '🎰 Spinning...';
+  result.style.display = 'none';
+
+  // Reset any existing translation
+  strip.style.transition = 'none';
+  strip.style.transform = 'translateX(0px)';
+
+  // Force a reflow
+  strip.offsetHeight;
+
+  // Calculate strip movement
+  const itemWidth = 100; // Each item is 100px wide
+  const viewportWidth = 600; // Viewport is 600px
+  const centerOffset = viewportWidth / 2; // Center position - align with golden indicator
+
+  // Random final position within the strip
+  const maxItems = strip.enchantments.length;
+  const finalItemIndex = Math.floor(Math.random() * maxItems);
+
+  // Add multiple passes through the strip + final position
+  // Position the LEFT EDGE of the target item to align its center with the golden indicator
+  const extraPasses = 3 + Math.random() * 2; // 3-5 full passes
+  const finalPosition = -(finalItemIndex * itemWidth) + centerOffset - (itemWidth / 2) - (extraPasses * maxItems * itemWidth);
+
+  console.log('Spinning to position:', finalPosition, 'target item:', finalItemIndex);
+
+  // Apply the transition and movement
+  strip.style.transition = 'transform 5.5s cubic-bezier(0.23,1,0.320,1)';
+  strip.style.transform = `translateX(${finalPosition}px)`;
+
+  setTimeout(() => {
+    wheelSpinning = false;
+
+    // The winning enchantment is at the calculated index
+    const wonEnchant = strip.enchantments[finalItemIndex];
+
+    console.log('Won enchantment:', wonEnchant.name, 'at index:', finalItemIndex);
+
+    // Apply enchantment to tower
+    applyEnchantment(wonEnchant);
+
+    // Show result
+    showEnchantResult(wonEnchant);
+
+    // Reset button
+    if (selectedTowerForEnchant !== null) {
+      spinBtn.disabled = false;
+      spinBtn.textContent = '🎰 Spin Again';
+    }
+  }, 5500); // 5.5 second spin duration
+}
+
+function applyEnchantment(enchant) {
+  if (selectedTowerForEnchant === null) return;
+
+  const tower = armoryTowers[selectedTowerForEnchant];
+  if (!tower.enchantments) tower.enchantments = [];
+
+  // Add enchantment
+  tower.enchantments.push({
+    name: enchant.name,
+    desc: enchant.desc,
+    rarity: enchant.rarity,
+    effect: enchant.effect
+  });
+
+  // Apply effect to tower stats
+  const effect = enchant.effect;
+  switch(effect.type) {
+    case 'atkSpeed':
+      tower.atkSpeed *= (1 + effect.value);
+      break;
+    case 'damage':
+      tower.dmg *= (1 + effect.value);
+      break;
+    case 'range':
+      tower.range *= (1 + effect.value);
+      break;
+    case 'projectiles':
+      tower.projectiles = (tower.projectiles || 1) + effect.value;
+      break;
+    case 'level':
+      tower.level += effect.value;
+      break;
+    case 'allStats':
+      tower.atkSpeed *= (1 + effect.value);
+      tower.dmg *= (1 + effect.value);
+      tower.range *= (1 + effect.value);
+      break;
+  }
+
+  // Update inventory display
+  buildEnchantInventory();
+  selectTowerForEnchant(selectedTowerForEnchant); // Refresh selected tower info
+}
+
+function showEnchantResult(enchant) {
+  const result = document.getElementById('wheel-result');
+  const enchantEl = document.getElementById('result-enchant');
+
+  if (result && enchantEl) {
+    const rarityColors = {
+      common: '#b8b8b8',
+      uncommon: '#4eff4e',
+      rare: '#66d9ef',
+      epic: '#c969ff',
+      legendary: '#ffb84d'
+    };
+
+    enchantEl.style.backgroundColor = rarityColors[enchant.rarity] + '20';
+    enchantEl.style.borderLeft = `3px solid ${rarityColors[enchant.rarity]}`;
+    enchantEl.style.color = rarityColors[enchant.rarity];
+    enchantEl.innerHTML = `
+      <div style="font-weight:600;">${getEnchantIcon(enchant.effect.type)} ${enchant.name}</div>
+      <div style="font-size:11px;margin-top:4px;opacity:0.9;">${enchant.desc}</div>
+    `;
+
+    result.style.display = 'block';
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -2256,7 +2887,15 @@ function renderNodeModal(){
 }
 
 async function unlockNode(resId,tierIdx,event){
-  try { await serverRpc('idw_unlock_node', {p_res_id:resId, p_tier_idx:tierIdx}); closeModal(); await refreshFromServer(); showToast('Node unlocked!'); }
+  try {
+    const r = RESOURCE_DEFS.find(rd => rd.id === resId);
+    const cost = r.tiers[tierIdx].unlockCost;
+    const currency = r.costCurrency;
+    await serverRpc('idw_unlock_node', {p_res_id:resId, p_tier_idx:tierIdx, p_cost:cost, p_currency:currency});
+    closeModal();
+    await refreshFromServer();
+    showToast('Node unlocked!');
+  }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
@@ -2267,11 +2906,14 @@ async function collectNode(resId,tierIdx){
 
 async function startUpgrade(resId,tierIdx,event){
   try {
-    await serverRpc('idw_start_node_upgrade', {p_res_id:resId, p_tier_idx:tierIdx});
+    const r = RESOURCE_DEFS.find(rd => rd.id === resId);
+    const ns = nodeState[resId][tierIdx];
+    const cost = nodeUpgradeCost(r, tierIdx, ns.upgradeLevel);
+    await serverRpc('idw_start_node_upgrade', {p_res_id:resId, p_tier_idx:tierIdx, p_cost:cost});
     await refreshFromServer();
     // Use client clock so countdown matches the displayed time exactly
-    const ns = nodeState[resId][tierIdx];
-    if(ns.upgrading){ ns.upgradeStartMs = Date.now(); ns.upgradeDurationMs = upgradeTimeSecs(ns.upgradeLevel) * 1000; }
+    const nsAfter = nodeState[resId][tierIdx];
+    if(nsAfter.upgrading){ nsAfter.upgradeStartMs = Date.now(); nsAfter.upgradeDurationMs = upgradeTimeSecs(nsAfter.upgradeLevel) * 1000; }
     renderNodeModal();
     showToast('Upgrade started!');
   }
@@ -2882,6 +3524,10 @@ function buildInventoryPanel() {
   renderItemsGrid();
   renderBoostsGrid();
   updateArmorySlotCount();
+  // Update enchanting inventory if enchants tab is active
+  if (document.getElementById('craft-enchants')?.classList.contains('active')) {
+    buildEnchantInventory();
+  }
 }
 
 function renderArmoryGrid() {
@@ -3359,6 +4005,22 @@ function switchCraftTab(name) {
     if (p) p.classList.toggle('active', t === name);
     if (btn) btn.classList.toggle('active', t === name);
   });
+
+  // Build enchanting interface when enchants tab is selected
+  if (name === 'enchants') {
+    console.log('Enchants tab selected, building inventory...');
+    buildEnchantInventory();
+    selectedTowerForEnchant = null;
+    const selectedArea = document.getElementById('enchant-selected-item');
+    if (selectedArea) selectedArea.style.display = 'none';
+    const spinBtn = document.getElementById('spin-button');
+    if (spinBtn) {
+      spinBtn.disabled = true;
+      spinBtn.textContent = '🎰 Spin Wheel';
+    }
+    // Generate an initial strip for preview
+    generateEnchantStrip();
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -3636,7 +4298,20 @@ function toggleEliteMode() {
   const sec=document.getElementById('section-campaign');
   if(campEliteMode){ btn.textContent='💀 Elite'; btn.style.background='rgba(240,192,64,0.15)'; btn.style.borderColor='#f0c040'; btn.style.color='#f0c040'; sec.classList.add('elite-mode-active'); }
   else { btn.textContent='⚔️ Normal'; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; sec.classList.remove('elite-mode-active'); }
-  campSelectedStage=null; buildCampaignMap(); updateCampaignInfo();
+
+  // Auto-navigate to highest attackable stage in the new mode
+  const highestStage = getHighestAttackableStage();
+  if (highestStage) {
+    // Extract world from stage ID (e.g., "3-4" -> world 3)
+    const stageWorld = parseInt(highestStage.split('-')[0]);
+    campCurrentWorld = stageWorld;
+    campSelectedStage = highestStage;
+  } else {
+    campSelectedStage = null;
+  }
+
+  buildCampaignMap();
+  updateCampaignInfo();
 }
 function switchCampaignWorld(world) {
   const unlocked = world===1||(campEliteMode?isEliteWorldUnlocked(world):isWorldUnlocked(world));
@@ -4429,16 +5104,27 @@ function handleCanvasClick(e) {
 }
 
 function setTowerTargeting(towerId, mode) {
+  console.log('setTowerTargeting called:', towerId, mode);
   const t = bs.towers.find(t => t.id === towerId);
-  if (!t) return;
+  if (!t) {
+    console.warn('Tower not found:', towerId);
+    return;
+  }
   t.targeting = mode;
+  console.log('Tower targeting set to:', mode);
   showUpgradePanel(t); // re-render to update active button
 }
+
+// Make sure function is globally accessible
+window.setTowerTargeting = setTowerTargeting;
 
 function deselectTower() {
   selectedTowerId = null;
   showShopPanel();
 }
+
+// Make sure other tower functions are globally accessible
+window.deselectTower = deselectTower;
 
 // ── WAVE MANAGEMENT ──
 function startNextWave() {
@@ -4526,15 +5212,32 @@ function renderUpgradePanel(tower) {
   // Targeting selector
   const targetingDiv = document.createElement('div');
   targetingDiv.className = 'upg-targeting';
-  targetingDiv.innerHTML = `
-    <div class="upg-target-label">🎯 Target Priority</div>
-    <div class="upg-target-btns">
-      ${['first','last','strongest','weakest'].map(m=>`
-        <button class="upg-target-btn${(tower.targeting||'first')===m?' active':''}"
-          onclick="setTowerTargeting('${tower.id}','${m}')">
-          ${{first:'First',last:'Last',strongest:'Strongest',weakest:'Weakest'}[m]}
-        </button>`).join('')}
-    </div>`;
+
+  const targetLabel = document.createElement('div');
+  targetLabel.className = 'upg-target-label';
+  targetLabel.textContent = '🎯 Target Priority';
+
+  const targetBtns = document.createElement('div');
+  targetBtns.className = 'upg-target-btns';
+
+  const currentTargeting = tower.targeting || 'first';
+  const targetModes = [
+    {mode: 'first', label: 'First'},
+    {mode: 'last', label: 'Last'},
+    {mode: 'strongest', label: 'Strongest'},
+    {mode: 'weakest', label: 'Weakest'}
+  ];
+
+  targetModes.forEach(({mode, label}) => {
+    const btn = document.createElement('button');
+    btn.className = `upg-target-btn${currentTargeting === mode ? ' active' : ''}`;
+    btn.textContent = label;
+    btn.onclick = () => setTowerTargeting(tower.id, mode);
+    targetBtns.appendChild(btn);
+  });
+
+  targetingDiv.appendChild(targetLabel);
+  targetingDiv.appendChild(targetBtns);
   paths.appendChild(targetingDiv);
 
   UPGRADE_PATHS.forEach((path, pi) => {
@@ -4655,6 +5358,8 @@ function makeProjectile(tower, target, dmg) {
     radius: tower.towerId === 'catapult' ? 6 : 4,
     piercing: tower.piercing || 0,
     maxAoeTargets: tower.td.maxAoeTargets || 99,
+    towerType: tower.towerId, // Add tower type for projectile rendering
+    vx: 0, vy: 0, // Will be set during movement
     _done: false,
   };
 }
@@ -4771,11 +5476,14 @@ function updateTowers(dt) {
     // Find enemies in range then sort by targeting mode
     const inRange = bs.enemies.filter(e => !e.isDead && !e.isReached && dist(t.x, t.y, e.x, e.y) <= t.range);
     if (inRange.length === 0) return;
-    switch(t.targeting || 'first') {
+
+    const targetingMode = t.targeting || 'first';
+    switch(targetingMode) {
       case 'first':    inRange.sort((a,b) => b.dist - a.dist); break; // furthest along path
       case 'last':     inRange.sort((a,b) => a.dist - b.dist); break; // least far along path
       case 'strongest':inRange.sort((a,b) => b.hp - a.hp);    break; // highest current hp
       case 'weakest':  inRange.sort((a,b) => a.hp - b.hp);    break; // lowest current hp
+      default: inRange.sort((a,b) => b.dist - a.dist); break; // fallback to first
     }
 
     // Inferno: hit all in range (capped at 6)
@@ -4819,6 +5527,12 @@ function updateProjectiles(dt) {
     const dx = tx - p.x, dy = ty - p.y;
     const d = Math.sqrt(dx*dx+dy*dy);
     const move = p.speed * dt;
+
+    // Store velocity for projectile rendering
+    if (d > 0) {
+      p.vx = (dx / d) * p.speed;
+      p.vy = (dy / d) * p.speed;
+    }
 
     if (d <= move + p.radius) {
       // Hit impact point
@@ -5152,12 +5866,157 @@ function drawEnemy(ctx, e) {
 
 function drawProjectile(ctx, p) {
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
-  ctx.fillStyle = p.color || '#fff';
-  ctx.shadowColor = p.color || '#fff';
-  ctx.shadowBlur = 6;
-  ctx.fill();
+
+  // Enhanced projectile based on tower type
+  if (p.towerType === 'archer') {
+    // Arrow projectile with tail
+    const angle = Math.atan2(p.vy, p.vx);
+    const len = 8;
+    ctx.strokeStyle = '#c8842a';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.x - Math.cos(angle) * len, p.y - Math.sin(angle) * len);
+    ctx.lineTo(p.x + Math.cos(angle) * 3, p.y + Math.sin(angle) * 3);
+    ctx.stroke();
+    // Arrow point
+    ctx.fillStyle = '#8b6914';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
+  else if (p.towerType === 'crossbow') {
+    // Crossbow bolt - thicker and straighter
+    const angle = Math.atan2(p.vy, p.vx);
+    const len = 6;
+    ctx.strokeStyle = '#6cbf6c';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.x - Math.cos(angle) * len, p.y - Math.sin(angle) * len);
+    ctx.lineTo(p.x + Math.cos(angle) * 2, p.y + Math.sin(angle) * 2);
+    ctx.stroke();
+    // Bolt tip
+    ctx.fillStyle = '#4a8f4a';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 1.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+  else if (p.towerType === 'catapult') {
+    // Boulder with rotation and shadow
+    const rotation = (p.x + p.y) * 0.1; // Spinning effect
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = '#8890b0';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius * 1.2, 0, Math.PI*2);
+    ctx.fill();
+    // Boulder texture
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#a8b0c0';
+    ctx.beginPath();
+    ctx.arc(p.x - 1, p.y - 1, p.radius * 0.6, 0, Math.PI*2);
+    ctx.fill();
+  }
+  else if (p.towerType === 'ice_tower') {
+    // Ice shard with crystalline effect
+    ctx.shadowColor = '#4a8fff';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#87CEEB';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+    ctx.fill();
+    // Ice sparkle
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(p.x - 1, p.y - 1, p.radius * 0.4, 0, Math.PI*2);
+    ctx.fill();
+    // Frost trail
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#87CEEB';
+    for(let i = 1; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(p.x - p.vx * i * 0.5, p.y - p.vy * i * 0.5, p.radius * (1 - i * 0.2), 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  else if (p.towerType === 'sniper') {
+    // High-velocity sniper bullet with trail
+    const angle = Math.atan2(p.vy, p.vx);
+    const len = 12;
+    ctx.strokeStyle = '#f0c040';
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.x - Math.cos(angle) * len, p.y - Math.sin(angle) * len);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    // Muzzle flash trail
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = '#ffffff';
+    for(let i = 1; i <= 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(p.x - Math.cos(angle) * len * (1 + i * 0.3), p.y - Math.sin(angle) * len * (1 + i * 0.3));
+      ctx.lineTo(p.x - Math.cos(angle) * len * i * 0.8, p.y - Math.sin(angle) * len * i * 0.8);
+      ctx.stroke();
+    }
+  }
+  else if (p.towerType === 'inferno') {
+    // Fire projectile with flame effect
+    ctx.shadowColor = '#ff4400';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ff4400';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+    ctx.fill();
+    // Inner flame
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius * 0.6, 0, Math.PI*2);
+    ctx.fill();
+    // Fire particles
+    ctx.globalAlpha = 0.7;
+    for(let i = 0; i < 3; i++) {
+      const px = p.x + (Math.random() - 0.5) * 6;
+      const py = p.y + (Math.random() - 0.5) * 6;
+      ctx.fillStyle = i % 2 === 0 ? '#ff4400' : '#ff8800';
+      ctx.fillRect(px - 0.5, py - 0.5, 1, 1);
+    }
+  }
+  else if (p.towerType === 'god_tower') {
+    // Lightning projectile
+    ctx.shadowColor = '#FFD700';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    // Lightning bolt shape
+    const len = 8;
+    for(let i = 0; i < 3; i++) {
+      const offset = (Math.random() - 0.5) * 4;
+      ctx.beginPath();
+      ctx.moveTo(p.x - len + i * 2, p.y + offset);
+      ctx.lineTo(p.x + len - i * 2, p.y - offset);
+      ctx.stroke();
+    }
+    // Core bright point
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
+  else {
+    // Default projectile (fallback)
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+    ctx.fillStyle = p.color || '#fff';
+    ctx.shadowColor = p.color || '#fff';
+    ctx.shadowBlur = 6;
+    ctx.fill();
+  }
+
   ctx.restore();
 }
 
@@ -5443,6 +6302,34 @@ function adjustColor(hex, amount) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
+function adjustBrightness(hex, multiplier) {
+  const c = parseInt(hex.slice(1),16);
+  const r = Math.min(255, Math.round(((c>>16)&255) * multiplier));
+  const g = Math.min(255, Math.round(((c>>8)&255) * multiplier));
+  const b = Math.min(255, Math.round((c&255) * multiplier));
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
+
+function makeLighterLEDColor(baseColor, isMine) {
+  // Convert common territory colors to lighter LED versions
+  if (isMine) {
+    // Player territories - light green LED
+    return '#66ff88'; // Bright light green
+  } else {
+    // Other player territories - check base color and lighten appropriately
+    if (baseColor.includes('red') || baseColor === '#f55a5a' || baseColor.startsWith('#f') || baseColor.startsWith('#e')) {
+      return '#ff8866'; // Light orange/coral
+    } else if (baseColor.includes('blue') || baseColor === '#4a8fff' || baseColor.startsWith('#4') || baseColor.startsWith('#3')) {
+      return '#66aaff'; // Light blue
+    } else if (baseColor.includes('yellow') || baseColor === '#f0c040') {
+      return '#ffee66'; // Light yellow
+    } else {
+      // Generic lighter version - make it light orange
+      return '#ff9966'; // Light orange default
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════
@@ -5518,6 +6405,12 @@ function pvpTileIdx(tx,ty){ return ty*PVP_GRID+tx; }
 function pvpTileDifficulty(tx,ty){
   // Returns tile's stage level (1=stage 1-1, 2=stage 1-2 … 10=stage 1-10).
   // Upgraded by owner via pvpApplyBaseUpgrade().
+
+  // Test coordinate for 10-10 display
+  if (tx === 67 && ty === 45) {
+    return 10;
+  }
+
   return pvpTiles[pvpTileIdx(tx,ty)]?.level || 1;
 }
 
@@ -5849,19 +6742,12 @@ function pvpDraw() {
       else if(isOwned) tileColor=tile.color||pvpUserColor(tile.owner);
       else tileColor=null; // unclaimed
 
-      // Background fill
-      if(tileColor){
-        ctx.fillStyle=pvpDarkenColor(tileColor,0.22);
-      } else {
-        ctx.fillStyle=isHovered?'#1e2235':'#13151f';
-      }
+      // Background fill - same color for all tiles (claimed and unclaimed)
+      ctx.fillStyle=isHovered?'#1e2235':'#13151f';
       ctx.fillRect(px,py,ts,ts);
 
-      // Colored territory fill (semi-transparent overlay)
-      if(tileColor){
-        ctx.fillStyle=tileColor+(isHovered?'55':'33');
-        ctx.fillRect(px,py,ts,ts);
-      }
+      // Remove the colored territory background overlay
+      // The circle will show the ownership color instead
 
       // Under-attack orange border
       if(isUnderAttack){
@@ -5887,36 +6773,175 @@ function pvpDraw() {
       const cx2=px+ts/2, cy2=py+ts/2;
 
       if(isOwned && ts>=18){
-        // Player owned: donut ring in owner color
-        const outerR=ts*0.28, innerR=ts*0.15;
-        const ringColor=tile?.animColor||(tileColor||'#3ecf8e');
+        // Player owned: LED-style glowing donut ring with lighter colors
+        const outerR=ts*0.32, innerR=ts*0.22; // Increased both radii for bigger circle
+        let baseColor = tile?.animColor||(tileColor||'#3ecf8e');
+
+        // Make colors lighter for LED effect
+        const ringColor = makeLighterLEDColor(baseColor, isMine);
+
+        // LED glow effect - multiple layers for shop sign appearance
+        ctx.save();
+
+        // Outer glow (furthest)
+        ctx.shadowColor = ringColor;
+        ctx.shadowBlur = outerR * 0.8;
+        ctx.globalAlpha = 0.3;
         ctx.beginPath();
         ctx.arc(cx2,cy2,outerR,0,Math.PI*2,false);
         ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
-        ctx.fillStyle=ringColor;
+        ctx.fillStyle = ringColor;
         ctx.fill();
-        // Home tile star in the donut center
+
+        // Middle glow
+        ctx.shadowBlur = outerR * 0.4;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.arc(cx2,cy2,outerR,0,Math.PI*2,false);
+        ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
+        ctx.fillStyle = ringColor;
+        ctx.fill();
+
+        // Inner bright glow
+        ctx.shadowBlur = outerR * 0.2;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.arc(cx2,cy2,outerR,0,Math.PI*2,false);
+        ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
+        ctx.fillStyle = ringColor;
+        ctx.fill();
+
+        // Main solid ring (no shadow)
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1.0;
+        ctx.beginPath();
+        ctx.arc(cx2,cy2,outerR,0,Math.PI*2,false);
+        ctx.arc(cx2,cy2,innerR,0,Math.PI*2,true);
+
+        // Brighten the main color for LED effect
+        const brightColor = adjustBrightness(ringColor, 1.3);
+        ctx.fillStyle = brightColor;
+        ctx.fill();
+
+        ctx.restore();
+        // Home tile silver textured border
         const isHomeTile=pvpHomeTile&&pvpTileIdx(pvpHomeTile.tx,pvpHomeTile.ty)===idx;
         if(isHomeTile){
-          ctx.font=`${Math.max(6,Math.round(ts*0.2))}px serif`;
+          // Create textured silver border OUTSIDE the territory circle with gap
+          const gapSize = 3; // Space between territory circle and silver border
+          const borderWidth = 2;
+          const borderRadius = outerR + gapSize + borderWidth; // Position outside territory circle
+
+          // Enhanced 3D silver border with multiple layers
+
+          // Base shadow - creates depth below the border
+          ctx.beginPath();
+          ctx.arc(cx2 + 1, cy2 + 1, borderRadius + 0.5, 0, Math.PI*2);
+          ctx.lineWidth = borderWidth + 2;
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)'; // Dark shadow
+          ctx.stroke();
+
+          // Outer dark edge - defines the border outline
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, borderRadius + 1, 0, Math.PI*2);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#a0a0a0'; // Dark outline
+          ctx.stroke();
+
+          // Main border with 3D gradient
+          const gradient = ctx.createLinearGradient(
+            cx2 - borderRadius, cy2 - borderRadius,
+            cx2 + borderRadius, cy2 + borderRadius
+          );
+          gradient.addColorStop(0, '#f8f8f8');    // Top-left highlight
+          gradient.addColorStop(0.25, '#ffffff');  // Bright highlight
+          gradient.addColorStop(0.5, '#e8e8e8');   // Mid tone
+          gradient.addColorStop(0.75, '#d0d0d0');  // Shadow tone
+          gradient.addColorStop(1, '#b8b8b8');     // Bottom-right shadow
+
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, borderRadius, 0, Math.PI*2);
+          ctx.lineWidth = borderWidth;
+          ctx.strokeStyle = gradient;
+          ctx.stroke();
+
+          // Top-left highlight arc - creates metallic shine
+          ctx.beginPath();
+          ctx.arc(cx2 - 0.5, cy2 - 0.5, borderRadius - 0.5, Math.PI*1.0, Math.PI*1.5);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#ffffff'; // Bright white shine
+          ctx.stroke();
+
+          // Bottom-right shadow arc - creates depth
+          ctx.beginPath();
+          ctx.arc(cx2 + 0.5, cy2 + 0.5, borderRadius - 0.5, Math.PI*0.0, Math.PI*0.5);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#999999'; // Shadow
+          ctx.stroke();
+
+          // Inner bright edge - creates beveled effect
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, borderRadius - borderWidth + 0.5, 0, Math.PI*2);
+          ctx.lineWidth = 0.5;
+          ctx.strokeStyle = '#f0f0f0'; // Inner highlight
+          ctx.stroke();
+
+          // Texture dots for metallic appearance
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          for(let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const dotX = cx2 + Math.cos(angle) * borderRadius;
+            const dotY = cy2 + Math.sin(angle) * borderRadius;
+            ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#cccccc';
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, 0.3, 0, Math.PI*2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // Stage level info for owned territories - moved to center
+        if(ts>=18){
+          ctx.fillStyle='rgba(255,255,255,0.9)';
+          ctx.font=`bold ${Math.max(9,Math.round(ts*0.19))}px Inter`;
           ctx.textAlign='center';
           ctx.textBaseline='middle';
-          ctx.fillText('⭐',cx2,cy2);
+          // Test coordinate shows 10-5
+          const stageText = (tx === 67 && ty === 45) ? '10-5' : `1-${diff}`;
+          ctx.fillText(stageText, cx2, cy2);
         }
-        if(ts>=28){
-          ctx.fillStyle='rgba(255,255,255,0.85)';
-          ctx.font=`bold ${Math.max(8,Math.round(ts*0.16))}px Inter`;
+
+        // Golden star for home base - positioned at bottom right
+        if(isHomeTile && ts>=18){
+          const starX = cx2 + outerR * 0.7; // Bottom right position
+          const starY = cy2 + outerR * 0.7;
+
+          // Star shadow for depth
+          ctx.fillStyle='rgba(0,0,0,0.3)';
+          ctx.font=`${Math.max(8,Math.round(ts*0.25))}px serif`;
           ctx.textAlign='center';
-          ctx.textBaseline='top';
-          ctx.fillText(`1-${diff}`,cx2,cy2+outerR+2);
+          ctx.textBaseline='middle';
+          ctx.fillText('⭐', starX + 0.5, starY + 0.5);
+
+          // Golden star with gradient
+          const starGradient = ctx.createRadialGradient(starX-2, starY-2, 0, starX, starY, 6);
+          starGradient.addColorStop(0, '#fff5a0'); // Bright gold center
+          starGradient.addColorStop(0.5, '#ffd700'); // Golden yellow
+          starGradient.addColorStop(1, '#b8860b'); // Dark gold edge
+
+          ctx.fillStyle = starGradient;
+          ctx.fillText('⭐', starX, starY);
         }
       } else if(!isOwned && ts>=18){
         // Unclaimed PVP tile — show stage number muted
         ctx.fillStyle='rgba(255,255,255,0.22)';
-        ctx.font=`${Math.max(8,Math.round(ts*0.18))}px Inter`;
+        ctx.font=`${Math.max(9,Math.round(ts*0.21))}px Inter`;
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        ctx.fillText(`1-${diff}`,cx2,cy2);
+        // Test coordinate shows 10-5
+        const stageText = (tx === 67 && ty === 45) ? '10-5' : `1-${diff}`;
+        ctx.fillText(stageText, cx2, cy2);
       }
 
       // Under-attack icon
@@ -5979,6 +7004,92 @@ function pvpDraw() {
   ctx.textBaseline='top';
   const hx=pvpHoveredTile?.tx??'-', hy=pvpHoveredTile?.ty??'-';
   ctx.fillText(`(${hx}, ${hy}) · View: ${pvpViewX},${pvpViewY}`,mmPad+4,mmPad+4);
+
+  // Territory connections - connect adjacent territories owned by same player
+  ctx.save();
+  for(let row=-1;row<=rows;row++){
+    for(let col=-1;col<=cols;col++){
+      const tx=pvpViewX+col, ty=pvpViewY+row;
+      if(tx<0||tx>=PVP_GRID||ty<0||ty>=PVP_GRID) continue;
+
+      const px=col*ts+pvpPixelOffsetX, py=row*ts+pvpPixelOffsetY;
+      const idx=pvpTileIdx(tx,ty);
+      const tile=pvpTiles[idx];
+
+      if(!tile?.owner) continue; // Only for owned tiles
+
+      // Calculate connection line thickness - thinner equals sign style
+      const outerR = ts*0.32, innerR = ts*0.22;
+      const ringThickness = outerR - innerR; // Match donut thickness
+      const lineWidth = ringThickness * 0.4; // Much thinner for clean equals sign look
+      const lineGap = lineWidth * 2.5; // Even larger gap between lines for better spacing
+
+      // Check right neighbor (horizontal connection)
+      const rightTx = tx + 1;
+      if(rightTx < PVP_GRID) {
+        const rightIdx = pvpTileIdx(rightTx, ty);
+        const rightTile = pvpTiles[rightIdx];
+        if(rightTile?.owner === tile.owner) {
+          // Draw horizontal bridge connecting the circles
+          const leftCircleX = px + ts * 0.5; // Left circle center
+          const rightCircleX = (col + 1) * ts + pvpPixelOffsetX + ts * 0.5; // Right circle center
+          const centerY = py + ts * 0.5;
+
+          // Start from edge of left circle, end at edge of right circle
+          const startX = leftCircleX + outerR;
+          const endX = rightCircleX - outerR;
+          const bridgeLength = endX - startX;
+
+          if(bridgeLength > 0) { // Only draw if there's space between circles
+            const baseColor = tile.color || (tile.isMine ? '#3ecf8e' : pvpUserColor(tile.owner));
+            const bridgeColor = makeLighterLEDColor(baseColor, tile.isMine);
+            ctx.fillStyle = bridgeColor;
+
+            // Top line
+            const topY = centerY - lineGap/2 - lineWidth/2;
+            ctx.fillRect(startX, topY, bridgeLength, lineWidth);
+
+            // Bottom line
+            const bottomY = centerY + lineGap/2 - lineWidth/2;
+            ctx.fillRect(startX, bottomY, bridgeLength, lineWidth);
+          }
+        }
+      }
+
+      // Check bottom neighbor (vertical connection)
+      const bottomTy = ty + 1;
+      if(bottomTy < PVP_GRID) {
+        const bottomIdx = pvpTileIdx(tx, bottomTy);
+        const bottomTile = pvpTiles[bottomIdx];
+        if(bottomTile?.owner === tile.owner) {
+          // Draw vertical bridge connecting the circles
+          const topCircleY = py + ts * 0.5; // Top circle center
+          const bottomCircleY = (row + 1) * ts + pvpPixelOffsetY + ts * 0.5; // Bottom circle center
+          const centerX = px + ts * 0.5;
+
+          // Start from edge of top circle, end at edge of bottom circle
+          const startY = topCircleY + outerR;
+          const endY = bottomCircleY - outerR;
+          const bridgeLength = endY - startY;
+
+          if(bridgeLength > 0) { // Only draw if there's space between circles
+            const baseColor = tile.color || (tile.isMine ? '#3ecf8e' : pvpUserColor(tile.owner));
+            const bridgeColor = makeLighterLEDColor(baseColor, tile.isMine);
+            ctx.fillStyle = bridgeColor;
+
+            // Left line
+            const leftX = centerX - lineGap/2 - lineWidth/2;
+            ctx.fillRect(leftX, startY, lineWidth, bridgeLength);
+
+            // Right line
+            const rightX = centerX + lineGap/2 - lineWidth/2;
+            ctx.fillRect(rightX, startY, lineWidth, bridgeLength);
+          }
+        }
+      }
+    }
+  }
+  ctx.restore();
 }
 
 // ── Tile interaction ──
@@ -6019,9 +7130,14 @@ function pvpClickTile(tx,ty,e) {
     } else {
       sub.innerHTML=`Unclaimed · Stage 1-${diff}`;
     }
-    btn.textContent=isUnderAttack?'🔒 Under Attack':onCooldown?`⏳ ${cooldownSecs}s cooldown`:`⚔️ Attack (Stage 1-${diff})`;
-    btn.disabled=isUnderAttack||onCooldown;
-    btn.onclick=(isUnderAttack||onCooldown)?null:pvpAttackTile;
+    // Check territorial expansion rules
+    const canAttack = canAttackTile(tx, ty, isUnderAttack, onCooldown);
+
+    btn.textContent = canAttack.canAttack
+      ? `⚔️ Attack (Stage 1-${diff})`
+      : canAttack.reason;
+    btn.disabled = !canAttack.canAttack;
+    btn.onclick = canAttack.canAttack ? pvpAttackTile : null;
   }
 
   // Position tooltip near the clicked tile
@@ -6048,6 +7164,59 @@ function pvpHideTooltip(){
   if(t) t.style.display='none';
   pvpSelectedTile=null;
   pvpDraw();
+}
+
+function canAttackTile(tx, ty, isUnderAttack, onCooldown) {
+  // Basic restrictions first
+  if (isUnderAttack) {
+    return { canAttack: false, reason: '🔒 Under Attack' };
+  }
+  if (onCooldown) {
+    const cooldownSecs = Math.ceil((pvpAttackCooldownUntil - Date.now()) / 1000);
+    return { canAttack: false, reason: `⏳ ${cooldownSecs}s cooldown` };
+  }
+
+  // Check if tile is already owned by player
+  const idx = pvpTileIdx(tx, ty);
+  const tile = pvpTiles[idx];
+  if (tile?.isMine) {
+    return { canAttack: false, reason: '✅ Already Yours' };
+  }
+
+  // Count player's territories
+  const myTerritories = Object.values(pvpTiles).filter(t => t?.isMine === true);
+
+  // First territory: can attack anywhere
+  if (myTerritories.length === 0) {
+    return { canAttack: true, reason: '' };
+  }
+
+  // Has territories: must be adjacent to owned territory
+  const adjacentDirections = [
+    { dx: 0, dy: -1 }, // Up
+    { dx: 0, dy: 1 },  // Down
+    { dx: -1, dy: 0 }, // Left
+    { dx: 1, dy: 0 }   // Right
+  ];
+
+  // Check if target tile is adjacent to any owned territory
+  for (const dir of adjacentDirections) {
+    const adjacentX = tx + dir.dx;
+    const adjacentY = ty + dir.dy;
+
+    // Check bounds
+    if (adjacentX >= 0 && adjacentX < PVP_GRID && adjacentY >= 0 && adjacentY < PVP_GRID) {
+      const adjacentIdx = pvpTileIdx(adjacentX, adjacentY);
+      const adjacentTile = pvpTiles[adjacentIdx];
+
+      if (adjacentTile?.isMine === true) {
+        return { canAttack: true, reason: '' };
+      }
+    }
+  }
+
+  // Not adjacent to any owned territory
+  return { canAttack: false, reason: '🔒 Must expand from owned territory' };
 }
 
 async function pvpAttackTile(){
@@ -6270,7 +7439,7 @@ function buildSiloPanel(){
             <div class="nc-timer" style="color:var(--orange)" id="silotimer-${r.id}-${ti}">${fmtCountdown(rem)}</div>
             <div class="nc-upg-wrap" style="margin-top:auto;"><div class="nc-upg-bar" id="siloupg-${r.id}-${ti}" style="width:${pct}%"></div></div>`;
         } else {
-          const thisCap = Math.round(tier.cap * (1 + (s.level-1)*0.6));
+          const thisCap = Math.round(tier.cap * Math.pow(1.5, s.level-1));
           slot.className = `node-card type-${r.type}`;
           slot.innerHTML = `
             <div class="nc-top">
@@ -6303,8 +7472,8 @@ function openSiloModal(resId, tierIdx){
   const r = RESOURCE_DEFS.find(x=>x.id===resId);
   const s = siloState[resId][tierIdx];
   const tier = SILO_TIERS[tierIdx];
-  const thisCap = Math.round(tier.cap * (1 + (s.level-1)*0.6));
-  const nextCap = Math.round(tier.cap * (1 + s.level*0.6));
+  const thisCap = Math.round(tier.cap * Math.pow(1.5, s.level-1));
+  const nextCap = Math.round(tier.cap * Math.pow(1.5, s.level));
   const upgCost = Math.round(tier.upgCostBase * Math.pow(1.6, s.level-1));
   const canAffordUpg = (resources[resId]||0) >= upgCost;
 
@@ -6381,8 +7550,9 @@ function openSiloModal(resId, tierIdx){
 
 async function unlockSilo(resId, tierIdx){
   const r = RESOURCE_DEFS.find(x=>x.id===resId);
+  const cost = SILO_TIERS[tierIdx].unlockCost;
   try {
-    await serverRpc('idw_unlock_silo', {p_res_id: resId, p_tier_idx: tierIdx});
+    await serverRpc('idw_unlock_silo', {p_res_id: resId, p_tier_idx: tierIdx, p_cost: cost});
     await refreshFromServer();
     closeItemModal();
     buildSiloPanel();
@@ -6393,9 +7563,11 @@ async function unlockSilo(resId, tierIdx){
 async function startSiloUpgrade(resId, tierIdx) {
   const r = RESOURCE_DEFS.find(x=>x.id===resId);
   const s = siloState[resId][tierIdx];
+  const tier = SILO_TIERS[tierIdx];
+  const cost = Math.round(tier.upgCostBase * Math.pow(1.6, s.level-1));
   const durSecs = Math.round(20 * s.level * (1 + tierIdx * 0.5));
   try {
-    await serverRpc('idw_start_silo_upgrade', {p_res_id: resId, p_tier_idx: tierIdx});
+    await serverRpc('idw_start_silo_upgrade', {p_res_id: resId, p_tier_idx: tierIdx, p_cost: cost});
     await refreshFromServer();
     // Use client clock so countdown matches the displayed duration exactly
     siloState[resId][tierIdx].upgradeStartMs = Date.now();

@@ -157,7 +157,7 @@ create or replace function public.idw_silo_unlock_cost(p_tier_idx int) returns i
   select (array[0,300,700,1500,3500])[p_tier_idx+1];
 $$;
 create or replace function public.idw_silo_upgrade_cost(p_tier_idx int, p_level int) returns integer language sql immutable as $$
-  select round((array[200,500,1200,3000,8000])[p_tier_idx+1] * power(1.6, greatest(p_level,1)-1))::integer;
+  select round((array[2500,6250,15000,37500,100000])[p_tier_idx+1] * power(1.6, greatest(p_level,1)-1))::integer;
 $$;
 create or replace function public.idw_silo_upgrade_duration_ms(p_tier_idx int, p_level int) returns integer language sql immutable as $$
   select (round(20.0 * greatest(p_level,1) * (1.0 + p_tier_idx * 0.5)) * 1000)::integer;
@@ -279,9 +279,9 @@ begin
   return jsonb_build_object('v2', public.idw_state_to_v2(p));
 end $$;
 
-create or replace function public.idw_unlock_silo(p_res_id text, p_tier_idx int)
+create or replace function public.idw_unlock_silo(p_res_id text, p_tier_idx int, p_cost int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ss jsonb; cost int; costj jsonb; new_silo jsonb;
+declare p public.idw_player_state; ss jsonb; costj jsonb; new_silo jsonb;
 begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid silo'; end if;
   p := public.idw_ensure_player();
@@ -289,8 +289,7 @@ begin
   ss := new_silo->p_res_id->p_tier_idx;
   if coalesce((ss->>'unlocked')::boolean,false) then return public.idw_get_state(); end if;
   if p_tier_idx > 0 and not coalesce((new_silo->p_res_id->(p_tier_idx-1)->>'unlocked')::boolean,false) then raise exception 'Previous tier not unlocked'; end if;
-  cost := public.idw_silo_unlock_cost(p_tier_idx);
-  costj := jsonb_build_object(p_res_id, cost);
+  costj := jsonb_build_object(p_res_id, p_cost);
   if not public.idw_can_pay(p.resources, costj) then raise exception 'Not enough resources'; end if;
   ss := jsonb_set(ss,'{unlocked}','true'::jsonb,true);
   new_silo := jsonb_set(new_silo, array[p_res_id,p_tier_idx::text], ss, true);
@@ -298,9 +297,9 @@ begin
   return public.idw_get_state();
 end $$;
 
-create or replace function public.idw_start_silo_upgrade(p_res_id text, p_tier_idx int)
+create or replace function public.idw_start_silo_upgrade(p_res_id text, p_tier_idx int, p_cost int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ss jsonb; lvl int; cost int; costj jsonb; new_silo jsonb; now_ms numeric := extract(epoch from now())*1000; dur_ms int;
+declare p public.idw_player_state; ss jsonb; lvl int; costj jsonb; new_silo jsonb; now_ms numeric := extract(epoch from now())*1000; dur_ms int;
 begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid silo'; end if;
   p := public.idw_tick_silo_upgrades(public.idw_ensure_player());
@@ -308,14 +307,13 @@ begin
   ss := new_silo->p_res_id->p_tier_idx;
   if not coalesce((ss->>'unlocked')::boolean,false) or coalesce((ss->>'upgrading')::boolean,false) then raise exception 'Cannot upgrade silo'; end if;
   lvl := coalesce((ss->>'level')::int,1);
-  cost := public.idw_silo_upgrade_cost(p_tier_idx, lvl);
-  costj := jsonb_build_object(p_res_id, cost);
+  costj := jsonb_build_object(p_res_id, p_cost);
   if not public.idw_can_pay(p.resources, costj) then raise exception 'Not enough resources'; end if;
   dur_ms := public.idw_silo_upgrade_duration_ms(p_tier_idx, lvl);
   ss := jsonb_set(ss,'{upgrading}','true'::jsonb,true);
   ss := jsonb_set(ss,'{upgradeStartMs}',to_jsonb(now_ms),true);
   ss := jsonb_set(ss,'{upgradeDurationMs}',to_jsonb(dur_ms),true);
-  ss := jsonb_set(ss,'{upgradeCostPaid}',to_jsonb(cost),true);
+  ss := jsonb_set(ss,'{upgradeCostPaid}',to_jsonb(p_cost),true);
   new_silo := jsonb_set(new_silo, array[p_res_id,p_tier_idx::text], ss, true);
   update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, public.idw_negative(costj)), silo=new_silo, updated_at=now() where user_id=p.user_id;
   return public.idw_get_state();
@@ -346,16 +344,16 @@ begin
   return public.idw_get_state();
 end $$;
 
-create or replace function public.idw_unlock_node(p_res_id text, p_tier_idx int)
+create or replace function public.idw_unlock_node(p_res_id text, p_tier_idx int, p_cost int, p_currency text)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; cost int; currency text; ns jsonb; n jsonb; costj jsonb; now_ms numeric := extract(epoch from now())*1000;
+declare p public.idw_player_state; ns jsonb; n jsonb; costj jsonb; now_ms numeric := extract(epoch from now())*1000;
 begin
   p:=public.idw_ensure_player();
   if p_tier_idx not between 1 and 4 then raise exception 'Invalid tier'; end if;
   if p.player_level < public.idw_level_unlock(p_tier_idx) then raise exception 'Need higher level'; end if;
   ns := p.nodes->p_res_id->p_tier_idx;
   if coalesce((ns->>'unlocked')::boolean,false) then return public.idw_get_state(); end if;
-  currency := public.idw_res_cost_currency(p_res_id); cost := public.idw_node_unlock_cost(p_res_id,p_tier_idx); costj:=jsonb_build_object(currency,cost);
+  costj:=jsonb_build_object(p_currency,p_cost);
   if not public.idw_can_pay(p.resources,costj) then raise exception 'Not enough resources'; end if;
   ns := jsonb_set(ns,'{unlocked}','true'::jsonb,true); ns := jsonb_set(ns,'{lastCollectAt}',to_jsonb(now_ms),true);
   n := jsonb_set(p.nodes,array[p_res_id,p_tier_idx::text],ns,true);
@@ -363,17 +361,17 @@ begin
   return public.idw_get_state();
 end $$;
 
-create or replace function public.idw_start_node_upgrade(p_res_id text, p_tier_idx int)
+create or replace function public.idw_start_node_upgrade(p_res_id text, p_tier_idx int, p_cost int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ns jsonb; lvl int; cost int; currency text; costj jsonb; n jsonb; now_ms numeric := extract(epoch from now())*1000; duration_ms int;
+declare p public.idw_player_state; ns jsonb; lvl int; currency text; costj jsonb; n jsonb; now_ms numeric := extract(epoch from now())*1000; duration_ms int;
 begin
   p:=public.idw_tick_upgrades(public.idw_ensure_player());
   ns := p.nodes->p_res_id->p_tier_idx; lvl:=coalesce((ns->>'upgradeLevel')::int,1);
   if not coalesce((ns->>'unlocked')::boolean,false) or coalesce((ns->>'upgrading')::boolean,false) or lvl>=50 then raise exception 'Cannot upgrade'; end if;
-  currency:=public.idw_res_cost_currency(p_res_id); cost:=public.idw_node_upgrade_cost(p_tier_idx,lvl); costj:=jsonb_build_object(currency,cost);
+  currency:=public.idw_res_cost_currency(p_res_id); costj:=jsonb_build_object(currency,p_cost);
   if not public.idw_can_pay(p.resources,costj) then raise exception 'Not enough resources'; end if;
   duration_ms := greatest(5000, floor(5000.0 * power(1.4, lvl-1)))::int;
-  ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true); ns := jsonb_set(ns,'{upgrading}','true'::jsonb,true); ns:=jsonb_set(ns,'{upgradeStartMs}',to_jsonb(now_ms),true); ns:=jsonb_set(ns,'{upgradeDurationMs}',to_jsonb(duration_ms),true); ns:=jsonb_set(ns,'{upgradeCostPaid}',to_jsonb(cost),true);
+  ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true); ns := jsonb_set(ns,'{upgrading}','true'::jsonb,true); ns:=jsonb_set(ns,'{upgradeStartMs}',to_jsonb(now_ms),true); ns:=jsonb_set(ns,'{upgradeDurationMs}',to_jsonb(duration_ms),true); ns:=jsonb_set(ns,'{upgradeCostPaid}',to_jsonb(p_cost),true);
   n := jsonb_set(p.nodes,array[p_res_id,p_tier_idx::text],ns,true);
   update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, public.idw_negative(costj)), nodes=n, updated_at=now() where user_id=p.user_id;
   return public.idw_get_state();
@@ -435,12 +433,12 @@ end $$;
 grant execute on function public.idw_get_state() to authenticated;
 grant execute on function public.idw_touch() to authenticated;
 grant execute on function public.idw_collect_resource(text,int) to authenticated;
-grant execute on function public.idw_unlock_node(text,int) to authenticated;
-grant execute on function public.idw_start_node_upgrade(text,int) to authenticated;
+grant execute on function public.idw_unlock_node(text,int,int,text) to authenticated;
+grant execute on function public.idw_start_node_upgrade(text,int,int) to authenticated;
 grant execute on function public.idw_craft_tower(text) to authenticated;
 grant execute on function public.idw_start_battle(text,int[]) to authenticated;
-grant execute on function public.idw_unlock_silo(text,int) to authenticated;
-grant execute on function public.idw_start_silo_upgrade(text,int) to authenticated;
+grant execute on function public.idw_unlock_silo(text,int,int) to authenticated;
+grant execute on function public.idw_start_silo_upgrade(text,int,int) to authenticated;
 grant execute on function public.idw_tick_silo_upgrades(public.idw_player_state) to authenticated;
 grant execute on function public.idw_submit_battle_result(uuid,boolean,int,int,int) to authenticated;
 
