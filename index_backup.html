@@ -137,10 +137,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 /* Enchanting Strip */
 .strip-container{display:flex;flex-direction:column;align-items:center;gap:16px;flex:1;justify-content:center;position:relative;}
 .strip-viewport{width:600px;height:84px;overflow:hidden;position:relative;border-radius:8px;background:var(--bg2);border:2px solid var(--border);}
-.enchant-strip{display:flex;height:100%;transition:transform 5s cubic-bezier(0.23,1,0.320,1);will-change:transform;position:relative;}
+.enchant-strip{display:flex;height:100%;transition:transform 5s cubic-bezier(0.23,1,0.320,1);will-change:transform;}
 
-/* Golden frame moves with the strip */
-.golden-selection{position:absolute;width:100px;height:84px;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 20px rgba(240,192,64,0.6), inset 0 0 20px rgba(240,192,64,0.3);background:rgba(240,192,64,0.15);pointer-events:none;z-index:100;top:0;left:250px;}
+/* Static golden frame overlay - positioned above the strip */
+.golden-selection-overlay{position:absolute;width:100px;height:84px;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 20px rgba(240,192,64,0.6), inset 0 0 20px rgba(240,192,64,0.3);background:rgba(240,192,64,0.15);pointer-events:none;z-index:100;top:0;left:250px;}
 
 /* Strip items */
 .strip-item{min-width:100px;width:100px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,0.8);color:white;border-right:1px solid rgba(255,255,255,0.1);position:relative;}
@@ -1023,10 +1023,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
               <div class="enchant-wheel-area">
                 <div class="enchant-section-title">✨ Enchantment Spinner</div>
                 <div class="strip-container">
-                  <!-- Golden selection indicator -->
-
                   <!-- Spinning strip viewport -->
                   <div class="strip-viewport">
+                    <!-- Static golden selection overlay -->
+                    <div class="golden-selection-overlay"></div>
                     <div class="enchant-strip" id="enchant-strip">
                       <!-- Strip items will be populated here -->
                     </div>
@@ -2265,11 +2265,6 @@ function generateEnchantStrip() {
 
   strip.innerHTML = '';
 
-  // Add golden selection frame that moves with the strip
-  const goldenFrame = document.createElement('div');
-  goldenFrame.className = 'golden-selection';
-  strip.appendChild(goldenFrame);
-
   stripEnchants.forEach((enchant, index) => {
     const item = document.createElement('div');
     item.className = `strip-item ${enchant.rarity}`;
@@ -2353,18 +2348,25 @@ function spinEnchantStrip() {
   // Force a reflow
   strip.offsetHeight;
 
-  // Simple approach: just spin to a random position
+  // Calculate spin to align with static golden bracket
   const itemWidth = 100;
   const basePatternLength = strip.basePatternLength || 30;
 
-  // Generate random final position within the strip
-  const totalStripWidth = strip.enchantments.length * itemWidth;
-  const minSpinDistance = basePatternLength * itemWidth * 3; // At least 3 full cycles
-  const randomExtraDistance = Math.random() * basePatternLength * itemWidth * 2; // Up to 2 extra cycles
+  // Golden bracket is at 250px from viewport left, we want item centered under it
+  const goldenBracketCenter = 250 + 50; // 300px from viewport left
+  const targetItemLeftEdge = 250; // Item's left edge should be at 250px to center under bracket
 
-  const finalPosition = -(minSpinDistance + randomExtraDistance);
+  // Random item selection from base pattern
+  const finalItemIndex = Math.floor(Math.random() * basePatternLength);
 
-  console.log('Spinning to position:', finalPosition);
+  // Add extra spinning for visual effect
+  const extraSpins = 3 + Math.random() * 2; // 3-5 extra full cycles
+  const totalSpinDistance = extraSpins * basePatternLength * itemWidth;
+
+  // Calculate final position: position the target item's left edge at 250px from viewport
+  const finalPosition = -(finalItemIndex * itemWidth) - totalSpinDistance + targetItemLeftEdge;
+
+  console.log('Spinning to align item', finalItemIndex, 'under golden bracket at position:', finalPosition);
 
   // Apply the transition and movement
   strip.style.transition = 'transform 5.5s cubic-bezier(0.23,1,0.320,1)';
@@ -2373,16 +2375,11 @@ function spinEnchantStrip() {
   setTimeout(() => {
     wheelSpinning = false;
 
-    // Find which item is under the golden frame (at 250px position within the strip)
-    const stripTransform = parseFloat(strip.style.transform.match(/-?[\d.]+/)[0]) || 0;
-    const goldenFramePosition = 250; // Golden frame is at 250px from strip start
-    const itemUnderFrame = Math.floor((goldenFramePosition - stripTransform) / itemWidth);
-    const adjustedIndex = ((itemUnderFrame % strip.enchantments.length) + strip.enchantments.length) % strip.enchantments.length;
+    // The winning enchantment is the one we positioned under the golden bracket
+    const basePattern = strip.enchantments.slice(0, strip.basePatternLength || 30);
+    const wonEnchant = basePattern[finalItemIndex];
 
-    const wonEnchant = strip.enchantments[adjustedIndex];
-
-    console.log('Strip position:', stripTransform, 'Item under frame:', itemUnderFrame, 'Adjusted index:', adjustedIndex);
-    console.log('Won enchantment:', wonEnchant.name);
+    console.log('Won enchantment:', wonEnchant.name, 'at base pattern index:', finalItemIndex);
 
     // Apply enchantment to tower
     applyEnchantment(wonEnchant);
