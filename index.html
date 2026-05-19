@@ -1705,8 +1705,20 @@ async function loadFromDB() {
 
 async function saveToDB() {
   if(!currentUser) return;
-  try { await serverRpc('idw_touch'); } catch(e) { console.warn('touch failed', e); }
-  // Silo state saved via idw_unlock_silo / idw_upgrade_silo RPCs
+  try {
+    // Send current game state to server for persistence
+    const gameState = {
+      resources: resources,
+      playerXP: playerXP,
+      playerLevel: playerLevel,
+      armoryTowers: armoryTowers,
+      // Add other important state as needed
+    };
+    await serverRpc('idw_save_state', { p_state: gameState });
+  } catch(e) {
+    console.warn('save failed, falling back to touch', e);
+    try { await serverRpc('idw_touch'); } catch(e2) { console.warn('touch also failed', e2); }
+  }
 }
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveToDB,5000);}
 
@@ -2183,11 +2195,24 @@ function selectTowerForEnchant(index) {
   // Update UI
   buildEnchantInventory();
 
-  // Show selected tower info
+  // Show selected tower info with enchantment bonuses
   const selectedArea = document.getElementById('enchant-selected-item');
   const selectedCard = document.getElementById('selected-tower-card');
 
   if (selectedArea && selectedCard) {
+    const { currentStats, enchantBonus } = calculateTowerStats(tower, towerDef);
+
+    // Helper function to format stat bonus display
+    const formatBonus = (bonus, isTime = false) => {
+      if (Math.abs(bonus) < 0.01) return '';
+      const sign = bonus > 0 ? '+' : '';
+      const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
+      const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+      return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
+    };
+
+    const enchantCount = tower.enchantments ? tower.enchantments.length : 0;
+
     selectedArea.style.display = 'block';
     selectedCard.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
@@ -2197,10 +2222,12 @@ function selectTowerForEnchant(index) {
           <div style="font-size:12px;color:var(--text2);">${towerDef.desc}</div>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);line-height:1.4;">
-        DMG: ${Math.round(tower.dmg || towerDef.baseStats.dmg)} | Speed: ${(tower.atkSpeed || towerDef.baseStats.atkSpeed).toFixed(2)} | Range: ${Math.round(tower.range || towerDef.baseStats.range)}
-        ${tower.enchantments && tower.enchantments.length > 0 ?
-          '<br>Enchants: ' + tower.enchantments.map(e => e.name).join(', ') : ''}
+      <div style="font-size:11px;color:var(--text3);line-height:1.6;">
+        <div>⚔️ DMG: ${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+        <div>⚡ Speed: ${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div>🎯 Range: ${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+        <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
+        ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
       </div>
     `;
   }
@@ -2380,10 +2407,10 @@ function spinEnchantStrip() {
   strip.style.transform = `translateX(${finalTranslateX}px)`;
 
   // Step 6: After animation completes, use the pre-determined winner directly
-  setTimeout(() => {
+  setTimeout(async () => {
     wheelSpinning = false;
     console.log('[EnchantSpinner] Animation complete. Applying:', wonEnchant.name, '| Centered item index:', targetIndex);
-    applyEnchantment(wonEnchant);
+    await applyEnchantment(wonEnchant);
     showEnchantResult(wonEnchant);
     if (selectedTowerForEnchant !== null) {
       spinBtn.disabled = false;
@@ -2392,11 +2419,83 @@ function spinEnchantStrip() {
   }, SPIN_DURATION);
 }
 
-function applyEnchantment(enchant) {
+async function applyEnchantment(enchant) {
   if (selectedTowerForEnchant === null) return;
 
   const tower = armoryTowers[selectedTowerForEnchant];
+  if (!tower) return;
+
+  try {
+    // Apply enchantment via secure server RPC
+    const result = await serverRpc('idw_apply_enchantment', {
+      p_tower_index: selectedTowerForEnchant,
+      p_enchant: {
+        name: enchant.name,
+        desc: enchant.desc,
+        rarity: enchant.rarity,
+        effect: enchant.effect
+      }
+    });
+
+    // Update local state with server response
+    if (result && result.state) {
+      applyServerPayload(result.state);
+    } else {
+      // Fallback: apply locally and schedule save
+      console.log('Server RPC not available, applying locally');
+      applyEnchantmentLocally(enchant);
+      scheduleSave();
+    }
+
+    // Update UI
+    buildEnchantInventory();
+    renderArmoryGrid(); // Update armory display with new stats
+    updateSelectedTowerDisplay(); // Update the selected tower info panel
+    console.log('Enchantment applied:', enchant.name, 'to tower at index', selectedTowerForEnchant);
+
+  } catch (error) {
+    console.warn('Enchantment server RPC failed, applying locally:', error);
+    // Fallback to local application
+    applyEnchantmentLocally(enchant);
+    scheduleSave();
+    buildEnchantInventory();
+    renderArmoryGrid(); // Update armory display with new stats
+    updateSelectedTowerDisplay(); // Update the selected tower info panel
+  }
+}
+
+function applyEnchantmentLocally(enchant) {
+  if (selectedTowerForEnchant === null) return;
+
+  const tower = armoryTowers[selectedTowerForEnchant];
+  const towerDef = TOWER_DEFS.find(td => td.id === tower.towerId);
+  if (!towerDef) {
+    console.error('Tower definition not found for:', tower.towerId);
+    return;
+  }
+
   if (!tower.enchantments) tower.enchantments = [];
+
+  // Use the tower's current stats as they are - don't override them
+  // If the tower doesn't have explicit stats, calculate them based on level
+  const currentDmg = tower.dmg !== undefined ? tower.dmg : towerDef.baseStats.dmg * (1 + (tower.level - 1) * 0.15);
+  const currentAtkSpeed = tower.atkSpeed !== undefined ? tower.atkSpeed : towerDef.baseStats.atkSpeed * (1 + (tower.level - 1) * 0.15);
+  const currentRange = tower.range !== undefined ? tower.range : towerDef.baseStats.range * (1 + (tower.level - 1) * 0.15);
+  const currentProjectiles = tower.projectiles !== undefined ? tower.projectiles : towerDef.baseStats.projectiles || 1;
+
+  // Set explicit stats on the tower if they weren't there before
+  tower.dmg = currentDmg;
+  tower.atkSpeed = currentAtkSpeed;
+  tower.range = currentRange;
+  tower.projectiles = currentProjectiles;
+
+  console.log('Tower stats before enchantment:', {
+    dmg: tower.dmg,
+    atkSpeed: tower.atkSpeed,
+    range: tower.range,
+    level: tower.level,
+    projectiles: tower.projectiles
+  });
 
   // Add enchantment
   tower.enchantments.push({
@@ -2419,10 +2518,10 @@ function applyEnchantment(enchant) {
       tower.range *= (1 + effect.value);
       break;
     case 'projectiles':
-      tower.projectiles = (tower.projectiles || 1) + effect.value;
+      tower.projectiles += effect.value;
       break;
     case 'level':
-      tower.level += effect.value;
+      tower.level = (tower.level || 1) + effect.value;
       break;
     case 'allStats':
       tower.atkSpeed *= (1 + effect.value);
@@ -2431,9 +2530,58 @@ function applyEnchantment(enchant) {
       break;
   }
 
-  // Update inventory display
-  buildEnchantInventory();
-  selectTowerForEnchant(selectedTowerForEnchant); // Refresh selected tower info
+  console.log('Enchantment applied locally:', enchant.name, '(' + effect.type + ' +' + (effect.value * 100).toFixed(1) + '%)');
+  console.log('New tower stats:', {
+    dmg: Math.round(tower.dmg * 100) / 100,
+    atkSpeed: Math.round(tower.atkSpeed * 100) / 100,
+    range: Math.round(tower.range * 100) / 100,
+    level: tower.level,
+    projectiles: tower.projectiles
+  });
+}
+
+function updateSelectedTowerDisplay() {
+  if (selectedTowerForEnchant === null) return;
+
+  const tower = armoryTowers[selectedTowerForEnchant];
+  const towerDef = TOWER_DEFS.find(td => td.id === tower.towerId);
+
+  if (!tower || !towerDef) return;
+
+  const selectedArea = document.getElementById('enchant-selected-item');
+  const selectedCard = document.getElementById('selected-tower-card');
+
+  if (selectedArea && selectedCard) {
+    const { currentStats, enchantBonus } = calculateTowerStats(tower, towerDef);
+
+    // Helper function to format stat bonus display
+    const formatBonus = (bonus, isTime = false) => {
+      if (Math.abs(bonus) < 0.01) return '';
+      const sign = bonus > 0 ? '+' : '';
+      const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
+      const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+      return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
+    };
+
+    const enchantCount = tower.enchantments ? tower.enchantments.length : 0;
+
+    selectedCard.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <span style="font-size:24px;">${towerDef.icon}</span>
+        <div>
+          <div style="font-weight:600;color:var(--text);">${towerDef.name} Level ${tower.level || 1}</div>
+          <div style="font-size:12px;color:var(--text2);">${towerDef.desc}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.6;">
+        <div>⚔️ DMG: ${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+        <div>⚡ Speed: ${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div>🎯 Range: ${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+        <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
+        ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
+      </div>
+    `;
+  }
 }
 
 function showEnchantResult(enchant) {
@@ -3628,12 +3776,69 @@ function switchInvTab(name) {
   });
 }
 
+function calculateTowerStats(tower, towerDef) {
+  // Log the actual tower object to debug
+  console.log('Tower object:', tower);
+
+  // Get the tower's actual current stats (these are the real stats we should use)
+  const currentStats = {
+    dmg: tower.dmg || towerDef.baseStats.dmg,
+    atkSpeed: tower.atkSpeed || towerDef.baseStats.atkSpeed,
+    range: tower.range || towerDef.baseStats.range,
+    projectiles: tower.projectiles || towerDef.baseStats.projectiles || 1
+  };
+
+  // Calculate what the base + level stats should be (without enchantments)
+  const baseStats = {
+    dmg: towerDef.baseStats.dmg,
+    atkSpeed: towerDef.baseStats.atkSpeed,
+    range: towerDef.baseStats.range,
+    projectiles: towerDef.baseStats.projectiles || 1
+  };
+
+  // Apply level bonuses to base stats (15% per level above 1)
+  const levelMultiplier = 1 + (tower.level - 1) * 0.15;
+  const baseWithLevel = {
+    dmg: baseStats.dmg * levelMultiplier,
+    atkSpeed: baseStats.atkSpeed * levelMultiplier,
+    range: baseStats.range * levelMultiplier,
+    projectiles: baseStats.projectiles
+  };
+
+  // If tower has no enchantments, current stats should match base+level
+  // If tower has enchantments, current stats will be higher due to enchant bonuses
+  const hasExplicitStats = tower.dmg !== undefined || tower.atkSpeed !== undefined || tower.range !== undefined;
+
+  let enchantBonus;
+  if (hasExplicitStats) {
+    // Tower has explicit stats - calculate enchantment bonus
+    enchantBonus = {
+      dmg: currentStats.dmg - baseWithLevel.dmg,
+      atkSpeed: currentStats.atkSpeed - baseWithLevel.atkSpeed,
+      range: currentStats.range - baseWithLevel.range,
+      projectiles: currentStats.projectiles - baseWithLevel.projectiles
+    };
+  } else {
+    // Tower has no explicit stats - no enchantments yet
+    enchantBonus = {
+      dmg: 0,
+      atkSpeed: 0,
+      range: 0,
+      projectiles: 0
+    };
+  }
+
+  console.log('Calculated stats:', { currentStats, baseWithLevel, enchantBonus, hasExplicitStats });
+
+  return { baseStats, baseWithLevel, currentStats, enchantBonus };
+}
+
 function openArmorySlotModal(slotIdx) {
   const entry = armoryTowers[slotIdx];
   if (!entry) return;
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
   if (!td) return;
-  const stats = towerStatsAtLevel(td, entry.level);
+  const { currentStats, enchantBonus } = calculateTowerStats(entry, td);
   const disenchantRes = towerDisenchantValue(td);
   const disStr = Object.entries(disenchantRes).map(([k,v]) => {
     const def = RESOURCE_DEFS.find(r=>r.id===k);
@@ -3646,6 +3851,18 @@ function openArmorySlotModal(slotIdx) {
   }).join(' + ');
   const canUpgAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
 
+  // Helper function to format stat bonus display
+  const formatBonus = (bonus, isTime = false) => {
+    if (Math.abs(bonus) < 0.01) return '';
+    const sign = bonus > 0 ? '+' : '';
+    const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
+    const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+    return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
+  };
+
+  const enchantCount = entry.enchantments ? entry.enchantments.length : 0;
+  const enchantsList = entry.enchantments ? entry.enchantments.map(e => `<div style="font-size:11px;padding:4px 8px;background:var(--bg4);border-radius:4px;color:var(--text2);">${e.name}</div>`).join('') : '';
+
   document.getElementById('item-modal-content').innerHTML = `
     <div class="bmodal-header">
       <div>
@@ -3656,11 +3873,29 @@ function openArmorySlotModal(slotIdx) {
       <button class="bmodal-close" onclick="closeItemModal()">✕</button>
     </div>
     <div class="bmodal-stat-grid">
-      <div class="bmodal-stat"><div class="bmodal-stat-label">Damage</div><div class="bmodal-stat-value">${stats.dmg}</div></div>
-      <div class="bmodal-stat"><div class="bmodal-stat-label">Atk Speed</div><div class="bmodal-stat-value">${stats.atkSpeed}s</div></div>
-      <div class="bmodal-stat"><div class="bmodal-stat-label">Range</div><div class="bmodal-stat-value">${stats.range}</div></div>
-      <div class="bmodal-stat"><div class="bmodal-stat-label">Projectiles</div><div class="bmodal-stat-value">${stats.projectiles}</div></div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">⚔️ Damage</div>
+        <div class="bmodal-stat-value">${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">⚡ Atk Speed</div>
+        <div class="bmodal-stat-value">${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">🎯 Range</div>
+        <div class="bmodal-stat-value">${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">🏹 Projectiles</div>
+        <div class="bmodal-stat-value">${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
+      </div>
     </div>
+    ${enchantCount > 0 ? `
+      <div style="margin:12px 0;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">✨ Enchantments (${enchantCount})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${enchantsList}</div>
+      </div>
+    ` : ''}
     ${td.special ? `<div style="background:var(--bg3);border-radius:9px;padding:0.7rem 1rem;font-size:12px;color:var(--orange);margin-bottom:1rem;">⚡ ${td.special}</div>` : ''}
     <div class="info-row"><span class="info-row-label">Disenchant value</span><span style="color:var(--gold);">${disStr}</span></div>
     <div style="margin-top:1rem;display:flex;flex-direction:column;gap:0.5rem;">

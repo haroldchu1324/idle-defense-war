@@ -136,11 +136,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 
 /* Enchanting Strip */
 .strip-container{display:flex;flex-direction:column;align-items:center;gap:16px;flex:1;justify-content:center;position:relative;}
+.strip-wrapper{position:relative;display:inline-block;}
 .strip-viewport{width:600px;height:84px;overflow:hidden;position:relative;border-radius:8px;background:var(--bg2);border:2px solid var(--border);}
 .enchant-strip{display:flex;height:100%;transition:transform 5s cubic-bezier(0.23,1,0.320,1);will-change:transform;}
 
-/* Static golden frame overlay - positioned outside viewport to avoid clipping */
-.golden-selection-overlay{position:absolute;width:100px;height:94px;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 20px rgba(240,192,64,0.6), inset 0 0 20px rgba(240,192,64,0.3);background:rgba(240,192,64,0.15);pointer-events:none;z-index:100;top:-5px;left:250px;}
+/* Golden frame overlay - centered over the viewport */
+.golden-selection-overlay{position:absolute;width:100px;height:94px;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 20px rgba(240,192,64,0.6), inset 0 0 20px rgba(240,192,64,0.3);background:rgba(240,192,64,0.15);pointer-events:none;z-index:100;top:-5px;left:50%;transform:translateX(-50%);}
+/* Red selection arrow pointing down at the top center of the golden border */
+.selection-arrow{position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:14px solid #e53935;filter:drop-shadow(0 0 4px rgba(229,57,53,0.8));}
 
 /* Strip items */
 .strip-item{min-width:100px;width:100px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,0.8);color:white;border-right:1px solid rgba(255,255,255,0.1);position:relative;}
@@ -1023,12 +1026,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
               <div class="enchant-wheel-area">
                 <div class="enchant-section-title">✨ Enchantment Spinner</div>
                 <div class="strip-container">
-                  <!-- Static golden selection overlay - outside viewport to avoid clipping -->
-                  <div class="golden-selection-overlay"></div>
-                  <!-- Spinning strip viewport -->
-                  <div class="strip-viewport">
-                    <div class="enchant-strip" id="enchant-strip">
-                      <!-- Strip items will be populated here -->
+                  <!-- Wrapper keeps overlay and viewport together so overlay centering is relative to viewport -->
+                  <div class="strip-wrapper">
+                    <!-- Golden selection border - centered via left:50% + translateX(-50%) -->
+                    <div class="golden-selection-overlay">
+                      <!-- Red arrow points down at the exact selection center -->
+                      <div class="selection-arrow"></div>
+                    </div>
+                    <!-- Spinning strip viewport -->
+                    <div class="strip-viewport">
+                      <div class="enchant-strip" id="enchant-strip">
+                        <!-- Strip items will be populated here -->
+                      </div>
                     </div>
                   </div>
 
@@ -2314,92 +2323,73 @@ function getEnchantIcon(effectType) {
 }
 
 function spinEnchantStrip() {
-  if (wheelSpinning || selectedTowerForEnchant === null) {
-    console.log('Cannot spin: wheelSpinning =', wheelSpinning, 'selectedTower =', selectedTowerForEnchant);
-    return;
-  }
+  if (wheelSpinning || selectedTowerForEnchant === null) return;
 
   const strip = document.getElementById('enchant-strip');
   const spinBtn = document.getElementById('spin-button');
   const result = document.getElementById('wheel-result');
 
-  if (!strip) {
-    console.log('Strip element not found');
-    return;
-  }
+  if (!strip) return;
 
   if (!strip.enchantments || strip.enchantments.length === 0) {
-    console.log('No enchantments on strip, generating...');
     generateEnchantStrip();
     if (!strip.enchantments) return;
   }
-
-  console.log('Starting spin with', strip.enchantments.length, 'enchantments');
 
   wheelSpinning = true;
   spinBtn.disabled = true;
   spinBtn.textContent = '🎰 Spinning...';
   result.style.display = 'none';
 
-  // Reset any existing translation
+  const ITEM_WIDTH = 100;
+  const VIEWPORT_WIDTH = 600;
+  const VIEWPORT_CENTER = VIEWPORT_WIDTH / 2; // 300px — exact center of the 600px viewport
+  const SPIN_DURATION = 5500;
+
+  // Step 1: Pre-determine the winner using weighted probability
+  const wonEnchant = getRandomEnchant();
+
+  // Step 2: Find all strip indices where this enchantment appears
+  const matchingIndices = strip.enchantments.reduce((acc, e, i) => {
+    if (e.id === wonEnchant.id) acc.push(i);
+    return acc;
+  }, []);
+
+  // Step 3: Pick a target index in the latter half for a satisfying spin distance
+  const minIdx = Math.floor(strip.enchantments.length * 0.55);
+  const maxIdx = Math.floor(strip.enchantments.length * 0.85);
+  const goodIndices = matchingIndices.filter(i => i >= minIdx && i <= maxIdx);
+  const candidates = goodIndices.length > 0 ? goodIndices : matchingIndices;
+  const targetIndex = candidates[Math.floor(Math.random() * candidates.length)];
+
+  // Step 4: Calculate exact translateX so item at targetIndex is perfectly centered
+  // Item center = targetIndex * ITEM_WIDTH + ITEM_WIDTH/2
+  // We need: translateX + item_center = VIEWPORT_CENTER
+  // So: translateX = VIEWPORT_CENTER - targetIndex * ITEM_WIDTH - ITEM_WIDTH / 2
+  const finalTranslateX = VIEWPORT_CENTER - targetIndex * ITEM_WIDTH - ITEM_WIDTH / 2;
+
+  // Debug log
+  console.log('[EnchantSpinner] Winner:', wonEnchant.name, '| Target index:', targetIndex, '| Final translateX:', finalTranslateX);
+
+  // Step 5: Reset strip to start position, then animate to the computed endpoint
   strip.style.transition = 'none';
   strip.style.transform = 'translateX(0px)';
+  strip.offsetHeight; // force reflow so reset applies before transition
 
-  // Force a reflow
-  strip.offsetHeight;
+  strip.style.transition = `transform ${SPIN_DURATION / 1000}s cubic-bezier(0.23,1,0.320,1)`;
+  strip.style.transform = `translateX(${finalTranslateX}px)`;
 
-  // Calculate spin to align with static golden bracket
-  const itemWidth = 100;
-  const basePatternLength = strip.basePatternLength || 30;
-
-  // Golden bracket is at 250px from viewport left, we want item centered under it
-  const goldenBracketCenter = 250 + 50; // 300px from viewport left
-  const targetItemLeftEdge = 250; // Item's left edge should be at 250px to center under bracket
-
-  // Random item selection from base pattern
-  const finalItemIndex = Math.floor(Math.random() * basePatternLength);
-
-  // Add extra spinning for visual effect
-  const extraSpins = 3 + Math.random() * 2; // 3-5 extra full cycles
-  const totalSpinDistance = extraSpins * basePatternLength * itemWidth;
-
-  // Calculate final position: position the target item's left edge at 250px from viewport
-  const finalPosition = -(finalItemIndex * itemWidth) - totalSpinDistance + targetItemLeftEdge;
-
-  console.log('Spinning to align item', finalItemIndex, 'under golden bracket at position:', finalPosition);
-
-  // Apply the transition and movement
-  strip.style.transition = 'transform 5.5s cubic-bezier(0.23,1,0.320,1)';
-  strip.style.transform = `translateX(${finalPosition}px)`;
-
+  // Step 6: After animation completes, use the pre-determined winner directly
   setTimeout(() => {
     wheelSpinning = false;
-
-    // Find which item is actually under the golden bracket after spinning
-    const stripTransform = parseFloat(strip.style.transform.match(/-?[\d.]+/)[0]) || 0;
-    const goldenBracketPosition = 250; // Golden bracket is at 250px from container left
-
-    // Calculate which item index is at the bracket position
-    const itemAtBracket = Math.floor((goldenBracketPosition - stripTransform) / itemWidth);
-    const actualIndex = ((itemAtBracket % strip.enchantments.length) + strip.enchantments.length) % strip.enchantments.length;
-
-    const wonEnchant = strip.enchantments[actualIndex];
-
-    console.log('Strip transform:', stripTransform, 'Item at bracket position:', itemAtBracket, 'Actual index:', actualIndex);
-    console.log('Won enchantment:', wonEnchant.name);
-
-    // Apply enchantment to tower
+    console.log('[EnchantSpinner] Animation complete. Applying:', wonEnchant.name, '| Centered item index:', targetIndex);
     applyEnchantment(wonEnchant);
-
-    // Show result
     showEnchantResult(wonEnchant);
-
-    // Reset button
     if (selectedTowerForEnchant !== null) {
       spinBtn.disabled = false;
       spinBtn.textContent = '🎰 Spin Again';
     }
-  }, 5500); // 5.5 second spin duration
+  }, SPIN_DURATION);
 }
 
 function applyEnchantment(enchant) {

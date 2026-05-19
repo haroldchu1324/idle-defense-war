@@ -430,6 +430,158 @@ begin
   return jsonb_build_object('reward',reward,'state',public.idw_get_state());
 end $$;
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ENCHANTMENT SYSTEM FUNCTIONS
+-- ══════════════════════════════════════════════════════════════════════════════
+
+create or replace function public.idw_apply_enchantment(p_tower_index int, p_enchant jsonb)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  armory jsonb;
+  tower jsonb;
+  effect jsonb;
+  effect_type text;
+  effect_value numeric;
+  new_armory jsonb;
+begin
+  -- Ensure player exists and get current state
+  p := public.idw_ensure_player();
+  p := public.idw_tick_upgrades(p);
+  p := public.idw_tick_silo_upgrades(p);
+
+  -- Validate inputs
+  if p_tower_index < 0 or p_tower_index >= jsonb_array_length(p.armory) then
+    raise exception 'Invalid tower index: %', p_tower_index;
+  end if;
+
+  if not (p_enchant ? 'name' and p_enchant ? 'effect') then
+    raise exception 'Invalid enchantment data';
+  end if;
+
+  -- Get the tower to enchant
+  tower := p.armory->p_tower_index;
+  if tower is null or not (tower ? 'towerId') then
+    raise exception 'Tower not found at index: %', p_tower_index;
+  end if;
+
+  -- Initialize enchantments array if it doesn't exist
+  if not (tower ? 'enchantments') then
+    tower := jsonb_set(tower, '{enchantments}', '[]'::jsonb);
+  end if;
+
+  -- Add the new enchantment to the tower
+  tower := jsonb_set(tower, '{enchantments}', (tower->'enchantments') || jsonb_build_array(p_enchant));
+
+  -- Apply stat modifications based on enchantment effect
+  effect := p_enchant->'effect';
+  effect_type := effect->>'type';
+  effect_value := (effect->>'value')::numeric;
+
+  -- Initialize tower stats if they don't exist (based on level)
+  -- These base stats should come from tower definitions, but for now use reasonable defaults
+  if not (tower ? 'dmg') then
+    -- Apply level scaling: base * (1 + (level-1) * 0.15)
+    case tower->>'towerId'
+      when 'archer' then tower := jsonb_set(tower, '{dmg}', to_jsonb(25 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult' then tower := jsonb_set(tower, '{dmg}', to_jsonb(80 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow' then tower := jsonb_set(tower, '{dmg}', to_jsonb(45 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else tower := jsonb_set(tower, '{dmg}', to_jsonb(25 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+    end case;
+  end if;
+
+  if not (tower ? 'atkSpeed') then
+    case tower->>'towerId'
+      when 'archer' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(3.0 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(2.2 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+    end case;
+  end if;
+
+  if not (tower ? 'range') then
+    case tower->>'towerId'
+      when 'archer' then tower := jsonb_set(tower, '{range}', to_jsonb(150 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult' then tower := jsonb_set(tower, '{range}', to_jsonb(200 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow' then tower := jsonb_set(tower, '{range}', to_jsonb(180 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else tower := jsonb_set(tower, '{range}', to_jsonb(150 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+    end case;
+  end if;
+
+  if not (tower ? 'projectiles') then
+    tower := jsonb_set(tower, '{projectiles}', to_jsonb(1));
+  end if;
+
+  -- Now apply enchantment effects
+  case effect_type
+    when 'damage' then
+      tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
+    when 'atkSpeed' then
+      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 + effect_value)));
+    when 'range' then
+      tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
+    when 'projectiles' then
+      tower := jsonb_set(tower, '{projectiles}', to_jsonb((tower->>'projectiles')::numeric + effect_value));
+    when 'level' then
+      tower := jsonb_set(tower, '{level}', to_jsonb((tower->>'level')::numeric + effect_value));
+    when 'allStats' then
+      tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
+      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 + effect_value)));
+      tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
+    else
+      raise exception 'Unknown enchantment effect type: %', effect_type;
+  end case;
+
+  -- Update the tower in the armory
+  new_armory := jsonb_set(p.armory, array[p_tower_index::text], tower);
+
+  -- Save the updated armory
+  update public.idw_player_state
+  set armory = new_armory, updated_at = now()
+  where user_id = p.user_id;
+
+  -- Return updated game state
+  return jsonb_build_object('v2', public.idw_state_to_v2((select * from public.idw_player_state where user_id = p.user_id)));
+end $$;
+
+create or replace function public.idw_save_state(p_state jsonb)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+begin
+  -- Ensure player exists
+  p := public.idw_ensure_player();
+
+  -- Update player state with provided data
+  -- Only update fields that are provided and valid
+  if p_state ? 'resources' then
+    update public.idw_player_state
+    set resources = p_state->'resources', updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  if p_state ? 'playerXP' then
+    update public.idw_player_state
+    set player_xp = coalesce((p_state->>'playerXP')::integer, player_xp), updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  if p_state ? 'playerLevel' then
+    update public.idw_player_state
+    set player_level = greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  if p_state ? 'armoryTowers' then
+    update public.idw_player_state
+    set armory = p_state->'armoryTowers', updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  -- Return success confirmation with updated state
+  return public.idw_get_state();
+end $$;
+
 grant execute on function public.idw_get_state() to authenticated;
 grant execute on function public.idw_touch() to authenticated;
 grant execute on function public.idw_collect_resource(text,int) to authenticated;
@@ -441,6 +593,8 @@ grant execute on function public.idw_unlock_silo(text,int,int) to authenticated;
 grant execute on function public.idw_start_silo_upgrade(text,int,int) to authenticated;
 grant execute on function public.idw_tick_silo_upgrades(public.idw_player_state) to authenticated;
 grant execute on function public.idw_submit_battle_result(uuid,boolean,int,int,int) to authenticated;
+grant execute on function public.idw_apply_enchantment(int,jsonb) to authenticated;
+grant execute on function public.idw_save_state(jsonb) to authenticated;
 
 -- ── PVP world map ──────────────────────────────────────────────────────────
 
