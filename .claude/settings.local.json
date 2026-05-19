@@ -6,7 +6,26 @@
       "Bash(python -m http.server 8000)",
       "Bash(grep -n -A 5 -B 5 \"];$\\\\|}\\\\s*;$\" index.html)",
       "Bash(grep *)",
-      "Bash(node -c index.html)"
+      "Bash(node -c index.html)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(git commit *)",
+      "Bash(git add *)",
+      "Bash(gh auth *)",
+      "Bash(curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg)",
+      "Bash(sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg)",
+      "Bash(sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg)",
+      "Bash(dpkg --print-architecture)",
+      "Bash(echo \"deb [arch=$\\(dpkg --print-architecture\\) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\")",
+      "Bash(sudo tee /etc/apt/sources.list.d/github-cli.list)",
+      "Bash(sudo apt update)",
+      "Bash(sudo apt install gh)",
+      "Bash(claude *)",
+      "Bash(/web-setup *)",
+      "Bash(git pull *)",
+      "Bash(start *)"
     ]
   }
 }

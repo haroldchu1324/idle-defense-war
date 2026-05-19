@@ -157,7 +157,7 @@ create or replace function public.idw_silo_unlock_cost(p_tier_idx int) returns i
   select (array[0,300,700,1500,3500])[p_tier_idx+1];
 $$;
 create or replace function public.idw_silo_upgrade_cost(p_tier_idx int, p_level int) returns integer language sql immutable as $$
-  select round((array[200,500,1200,3000,8000])[p_tier_idx+1] * power(1.6, greatest(p_level,1)-1))::integer;
+  select round((array[2500,6250,15000,37500,100000])[p_tier_idx+1] * power(1.6, greatest(p_level,1)-1))::integer;
 $$;
 create or replace function public.idw_silo_upgrade_duration_ms(p_tier_idx int, p_level int) returns integer language sql immutable as $$
   select (round(20.0 * greatest(p_level,1) * (1.0 + p_tier_idx * 0.5)) * 1000)::integer;
@@ -279,9 +279,9 @@ begin
   return jsonb_build_object('v2', public.idw_state_to_v2(p));
 end $$;
 
-create or replace function public.idw_unlock_silo(p_res_id text, p_tier_idx int)
+create or replace function public.idw_unlock_silo(p_res_id text, p_tier_idx int, p_cost int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ss jsonb; cost int; costj jsonb; new_silo jsonb;
+declare p public.idw_player_state; ss jsonb; costj jsonb; new_silo jsonb;
 begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid silo'; end if;
   p := public.idw_ensure_player();
@@ -289,8 +289,7 @@ begin
   ss := new_silo->p_res_id->p_tier_idx;
   if coalesce((ss->>'unlocked')::boolean,false) then return public.idw_get_state(); end if;
   if p_tier_idx > 0 and not coalesce((new_silo->p_res_id->(p_tier_idx-1)->>'unlocked')::boolean,false) then raise exception 'Previous tier not unlocked'; end if;
-  cost := public.idw_silo_unlock_cost(p_tier_idx);
-  costj := jsonb_build_object(p_res_id, cost);
+  costj := jsonb_build_object(p_res_id, p_cost);
   if not public.idw_can_pay(p.resources, costj) then raise exception 'Not enough resources'; end if;
   ss := jsonb_set(ss,'{unlocked}','true'::jsonb,true);
   new_silo := jsonb_set(new_silo, array[p_res_id,p_tier_idx::text], ss, true);
@@ -298,9 +297,9 @@ begin
   return public.idw_get_state();
 end $$;
 
-create or replace function public.idw_start_silo_upgrade(p_res_id text, p_tier_idx int)
+create or replace function public.idw_start_silo_upgrade(p_res_id text, p_tier_idx int, p_cost int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ss jsonb; lvl int; cost int; costj jsonb; new_silo jsonb; now_ms numeric := extract(epoch from now())*1000; dur_ms int;
+declare p public.idw_player_state; ss jsonb; lvl int; costj jsonb; new_silo jsonb; now_ms numeric := extract(epoch from now())*1000; dur_ms int;
 begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid silo'; end if;
   p := public.idw_tick_silo_upgrades(public.idw_ensure_player());
@@ -308,14 +307,13 @@ begin
   ss := new_silo->p_res_id->p_tier_idx;
   if not coalesce((ss->>'unlocked')::boolean,false) or coalesce((ss->>'upgrading')::boolean,false) then raise exception 'Cannot upgrade silo'; end if;
   lvl := coalesce((ss->>'level')::int,1);
-  cost := public.idw_silo_upgrade_cost(p_tier_idx, lvl);
-  costj := jsonb_build_object(p_res_id, cost);
+  costj := jsonb_build_object(p_res_id, p_cost);
   if not public.idw_can_pay(p.resources, costj) then raise exception 'Not enough resources'; end if;
   dur_ms := public.idw_silo_upgrade_duration_ms(p_tier_idx, lvl);
   ss := jsonb_set(ss,'{upgrading}','true'::jsonb,true);
   ss := jsonb_set(ss,'{upgradeStartMs}',to_jsonb(now_ms),true);
   ss := jsonb_set(ss,'{upgradeDurationMs}',to_jsonb(dur_ms),true);
-  ss := jsonb_set(ss,'{upgradeCostPaid}',to_jsonb(cost),true);
+  ss := jsonb_set(ss,'{upgradeCostPaid}',to_jsonb(p_cost),true);
   new_silo := jsonb_set(new_silo, array[p_res_id,p_tier_idx::text], ss, true);
   update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, public.idw_negative(costj)), silo=new_silo, updated_at=now() where user_id=p.user_id;
   return public.idw_get_state();
@@ -346,16 +344,16 @@ begin
   return public.idw_get_state();
 end $$;
 
-create or replace function public.idw_unlock_node(p_res_id text, p_tier_idx int)
+create or replace function public.idw_unlock_node(p_res_id text, p_tier_idx int, p_cost int, p_currency text)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; cost int; currency text; ns jsonb; n jsonb; costj jsonb; now_ms numeric := extract(epoch from now())*1000;
+declare p public.idw_player_state; ns jsonb; n jsonb; costj jsonb; now_ms numeric := extract(epoch from now())*1000;
 begin
   p:=public.idw_ensure_player();
   if p_tier_idx not between 1 and 4 then raise exception 'Invalid tier'; end if;
   if p.player_level < public.idw_level_unlock(p_tier_idx) then raise exception 'Need higher level'; end if;
   ns := p.nodes->p_res_id->p_tier_idx;
   if coalesce((ns->>'unlocked')::boolean,false) then return public.idw_get_state(); end if;
-  currency := public.idw_res_cost_currency(p_res_id); cost := public.idw_node_unlock_cost(p_res_id,p_tier_idx); costj:=jsonb_build_object(currency,cost);
+  costj:=jsonb_build_object(p_currency,p_cost);
   if not public.idw_can_pay(p.resources,costj) then raise exception 'Not enough resources'; end if;
   ns := jsonb_set(ns,'{unlocked}','true'::jsonb,true); ns := jsonb_set(ns,'{lastCollectAt}',to_jsonb(now_ms),true);
   n := jsonb_set(p.nodes,array[p_res_id,p_tier_idx::text],ns,true);
@@ -363,17 +361,17 @@ begin
   return public.idw_get_state();
 end $$;
 
-create or replace function public.idw_start_node_upgrade(p_res_id text, p_tier_idx int)
+create or replace function public.idw_start_node_upgrade(p_res_id text, p_tier_idx int, p_cost int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ns jsonb; lvl int; cost int; currency text; costj jsonb; n jsonb; now_ms numeric := extract(epoch from now())*1000; duration_ms int;
+declare p public.idw_player_state; ns jsonb; lvl int; currency text; costj jsonb; n jsonb; now_ms numeric := extract(epoch from now())*1000; duration_ms int;
 begin
   p:=public.idw_tick_upgrades(public.idw_ensure_player());
   ns := p.nodes->p_res_id->p_tier_idx; lvl:=coalesce((ns->>'upgradeLevel')::int,1);
   if not coalesce((ns->>'unlocked')::boolean,false) or coalesce((ns->>'upgrading')::boolean,false) or lvl>=50 then raise exception 'Cannot upgrade'; end if;
-  currency:=public.idw_res_cost_currency(p_res_id); cost:=public.idw_node_upgrade_cost(p_tier_idx,lvl); costj:=jsonb_build_object(currency,cost);
+  currency:=public.idw_res_cost_currency(p_res_id); costj:=jsonb_build_object(currency,p_cost);
   if not public.idw_can_pay(p.resources,costj) then raise exception 'Not enough resources'; end if;
   duration_ms := greatest(5000, floor(5000.0 * power(1.4, lvl-1)))::int;
-  ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true); ns := jsonb_set(ns,'{upgrading}','true'::jsonb,true); ns:=jsonb_set(ns,'{upgradeStartMs}',to_jsonb(now_ms),true); ns:=jsonb_set(ns,'{upgradeDurationMs}',to_jsonb(duration_ms),true); ns:=jsonb_set(ns,'{upgradeCostPaid}',to_jsonb(cost),true);
+  ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true); ns := jsonb_set(ns,'{upgrading}','true'::jsonb,true); ns:=jsonb_set(ns,'{upgradeStartMs}',to_jsonb(now_ms),true); ns:=jsonb_set(ns,'{upgradeDurationMs}',to_jsonb(duration_ms),true); ns:=jsonb_set(ns,'{upgradeCostPaid}',to_jsonb(p_cost),true);
   n := jsonb_set(p.nodes,array[p_res_id,p_tier_idx::text],ns,true);
   update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, public.idw_negative(costj)), nodes=n, updated_at=now() where user_id=p.user_id;
   return public.idw_get_state();
@@ -432,17 +430,171 @@ begin
   return jsonb_build_object('reward',reward,'state',public.idw_get_state());
 end $$;
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ENCHANTMENT SYSTEM FUNCTIONS
+-- ══════════════════════════════════════════════════════════════════════════════
+
+create or replace function public.idw_apply_enchantment(p_tower_index int, p_enchant jsonb)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  armory jsonb;
+  tower jsonb;
+  effect jsonb;
+  effect_type text;
+  effect_value numeric;
+  new_armory jsonb;
+begin
+  -- Ensure player exists and get current state
+  p := public.idw_ensure_player();
+  p := public.idw_tick_upgrades(p);
+  p := public.idw_tick_silo_upgrades(p);
+
+  -- Validate inputs
+  if p_tower_index < 0 or p_tower_index >= jsonb_array_length(p.armory) then
+    raise exception 'Invalid tower index: %', p_tower_index;
+  end if;
+
+  if not (p_enchant ? 'name' and p_enchant ? 'effect') then
+    raise exception 'Invalid enchantment data';
+  end if;
+
+  -- Get the tower to enchant
+  tower := p.armory->p_tower_index;
+  if tower is null or not (tower ? 'towerId') then
+    raise exception 'Tower not found at index: %', p_tower_index;
+  end if;
+
+  -- Initialize enchantments array if it doesn't exist
+  if not (tower ? 'enchantments') then
+    tower := jsonb_set(tower, '{enchantments}', '[]'::jsonb);
+  end if;
+
+  -- Add the new enchantment to the tower
+  tower := jsonb_set(tower, '{enchantments}', (tower->'enchantments') || jsonb_build_array(p_enchant));
+
+  -- Apply stat modifications based on enchantment effect
+  effect := p_enchant->'effect';
+  effect_type := effect->>'type';
+  effect_value := (effect->>'value')::numeric;
+
+  -- Initialize tower stats if they don't exist (based on level)
+  -- These base stats should come from tower definitions, but for now use reasonable defaults
+  if not (tower ? 'dmg') then
+    -- Apply level scaling: base * (1 + (level-1) * 0.15)
+    case tower->>'towerId'
+      when 'archer' then tower := jsonb_set(tower, '{dmg}', to_jsonb(25 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult' then tower := jsonb_set(tower, '{dmg}', to_jsonb(80 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow' then tower := jsonb_set(tower, '{dmg}', to_jsonb(45 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else tower := jsonb_set(tower, '{dmg}', to_jsonb(25 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+    end case;
+  end if;
+
+  if not (tower ? 'atkSpeed') then
+    case tower->>'towerId'
+      when 'archer' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(3.0 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(2.2 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+    end case;
+  end if;
+
+  if not (tower ? 'range') then
+    case tower->>'towerId'
+      when 'archer' then tower := jsonb_set(tower, '{range}', to_jsonb(150 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult' then tower := jsonb_set(tower, '{range}', to_jsonb(200 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow' then tower := jsonb_set(tower, '{range}', to_jsonb(180 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else tower := jsonb_set(tower, '{range}', to_jsonb(150 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+    end case;
+  end if;
+
+  if not (tower ? 'projectiles') then
+    tower := jsonb_set(tower, '{projectiles}', to_jsonb(1));
+  end if;
+
+  -- Now apply enchantment effects
+  case effect_type
+    when 'damage' then
+      tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
+    when 'atkSpeed' then
+      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 + effect_value)));
+    when 'range' then
+      tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
+    when 'projectiles' then
+      tower := jsonb_set(tower, '{projectiles}', to_jsonb((tower->>'projectiles')::numeric + effect_value));
+    when 'level' then
+      tower := jsonb_set(tower, '{level}', to_jsonb((tower->>'level')::numeric + effect_value));
+    when 'allStats' then
+      tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
+      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 + effect_value)));
+      tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
+    else
+      raise exception 'Unknown enchantment effect type: %', effect_type;
+  end case;
+
+  -- Update the tower in the armory
+  new_armory := jsonb_set(p.armory, array[p_tower_index::text], tower);
+
+  -- Save the updated armory
+  update public.idw_player_state
+  set armory = new_armory, updated_at = now()
+  where user_id = p.user_id;
+
+  -- Return updated game state
+  return jsonb_build_object('v2', public.idw_state_to_v2((select * from public.idw_player_state where user_id = p.user_id)));
+end $$;
+
+create or replace function public.idw_save_state(p_state jsonb)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+begin
+  -- Ensure player exists
+  p := public.idw_ensure_player();
+
+  -- Update player state with provided data
+  -- Only update fields that are provided and valid
+  if p_state ? 'resources' then
+    update public.idw_player_state
+    set resources = p_state->'resources', updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  if p_state ? 'playerXP' then
+    update public.idw_player_state
+    set player_xp = coalesce((p_state->>'playerXP')::integer, player_xp), updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  if p_state ? 'playerLevel' then
+    update public.idw_player_state
+    set player_level = greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  if p_state ? 'armoryTowers' then
+    update public.idw_player_state
+    set armory = p_state->'armoryTowers', updated_at = now()
+    where user_id = p.user_id;
+  end if;
+
+  -- Return success confirmation with updated state
+  return public.idw_get_state();
+end $$;
+
 grant execute on function public.idw_get_state() to authenticated;
 grant execute on function public.idw_touch() to authenticated;
 grant execute on function public.idw_collect_resource(text,int) to authenticated;
-grant execute on function public.idw_unlock_node(text,int) to authenticated;
-grant execute on function public.idw_start_node_upgrade(text,int) to authenticated;
+grant execute on function public.idw_unlock_node(text,int,int,text) to authenticated;
+grant execute on function public.idw_start_node_upgrade(text,int,int) to authenticated;
 grant execute on function public.idw_craft_tower(text) to authenticated;
 grant execute on function public.idw_start_battle(text,int[]) to authenticated;
-grant execute on function public.idw_unlock_silo(text,int) to authenticated;
-grant execute on function public.idw_start_silo_upgrade(text,int) to authenticated;
+grant execute on function public.idw_unlock_silo(text,int,int) to authenticated;
+grant execute on function public.idw_start_silo_upgrade(text,int,int) to authenticated;
 grant execute on function public.idw_tick_silo_upgrades(public.idw_player_state) to authenticated;
 grant execute on function public.idw_submit_battle_result(uuid,boolean,int,int,int) to authenticated;
+grant execute on function public.idw_apply_enchantment(int,jsonb) to authenticated;
+grant execute on function public.idw_save_state(jsonb) to authenticated;
 
 -- ── PVP world map ──────────────────────────────────────────────────────────
 
