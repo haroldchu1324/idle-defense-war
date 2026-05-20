@@ -5235,9 +5235,12 @@ async function startBattle() {
       await refreshFromServer();
     } catch(e) {
       console.error('idw_start_battle failed:', e);
-      // If start_battle fails, run without server tracking
       currentBattleId = null;
-      serverBattle = { battleId: null, consumedTowers: [] };
+      // Consume selected towers locally so they aren't returned to armory after the battle
+      const fallbackTowers = battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean);
+      battleSelectedTowers.slice().sort((a,b)=>b-a).forEach(i => armoryTowers.splice(i, 1));
+      renderArmoryGrid();
+      serverBattle = { battleId: null, consumedTowers: fallbackTowers };
     }
   }
 
@@ -6647,6 +6650,11 @@ async function showResultScreen(won) {
     } finally {
       currentBattleId = null;
     }
+  } else if (won && stage && !isPvpStage) {
+    // idw_start_battle failed (no battleId) — record stage locally so map advances
+    firstClear = !campCompletedStages.has(stage);
+    campCompletedStages.add(stage);
+    buildCampaignMap();
   }
 
   // Build reward display — separate resources from XP

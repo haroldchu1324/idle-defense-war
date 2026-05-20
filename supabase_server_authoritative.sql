@@ -478,14 +478,20 @@ end $$;
 
 create or replace function public.idw_start_battle(p_stage_id text, p_armory_indexes int[])
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; idx int; towers jsonb:='[]'::jsonb; new_armory jsonb:='[]'::jsonb; i int; attempt_id uuid; can_play boolean; prev text;
+declare p public.idw_player_state; idx int; towers jsonb:='[]'::jsonb; new_armory jsonb:='[]'::jsonb; i int; attempt_id uuid; can_play boolean; prev text; v_world int; v_stage_num int;
 begin
   p:=public.idw_ensure_player();
-  if p_stage_id not in ('1-1','1-2','1-3','1-4','1-5','1-6','1-7','1-8','1-9','1-10') then raise exception 'Invalid stage'; end if;
-  if p_stage_id <> '1-1' then
-    prev := '1-' || ((split_part(p_stage_id,'-',2)::int)-1)::text;
+  if p_stage_id !~ '^[0-9]+-[0-9]+$' then raise exception 'Invalid stage'; end if;
+  v_world := split_part(p_stage_id, '-', 1)::int;
+  v_stage_num := split_part(p_stage_id, '-', 2)::int;
+  if v_stage_num > 1 then
+    prev := v_world::text || '-' || (v_stage_num - 1)::text;
     can_play := prev = any(p.campaign_completed);
     if not can_play then raise exception 'Previous stage not complete'; end if;
+  elsif v_world > 1 then
+    prev := (v_world - 1)::text || '-10';
+    can_play := prev = any(p.campaign_completed);
+    if not can_play then raise exception 'Previous world not complete'; end if;
   end if;
   for i in 0..greatest(jsonb_array_length(p.armory)-1, -1) loop
     if i = any(p_armory_indexes) then towers := towers || jsonb_build_array(p.armory->i); else new_armory := new_armory || jsonb_build_array(p.armory->i); end if;
@@ -497,7 +503,7 @@ end $$;
 
 create or replace function public.idw_submit_battle_result(p_battle_id uuid, p_won boolean, p_waves int, p_lives int, p_client_gold int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; b public.idw_battle_attempts; reward jsonb:='{}'::jsonb; max_duration interval := interval '2 hours';
+declare p public.idw_player_state; b public.idw_battle_attempts; reward jsonb:='{}'::jsonb; max_duration interval := interval '2 hours'; v_first_clear boolean := false;
 begin
   p:=public.idw_ensure_player();
   select * into b from public.idw_battle_attempts where id=p_battle_id and user_id=p.user_id for update;
@@ -505,13 +511,14 @@ begin
   if b.result <> 'started' then raise exception 'Battle already submitted'; end if;
   if now() - b.started_at > max_duration then raise exception 'Battle expired'; end if;
   if p_won and p_waves >= 10 and p_lives > 0 then
+    v_first_clear := not (b.stage_id = any(p.campaign_completed));
     reward := public.idw_stage_reward(b.stage_id);
     update public.idw_player_state set resources=public.idw_apply_resource_delta(resources,reward), campaign_completed=(case when b.stage_id=any(campaign_completed) then campaign_completed else array_append(campaign_completed,b.stage_id) end), updated_at=now() where user_id=p.user_id;
     update public.idw_battle_attempts set result='victory', reward=reward, finished_at=now(), client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold) where id=p_battle_id;
   else
     update public.idw_battle_attempts set result='defeat', finished_at=now(), client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold) where id=p_battle_id;
   end if;
-  return jsonb_build_object('reward',reward,'state',public.idw_get_state());
+  return jsonb_build_object('reward',reward,'first_clear',v_first_clear,'state',public.idw_get_state());
 end $$;
 
 -- ══════════════════════════════════════════════════════════════════════════════
