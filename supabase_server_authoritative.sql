@@ -529,7 +529,9 @@ begin
     when 'damage' then
       tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
     when 'atkSpeed' then
-      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 + effect_value)));
+      -- atkSpeed is seconds-between-shots (cooldown): lower = faster.
+      -- Multiply by (1 - value) to reduce the cooldown.
+      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 - effect_value)));
     when 'range' then
       tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
     when 'projectiles' then
@@ -538,7 +540,7 @@ begin
       tower := jsonb_set(tower, '{level}', to_jsonb((tower->>'level')::numeric + effect_value));
     when 'allStats' then
       tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
-      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 + effect_value)));
+      tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 - effect_value))); -- cooldown: lower = faster
       tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
     else
       raise exception 'Unknown enchantment effect type: %', effect_type;

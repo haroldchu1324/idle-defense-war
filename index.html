@@ -1781,17 +1781,18 @@ function showOfflineTimeBanner(lastSeen) {
   if(elapsed < 60000) return; // only show if away > 1 minute
   const h=Math.floor(elapsed/3600000), m=Math.floor((elapsed%3600000)/60000);
   const ts=h>0?`${h}h ${m}m`:`${m}m`;
-  // Build summary from current nodeState (already applied from server)
+  // Build summary: sum all tiers of the same resource into one line (max 5 lines total)
   const summary = [];
   RESOURCE_DEFS.forEach(r=>{
+    let total = 0;
     r.tiers.forEach((_,ti)=>{
       const ns = nodeState[r.id][ti];
       if(ns.unlocked && !ns.upgrading) {
         const ph = nodeProdPerHour(r,ti,ns.upgradeLevel);
-        const gathered = Math.floor(ph * (elapsed/3600000));
-        if(gathered > 0) summary.push(`${r.icon} +${gathered.toLocaleString()} ${r.name}`);
+        total += Math.floor(ph * (elapsed/3600000));
       }
     });
+    if(total > 0) summary.push(`${r.icon} +${total.toLocaleString()} ${r.name}`);
   });
   setTimeout(()=>showOfflineBanner(ts, summary.length > 0 ? summary : ['Your nodes were idle']), 800);
 }
@@ -2263,7 +2264,7 @@ function selectTowerForEnchant(index) {
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
         <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(-enchantBonus.atkSpeed, true)}</div>
         <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
         <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
@@ -2548,7 +2549,9 @@ function applyEnchantmentLocally(enchant) {
   const effect = enchant.effect;
   switch(effect.type) {
     case 'atkSpeed':
-      tower.atkSpeed *= (1 + effect.value);
+      // atkSpeed is a cooldown (seconds between shots): lower = faster.
+      // Multiply by (1 - value) to REDUCE the cooldown, making the tower attack faster.
+      tower.atkSpeed *= (1 - effect.value);
       break;
     case 'damage':
       tower.dmg *= (1 + effect.value);
@@ -2563,7 +2566,7 @@ function applyEnchantmentLocally(enchant) {
       tower.level = (tower.level || 1) + effect.value;
       break;
     case 'allStats':
-      tower.atkSpeed *= (1 + effect.value);
+      tower.atkSpeed *= (1 - effect.value); // cooldown: lower = faster, so subtract
       tower.dmg *= (1 + effect.value);
       tower.range *= (1 + effect.value);
       break;
@@ -2614,7 +2617,7 @@ function updateSelectedTowerDisplay() {
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
         <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(-enchantBonus.atkSpeed, true)}</div>
         <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
         <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
@@ -3918,7 +3921,7 @@ function openArmorySlotModal(slotIdx) {
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">⚡ Atk Speed</div>
-        <div class="bmodal-stat-value">${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div class="bmodal-stat-value">${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(-enchantBonus.atkSpeed, true)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">🎯 Range</div>
