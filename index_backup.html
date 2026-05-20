@@ -647,14 +647,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 }
 
 /* ══ BATTLE SCREEN ══ */
-#battle-screen{position:fixed;inset:0;z-index:500;background:#0e0f14;display:flex;flex-direction:column;}
-#battle-setup{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+#battle-screen{position:fixed;inset:0;z-index:500;background:#0e0f14;display:flex;flex-direction:column;overflow:auto;}
+#battle-setup{display:flex;flex-direction:column;min-height:100%;}
 .setup-header{padding:1rem 1.5rem;background:#13151c;border-bottom:1px solid #2a2e42;display:flex;align-items:center;gap:1rem;flex-shrink:0;}
 .setup-back-btn{background:none;border:1px solid #2a2e42;border-radius:8px;color:#8890b0;font-size:14px;padding:7px 14px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
 .setup-back-btn:hover{background:#1a1d28;color:#d4d8f0;}
 .setup-title{font-family:'Cinzel',serif;font-size:20px;color:#fff;font-weight:700;}
 .setup-sub{font-size:13px;color:#555e80;margin-left:auto;}
-.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 2rem;display:grid;grid-template-columns:490px 300px 1fr;gap:1rem;align-items:start;overflow-x:auto;}
+.setup-body{padding:1.5rem 2rem;display:grid;grid-template-columns:490px 300px 1fr;gap:1rem;align-items:start;}
 .setup-section{min-width:0;}
 .setup-tower-slot.info-active .setup-tower-info-btn{background:rgba(62,207,142,0.3)!important;border-color:#3ecf8e!important;color:#3ecf8e!important;}
 .setup-section-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem;}
@@ -696,7 +696,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-stat-label{color:#555e80;}
 .setup-stat-val{color:#d4d8f0;font-weight:600;}
 .setup-stats-special{font-size:9px;color:#f0a040;margin-top:0.5rem;padding:6px 8px;background:rgba(240,160,64,0.08);border-radius:6px;line-height:1.5;border:1px solid rgba(240,160,64,0.2);}
-.setup-col-scroll{overflow-y:auto;max-height:calc(100vh - 140px);}
+.setup-col-scroll{overflow-y:visible;max-height:none;}
 .setup-info-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
 .setup-info-stat-box{background:#20243a;border-radius:8px;padding:8px 10px;}
 .setup-info-stat-label{font-size:10px;color:var(--text3);margin-bottom:3px;}
