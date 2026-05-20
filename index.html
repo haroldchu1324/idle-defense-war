@@ -6502,7 +6502,13 @@ function drawPlacementPreview(ctx) {
   const x = mousePos.x, y = mousePos.y; // already grid-snapped
   const half = TOWER_FOOTPRINT / 2;
   const canPlace = canPlaceTowerAt(x, y);
-  const rangeRadius = placingTower ? placingTower.td.baseStats.range * bs.tw : 0;
+  let rangeRadius = 0;
+  if (placingTower) {
+    const entry = placingTower.entry;
+    const baseRange = (entry?.range !== undefined) ? entry.range : placingTower.td.baseStats.range;
+    const rb = getResearchBonuses();
+    rangeRadius = baseRange * bs.tw * (1 + rb.tower_range);
+  }
 
   ctx.save();
 

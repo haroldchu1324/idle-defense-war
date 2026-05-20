@@ -23,8 +23,8 @@
   --leather:#c86030;--leather2:#7a3010;--leather3:#2a1008;
   --ore:#8870c0;--ore2:#4a3080;--ore3:#18102a;
 }
-html,body{height:100%;overflow:hidden;}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;align-items:stretch;}
+html{height:100%;min-width:1100px;overflow-y:hidden;overflow-x:auto;}
+body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;align-items:stretch;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
@@ -72,7 +72,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 @keyframes loadFill{0%{width:0%}60%{width:72%}85%{width:90%}100%{width:100%}}
 
 /* ══ GAME SHELL ══ */
-#game{display:none;opacity:0;transition:opacity 0.4s;width:100%;height:100vh;flex-direction:column;}
+#game{display:none;opacity:0;transition:opacity 0.4s;width:100%;min-width:1100px;height:100vh;flex-direction:column;}
 #game.visible{opacity:1;display:flex;}
 
 /* ── Top bar ── */
@@ -632,19 +632,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .rmodal-prog-wrap{background:var(--bg3);border-radius:999px;height:8px;overflow:hidden;margin:0.65rem 0 0.5rem;}
 .rmodal-prog{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--orange),var(--gold));transition:none;}
 
-@media(max-width:640px){
-  .top-logo{display:none;}
-  .sidebar{width:60px;min-width:60px;}
-  .nav-btn{width:46px;height:46px;font-size:22px;}
-  .nav-btn .nav-label{display:none;}
-  .res-nodes-row{gap:0.35rem;}
-  .res-nodes-row .node-card{width:110px!important;height:110px!important;}
-  .panel{padding:0.75rem 0.85rem;}
-  .res-pill{width:110px;min-width:110px;}
-}
-@media(max-width:420px){
-  .res-nodes-row .node-card{width:90px!important;height:90px!important;}
-}
+/* Responsive media queries removed — layout is fixed-size with scroll on small screens */
 
 /* ══ BATTLE SCREEN ══ */
 #battle-screen{position:fixed;inset:0;z-index:500;background:#0e0f14;display:flex;flex-direction:column;overflow:auto;}
@@ -654,7 +642,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-back-btn:hover{background:#1a1d28;color:#d4d8f0;}
 .setup-title{font-family:'Cinzel',serif;font-size:20px;color:#fff;font-weight:700;}
 .setup-sub{font-size:13px;color:#555e80;margin-left:auto;}
-.setup-body{padding:1.5rem 2rem;display:grid;grid-template-columns:490px 300px 1fr;gap:1rem;align-items:start;}
+.setup-body{padding:1.5rem 2rem;display:grid;grid-template-columns:490px 300px 400px;gap:1rem;align-items:start;}
 .setup-section{min-width:0;}
 .setup-tower-slot.info-active .setup-tower-info-btn{background:rgba(62,207,142,0.3)!important;border-color:#3ecf8e!important;color:#3ecf8e!important;}
 .setup-section-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem;}
