@@ -3640,7 +3640,7 @@ async function startResearch(id) {
       p_research_id: id,
       p_cost: rd.cost,
       p_requires: rd.requires,
-      p_duration_ms: rd.durationMs
+      p_duration_ms: effectiveResearchMs(rd)
     });
 
     // Only update client state after server confirms
@@ -4169,6 +4169,13 @@ function towerUpgradeCost(td, currentLevel) {
   return result;
 }
 
+function towerEffectiveCost(td) {
+  const disc = 1 + getResearchBonuses().craft_cost; // e.g. 0.90 with -10% research
+  const result = {};
+  for (const [k, v] of Object.entries(td.cost)) result[k] = Math.ceil(v * disc);
+  return result;
+}
+
 function buildCraftingPanel() {
   renderTowerGrid();
 }
@@ -4179,12 +4186,13 @@ function renderTowerGrid() {
   grid.innerHTML = '';
   TOWER_DEFS.forEach(td => {
     const locked = playerLevel < td.unlockLevel;
-    const canAfford = !locked && Object.entries(td.cost).every(([k,v]) => (resources[k]||0) >= v);
+    const effCost = towerEffectiveCost(td);
+    const canAfford = !locked && Object.entries(effCost).every(([k,v]) => (resources[k]||0) >= v);
     const card = document.createElement('div');
     card.className = 'tower-card' + (locked ? ' tower-locked' : '');
     card.onclick = () => openTowerModal(td.id);
 
-    const costChips = Object.entries(td.cost).map(([k,v]) => {
+    const costChips = Object.entries(effCost).map(([k,v]) => {
       const def = RESOURCE_DEFS.find(r=>r.id===k);
       const ok = !locked && (resources[k]||0) >= v;
       return `<span class="tower-cost-chip ${ok?'ok':'bad'}">${def?.icon||''} ${v.toLocaleString()}</span>`;
@@ -4222,12 +4230,13 @@ function openTowerModal(towerId) {
   if (!td) return;
   const locked = playerLevel < td.unlockLevel;
   const stats = td.baseStats;
-  const canAfford = !locked && Object.entries(td.cost).every(([k,v]) => (resources[k]||0) >= v);
+  const effCost = towerEffectiveCost(td);
+  const canAfford = !locked && Object.entries(effCost).every(([k,v]) => (resources[k]||0) >= v);
   const slots = totalArmorySlots();
   const usedSlots = armoryTowers.filter(Boolean).length;
   const hasSlot = usedSlots < slots;
 
-  const costRows = Object.entries(td.cost).map(([k,v]) => {
+  const costRows = Object.entries(effCost).map(([k,v]) => {
     const def = RESOURCE_DEFS.find(r=>r.id===k);
     const have = Math.floor(resources[k]||0);
     const ok = have >= v;
@@ -5870,7 +5879,7 @@ function killEnemy(e, tower) {
     bs.waveEnemyCounts[e.waveNum] = Math.max(0, (bs.waveEnemyCounts[e.waveNum]||1) - 1);
     if (bs.waveEnemyCounts[e.waveNum] === 0) {
       const waveMult = bs.eliteCfg?.waveBonusMult ?? 1;
-      const bonus = Math.round(50 * waveMult);
+      const bonus = Math.round(50 * waveMult * (1 + getResearchBonuses().wave_gold));
       bs.gold += bonus;
       delete bs.waveEnemyCounts[e.waveNum];
       showToast(`Wave ${e.waveNum} cleared! +💰${bonus}`);

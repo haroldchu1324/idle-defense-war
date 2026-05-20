@@ -3932,11 +3932,13 @@ function openArmorySlotModal(slotIdx) {
   const canUpgAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
 
   // Helper function to format stat bonus display
-  const formatBonus = (bonus, isTime = false) => {
+  // invertColor: for stats where lower is better (atkSpeed cooldown), negative bonus = green
+  const formatBonus = (bonus, isTime = false, invertColor = false) => {
     if (Math.abs(bonus) < 0.01) return '';
     const sign = bonus > 0 ? '+' : '';
     const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
-    const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+    const isGood = invertColor ? bonus < 0 : bonus > 0;
+    const color = isGood ? '#3ecf8e' : '#f55a5a';
     return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
   };
 
