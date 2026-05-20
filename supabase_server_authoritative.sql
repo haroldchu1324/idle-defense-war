@@ -214,16 +214,77 @@ begin
   return p;
 end $$;
 
-create or replace function public.idw_node_stored_amount(ns jsonb, tier_idx int)
+-- ── Research production bonus helper ────────────────────────────────────────
+-- Returns the total additive production bonus fraction for p_res_id
+-- from all completed research items, matching client getResearchBonuses().
+-- e.g. 0.14 means +14% production.
+create or replace function public.idw_research_prod_bonus(p_research jsonb, p_res_id text)
+returns numeric language sql stable as $$
+  with bonuses(id, applies_to, pct) as (values
+    -- res_prod: per-resource bonuses (mirrors RESEARCH_DEFS bonus.type='res_prod')
+    ('prod1_i',        'wood',    0.08::numeric),
+    ('prod2_i',        'ore',     0.08::numeric),
+    ('prod3_i',        'fiber',   0.08::numeric),
+    ('prod4_i',        'leather', 0.08::numeric),
+    ('prod5_i',        'stone',   0.08::numeric),
+    ('prod1_ii',       'wood',    0.12::numeric),
+    ('prod2_ii',       'ore',     0.12::numeric),
+    ('prod3_ii',       'fiber',   0.12::numeric),
+    ('prod4_ii',       'leather', 0.12::numeric),
+    ('prod5_ii',       'stone',   0.12::numeric),
+    ('prod1_iii',      'wood',    0.18::numeric),
+    ('prod2_iii',      'ore',     0.18::numeric),
+    -- all_prod: applies to every resource (mirrors bonus.type='all_prod')
+    ('prod_syn_ii',    'all',     0.06::numeric),
+    ('prod_mega_iii',  'all',     0.15::numeric),
+    ('unified_prod_iv','all',     0.25::numeric),
+    ('transcendent_v', 'all',     0.50::numeric)
+  )
+  select coalesce(sum(pct), 0)
+  from bonuses
+  where coalesce((p_research->id->>'done')::boolean, false)
+    and (applies_to = 'all' or applies_to = p_res_id);
+$$;
+
+-- ── Node stored amount (matches client nodeProdPerHour formula exactly) ──────
+-- Client formula:
+--   base     = round(baseProd[tier] * (1 + (upgradeLevel-1) * 0.50))
+--   levelMult= 1 + (playerLevel-1) * 0.001
+--   resMult  = 1 + researchProdBonus(resId)
+--   prodPerHour = round(base * levelMult * resMult)
+-- Old server used power(1.15, lvl-1) — wrong at higher levels.
+-- Drop old signature first so CREATE OR REPLACE can change the parameter list.
+drop function if exists public.idw_node_stored_amount(jsonb, int);
+
+create or replace function public.idw_node_stored_amount(
+  ns jsonb, tier_idx int, player_level int, p_research jsonb, p_res_id text
+)
 returns integer language plpgsql stable as $$
-declare now_ms numeric := extract(epoch from now())*1000; last_ms numeric; lvl int; elapsed_hours numeric; amount numeric; cap numeric;
+declare
+  now_ms        numeric := extract(epoch from now())*1000;
+  last_ms       numeric;
+  lvl           int;
+  elapsed_hours numeric;
+  base_rate     numeric;
+  level_mult    numeric;
+  res_mult      numeric;
+  amount        numeric;
+  cap           numeric;
 begin
-  if not coalesce((ns->>'unlocked')::boolean,false) or coalesce((ns->>'upgrading')::boolean,false) then return 0; end if;
-  last_ms := coalesce((ns->>'lastCollectAt')::numeric, now_ms);
-  lvl := coalesce((ns->>'upgradeLevel')::int,1);
-  elapsed_hours := greatest(0, least(now_ms-last_ms, 8*60*60*1000)) / 3600000.0;
-  amount := coalesce((ns->>'storedAmount')::numeric,0) + public.idw_base_prod(tier_idx) * power(1.15,lvl-1) * elapsed_hours;
-  cap := public.idw_storage_cap(tier_idx,lvl);
+  if not coalesce((ns->>'unlocked')::boolean, false)
+     or coalesce((ns->>'upgrading')::boolean, false) then return 0; end if;
+  last_ms       := coalesce((ns->>'lastCollectAt')::numeric, now_ms);
+  lvl           := coalesce((ns->>'upgradeLevel')::int, 1);
+  elapsed_hours := greatest(0, least(now_ms - last_ms, 8*60*60*1000)) / 3600000.0;
+  -- matches client: baseProd * (1 + (upgradeLevel-1) * 0.50)
+  base_rate  := public.idw_base_prod(tier_idx) * (1.0 + (lvl - 1) * 0.50);
+  -- matches client: 1 + bonusProd(playerLevel) = 1 + (level-1)*0.001
+  level_mult := 1.0 + (greatest(player_level, 1) - 1) * 0.001;
+  -- matches client: 1 + researchProdBonus(resId)
+  res_mult   := 1.0 + public.idw_research_prod_bonus(p_research, p_res_id);
+  amount     := coalesce((ns->>'storedAmount')::numeric, 0)
+                + base_rate * level_mult * res_mult * elapsed_hours;
+  cap        := public.idw_storage_cap(tier_idx, lvl);
   return floor(least(amount, cap))::integer;
 end $$;
 
@@ -234,7 +295,7 @@ begin
   foreach res_id in array array['wood','stone','fiber','leather','ore'] loop
     for i in 0..4 loop
       ns := n->res_id->i;
-      stored := public.idw_node_stored_amount(ns, i);
+      stored := public.idw_node_stored_amount(ns, i, p.player_level, p.research, res_id);
       ns := jsonb_set(ns,'{storedAmount}',to_jsonb(stored),true);
       n := jsonb_set(n, array[res_id,i::text], ns, true);
     end loop;
@@ -347,7 +408,7 @@ begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid node'; end if;
   p:=public.idw_tick_upgrades(public.idw_ensure_player());
   ns := p.nodes->p_res_id->p_tier_idx;
-  amount := public.idw_node_stored_amount(ns,p_tier_idx);
+  amount := public.idw_node_stored_amount(ns, p_tier_idx, p.player_level, p.research, p_res_id);
   if amount <= 0 then return public.idw_get_state(); end if;
   ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true);
   ns := jsonb_set(ns,'{lastCollectAt}',to_jsonb(now_ms),true);
@@ -391,16 +452,27 @@ end $$;
 
 create or replace function public.idw_craft_tower(p_tower_id text)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; cost jsonb; slots int:=5; used int; entry jsonb;
+declare
+  p public.idw_player_state; base_cost jsonb; cost jsonb; disc numeric;
+  slots int:=5; used int; entry jsonb;
 begin
-  p:=public.idw_ensure_player(); cost:=public.idw_tower_cost(p_tower_id);
-  if cost is null then raise exception 'Unknown tower'; end if;
+  p := public.idw_ensure_player();
+  base_cost := public.idw_tower_cost(p_tower_id);
+  if base_cost is null then raise exception 'Unknown tower'; end if;
+  -- Apply craft_cost research discount (econ3_ii: -10% crafting cost)
+  disc := 1.0 + case when coalesce((p.research->'econ3_ii'->>'done')::boolean, false) then -0.10 else 0.0 end;
+  select coalesce(jsonb_object_agg(kv.key, ceil((kv.value::numeric) * disc)::integer), '{}'::jsonb)
+  into cost from jsonb_each(base_cost) as kv;
   if p.player_level < public.idw_tower_unlock_level(p_tower_id) then raise exception 'Need higher level'; end if;
-  if not public.idw_can_pay(p.resources,cost) then raise exception 'Not enough resources'; end if;
-  if coalesce((p.research->'comb4'->>'done')::boolean,false) then slots := slots + 2; end if;
+  if not public.idw_can_pay(p.resources, cost) then raise exception 'Not enough resources'; end if;
+  if coalesce((p.research->'comb4'->>'done')::boolean, false) then slots := slots + 2; end if;
   used := jsonb_array_length(p.armory); if used >= slots then raise exception 'No armory slots'; end if;
-  entry := jsonb_build_object('towerId',p_tower_id,'level',1,'placedAt',extract(epoch from now())*1000);
-  update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, public.idw_negative(cost)), armory=armory||jsonb_build_array(entry), updated_at=now() where user_id=p.user_id;
+  entry := jsonb_build_object('towerId', p_tower_id, 'level', 1, 'placedAt', extract(epoch from now())*1000);
+  update public.idw_player_state
+  set resources = public.idw_apply_resource_delta(resources, public.idw_negative(cost)),
+      armory = armory || jsonb_build_array(entry),
+      updated_at = now()
+  where user_id = p.user_id;
   return public.idw_get_state();
 end $$;
 
@@ -657,3 +729,162 @@ begin
   return public.idw_get_state();
 end $$;
 grant execute on function public.pvp_upgrade_base(integer) to authenticated;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- RESEARCH SYSTEM FUNCTIONS
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- Start a research item: validate prereqs, deduct resources, begin timer
+create or replace function public.idw_start_research(
+  p_research_id text,
+  p_cost jsonb,
+  p_requires text[],
+  p_duration_ms bigint
+)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  req text;
+  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
+  rs jsonb;
+begin
+  p := public.idw_ensure_player();
+
+  -- Only one research at a time
+  if p.active_research_id is not null then
+    raise exception 'Already researching: %', p.active_research_id;
+  end if;
+
+  rs := p.research->p_research_id;
+  if coalesce((rs->>'done')::boolean, false) then
+    raise exception 'Research already completed';
+  end if;
+  if coalesce((rs->>'researching')::boolean, false) then
+    raise exception 'Research already in progress';
+  end if;
+
+  -- Check all prerequisites are done
+  if p_requires is not null then
+    foreach req in array p_requires loop
+      if not coalesce((p.research->req->>'done')::boolean, false) then
+        raise exception 'Prerequisite not met: %', req;
+      end if;
+    end loop;
+  end if;
+
+  -- Check and deduct resources
+  if not public.idw_can_pay(p.resources, p_cost) then
+    raise exception 'Not enough resources';
+  end if;
+
+  update public.idw_player_state
+  set
+    resources = public.idw_apply_resource_delta(resources, public.idw_negative(p_cost)),
+    research = jsonb_set(
+      coalesce(research, '{}'::jsonb),
+      array[p_research_id],
+      jsonb_build_object(
+        'done', false,
+        'researching', true,
+        'startMs', now_ms,
+        'durationMs', p_duration_ms,
+        'cost', p_cost
+      )
+    ),
+    active_research_id = p_research_id,
+    updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_start_research(text, jsonb, text[], bigint) to authenticated;
+
+-- Cancel in-progress research and refund 50% of original cost
+create or replace function public.idw_cancel_research(p_research_id text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  rs jsonb;
+  orig_cost jsonb;
+  refund jsonb := '{}'::jsonb;
+  k text; v integer;
+begin
+  p := public.idw_ensure_player();
+
+  rs := p.research->p_research_id;
+  if not coalesce((rs->>'researching')::boolean, false) then
+    raise exception 'Research not in progress';
+  end if;
+
+  -- Build 50% refund from stored cost
+  orig_cost := coalesce(rs->'cost', '{}'::jsonb);
+  for k, v in
+    select key, greatest(1, (value::numeric / 2)::integer)
+    from jsonb_each_text(orig_cost)
+  loop
+    refund := jsonb_set(refund, array[k], to_jsonb(v), true);
+  end loop;
+
+  update public.idw_player_state
+  set
+    resources = public.idw_apply_resource_delta(resources, refund),
+    research = jsonb_set(
+      research,
+      array[p_research_id],
+      jsonb_build_object('done', false, 'researching', false, 'startMs', 0, 'durationMs', 0)
+    ),
+    active_research_id = null,
+    updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_cancel_research(text) to authenticated;
+
+-- Complete any research whose timer has expired; awards 30 XP per completion
+create or replace function public.idw_check_research_completion()
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
+  rs jsonb;
+  rid text;
+  completed text[] := '{}';
+begin
+  p := public.idw_ensure_player();
+
+  rid := p.active_research_id;
+  if rid is null then
+    return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
+  end if;
+
+  rs := p.research->rid;
+  if coalesce((rs->>'researching')::boolean, false)
+     and now_ms >= coalesce((rs->>'startMs')::bigint, 0) + coalesce((rs->>'durationMs')::bigint, 0) then
+
+    update public.idw_player_state
+    set
+      research = jsonb_set(
+        research,
+        array[rid],
+        jsonb_build_object('done', true, 'researching', false, 'startMs', 0, 'durationMs', 0)
+      ),
+      active_research_id = null,
+      player_xp = player_xp + 30,
+      updated_at = now()
+    where user_id = p.user_id;
+
+    completed := array_append(completed, rid);
+  end if;
+
+  return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
+end $$;
+grant execute on function public.idw_check_research_completion() to authenticated;
+
+-- Called on login to resolve any research that completed while offline
+create or replace function public.idw_resolve_offline_research()
+returns jsonb language plpgsql security definer set search_path=public as $$
+begin
+  return public.idw_check_research_completion();
+end $$;
+grant execute on function public.idw_resolve_offline_research() to authenticated;

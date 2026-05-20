@@ -647,19 +647,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 }
 
 /* ══ BATTLE SCREEN ══ */
-#battle-screen{position:fixed;inset:0;z-index:500;background:#0e0f14;display:flex;flex-direction:column;}
-#battle-setup{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+#battle-screen{position:fixed;inset:0;z-index:500;background:#0e0f14;display:flex;flex-direction:column;overflow:auto;}
+#battle-setup{display:flex;flex-direction:column;min-height:100%;}
 .setup-header{padding:1rem 1.5rem;background:#13151c;border-bottom:1px solid #2a2e42;display:flex;align-items:center;gap:1rem;flex-shrink:0;}
 .setup-back-btn{background:none;border:1px solid #2a2e42;border-radius:8px;color:#8890b0;font-size:14px;padding:7px 14px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
 .setup-back-btn:hover{background:#1a1d28;color:#d4d8f0;}
 .setup-title{font-family:'Cinzel',serif;font-size:20px;color:#fff;font-weight:700;}
 .setup-sub{font-size:13px;color:#555e80;margin-left:auto;}
-.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 3rem;display:grid;grid-template-columns:1fr 220px 380px;gap:1.5rem;align-items:start;}
+.setup-body{padding:1.5rem 2rem;display:grid;grid-template-columns:490px 300px 1fr;gap:1rem;align-items:start;}
 .setup-section{min-width:0;}
 .setup-tower-slot.info-active .setup-tower-info-btn{background:rgba(62,207,142,0.3)!important;border-color:#3ecf8e!important;color:#3ecf8e!important;}
 .setup-section-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem;}
 .setup-slot-badge{font-size:12px;font-weight:600;padding:2px 10px;border-radius:20px;background:#20243a;color:#4a8fff;border:1px solid #2a5fcc;}
-.setup-armory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,110px));gap:0.75rem;}
+.setup-armory-grid{display:grid;grid-template-columns:repeat(auto-fill,110px);gap:0.75rem;}
 .setup-tower-slot{width:110px;height:110px;background:#1a1d28;border:2px solid #2a2e42;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;transition:all 0.15s;position:relative;}
 .setup-tower-slot:hover{border-color:#4a8fff;background:#20243a;}
 .setup-tower-slot.selected{border-color:#f0c040;background:rgba(240,192,64,0.08);box-shadow:0 0 0 3px rgba(240,192,64,0.2);}
@@ -696,6 +696,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-stat-label{color:#555e80;}
 .setup-stat-val{color:#d4d8f0;font-weight:600;}
 .setup-stats-special{font-size:9px;color:#f0a040;margin-top:0.5rem;padding:6px 8px;background:rgba(240,160,64,0.08);border-radius:6px;line-height:1.5;border:1px solid rgba(240,160,64,0.2);}
+.setup-col-scroll{overflow-y:visible;max-height:none;}
+.setup-info-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+.setup-info-stat-box{background:#20243a;border-radius:8px;padding:8px 10px;}
+.setup-info-stat-label{font-size:10px;color:var(--text3);margin-bottom:3px;}
+.setup-info-stat-val{font-size:15px;font-weight:700;color:#fff;}
+.setup-mini-map{width:100%;height:auto;border-radius:8px;display:block;}
+.setup-enemy-badge{display:flex;align-items:center;gap:6px;background:#20243a;border-radius:6px;padding:5px 8px;font-size:11px;}
+.setup-elite-mod{font-size:11px;color:#f0c040;background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.2);border-radius:6px;padding:5px 8px;}
 
 /* ── PVP loading overlay ── */
 .pvp-loading-overlay{position:absolute;inset:0;background:rgba(8,10,16,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;z-index:20;}
@@ -1213,27 +1221,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       <div class="setup-sub" id="setup-sub">Choose towers from your Armory to bring</div>
     </div>
     <div class="setup-body">
-      <!-- Left: Armory -->
-      <div class="setup-section">
+      <!-- Col 1: Armory tower grid -->
+      <div class="setup-section setup-col-scroll">
         <div class="setup-section-title">
           Armory — Bring to Battle
           <span id="setup-slot-info" class="setup-slot-badge">0 / 2 selected</span>
         </div>
         <div style="font-size:12px;color:#555e80;margin-bottom:0.75rem;">Selected towers are consumed on deployment. You place them yourself after the battle starts.</div>
-        <div class="setup-armory-scroll">
-          <div class="setup-armory-grid" id="setup-armory-grid"></div>
-        </div>
+        <div class="setup-armory-grid" id="setup-armory-grid"></div>
       </div>
-      <!-- Middle: Tower stats (shown when ℹ is clicked) -->
-      <div class="setup-section" id="setup-stats-section" style="visibility:hidden;">
+      <!-- Col 2: Tower Stats — sits between Armory and Stage Info; visibility:hidden keeps column space reserved -->
+      <div class="setup-section setup-col-scroll" id="setup-stats-section" style="visibility:hidden;">
         <div class="setup-section-title" style="font-size:12px;">Tower Stats</div>
         <div id="setup-stats-content" class="setup-stats-card"></div>
       </div>
-      <!-- Right: Stage Info + Start button -->
-      <div class="setup-section">
+      <!-- Col 3: Stage Info + Start button -->
+      <div class="setup-section setup-col-scroll">
         <div class="setup-section-title">Stage Info</div>
         <div id="setup-stage-info" class="setup-info-box"></div>
-        <button class="setup-start-btn" id="setup-start-btn" onclick="startBattle()" style="width:100%;margin-top:1rem;">⚔️ Start Battle</button>
+        <div style="position:sticky;bottom:0;padding-top:0.75rem;background:#0e0f14;">
+          <button class="setup-start-btn" id="setup-start-btn" onclick="startBattle()" style="width:100%;">⚔️ Start Battle</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3421,8 +3429,9 @@ function updateResearchCards() {
       const pct = Math.min(((now - rs.startMs) / rs.durationMs) * 100, 100).toFixed(1);
       const rem = Math.max(0, Math.ceil((rs.durationMs - (now - rs.startMs)) / 1000));
       progHtml = `
-        <div class="rnode-time" id="rptimer-${rd.id}">⏱ ${fmtCountdown(rem)}</div>
-        <div class="rnode-prog-wrap"><div class="rnode-prog" id="rprog-${rd.id}" style="width:${pct}%"></div></div>
+        <div style="color:var(--orange);font-size:11px;font-weight:700;margin-top:2px;">🔬 Researching…</div>
+        <div class="rnode-time" id="rptimer-${rd.id}" style="font-size:12px;font-weight:600;">⏱ ${fmtCountdown(rem)}</div>
+        <div class="rnode-prog-wrap" style="height:6px;margin-top:4px;"><div class="rnode-prog" id="rprog-${rd.id}" style="width:${pct}%"></div></div>
       `;
     } else if (!rs.done) {
       const costs = Object.entries(rd.cost).map(([k,v]) => {
@@ -3500,6 +3509,7 @@ async function updateResearchBars() {
       if (result?.completed_research?.length > 0) {
         // Refresh from server to get updated state
         await refreshFromServer();
+        updateResearchCards();
         result.completed_research.forEach(research_id => {
           const rd = RESEARCH_DEFS.find(x => x.id === research_id);
           if (rd) {
@@ -3561,6 +3571,10 @@ function renderResearchModal() {
     const elapsed = now - rs.startMs;
     const pct = Math.min((elapsed / rs.durationMs) * 100, 100).toFixed(1);
     const rem = Math.max(0, Math.ceil((rs.durationMs - elapsed) / 1000));
+    const refundLine = Object.entries(rd.cost).map(([k,v]) => {
+      const def = RESOURCE_DEFS.find(x=>x.id===k);
+      return `${def?.icon||''} ${Math.floor(v*0.5).toLocaleString()} ${def?.label||k}`;
+    }).join('  ');
     body = `
       <div class="rmodal-in-progress">
         <div style="font-size:14px;font-weight:700;color:var(--orange);margin-bottom:4px;">🔬 Researching…</div>
@@ -3571,7 +3585,7 @@ function renderResearchModal() {
       <div class="bmodal-btns">
         <button class="bmodal-btn cancel-upg" onclick="cancelResearch('${rd.id}')">
           ✕ Cancel Research
-          <div class="btn-sub">Refunds 50% of materials spent</div>
+          <div class="btn-sub">Refunds 50%: ${refundLine}</div>
         </button>
       </div>
     `;
@@ -3633,11 +3647,13 @@ async function startResearch(id) {
     await serverRpc('idw_start_research', {
       p_research_id: id,
       p_cost: rd.cost,
-      p_requires: rd.requires
+      p_requires: rd.requires,
+      p_duration_ms: effectiveResearchMs(rd)
     });
 
     // Only update client state after server confirms
     await refreshFromServer();
+    updateResearchCards();
     closeModal();
     showToast(`🔬 ${rd.name} research started!`);
   } catch(e) {
@@ -3658,6 +3674,7 @@ async function cancelResearch(id) {
 
     // Refresh from server to get updated state and refunded resources
     await refreshFromServer();
+    updateResearchCards();
     closeModal();
     showToast(`Research cancelled — 50% materials refunded`);
   } catch(e) {
@@ -3923,11 +3940,13 @@ function openArmorySlotModal(slotIdx) {
   const canUpgAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
 
   // Helper function to format stat bonus display
-  const formatBonus = (bonus, isTime = false) => {
+  // invertColor: for stats where lower is better (atkSpeed cooldown), negative bonus = green
+  const formatBonus = (bonus, isTime = false, invertColor = false) => {
     if (Math.abs(bonus) < 0.01) return '';
     const sign = bonus > 0 ? '+' : '';
     const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
-    const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+    const isGood = invertColor ? bonus < 0 : bonus > 0;
+    const color = isGood ? '#3ecf8e' : '#f55a5a';
     return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
   };
 
@@ -4160,6 +4179,13 @@ function towerUpgradeCost(td, currentLevel) {
   return result;
 }
 
+function towerEffectiveCost(td) {
+  const disc = 1 + getResearchBonuses().craft_cost; // e.g. 0.90 with -10% research
+  const result = {};
+  for (const [k, v] of Object.entries(td.cost)) result[k] = Math.ceil(v * disc);
+  return result;
+}
+
 function buildCraftingPanel() {
   renderTowerGrid();
 }
@@ -4170,12 +4196,13 @@ function renderTowerGrid() {
   grid.innerHTML = '';
   TOWER_DEFS.forEach(td => {
     const locked = playerLevel < td.unlockLevel;
-    const canAfford = !locked && Object.entries(td.cost).every(([k,v]) => (resources[k]||0) >= v);
+    const effCost = towerEffectiveCost(td);
+    const canAfford = !locked && Object.entries(effCost).every(([k,v]) => (resources[k]||0) >= v);
     const card = document.createElement('div');
     card.className = 'tower-card' + (locked ? ' tower-locked' : '');
     card.onclick = () => openTowerModal(td.id);
 
-    const costChips = Object.entries(td.cost).map(([k,v]) => {
+    const costChips = Object.entries(effCost).map(([k,v]) => {
       const def = RESOURCE_DEFS.find(r=>r.id===k);
       const ok = !locked && (resources[k]||0) >= v;
       return `<span class="tower-cost-chip ${ok?'ok':'bad'}">${def?.icon||''} ${v.toLocaleString()}</span>`;
@@ -4213,12 +4240,13 @@ function openTowerModal(towerId) {
   if (!td) return;
   const locked = playerLevel < td.unlockLevel;
   const stats = td.baseStats;
-  const canAfford = !locked && Object.entries(td.cost).every(([k,v]) => (resources[k]||0) >= v);
+  const effCost = towerEffectiveCost(td);
+  const canAfford = !locked && Object.entries(effCost).every(([k,v]) => (resources[k]||0) >= v);
   const slots = totalArmorySlots();
   const usedSlots = armoryTowers.filter(Boolean).length;
   const hasSlot = usedSlots < slots;
 
-  const costRows = Object.entries(td.cost).map(([k,v]) => {
+  const costRows = Object.entries(effCost).map(([k,v]) => {
     const def = RESOURCE_DEFS.find(r=>r.id===k);
     const have = Math.floor(resources[k]||0);
     const ok = have >= v;
@@ -4864,6 +4892,86 @@ const GRID_SNAP = 10;
 const TOWER_FOOTPRINT = 30; 
 const TOWER_RADIUS_PX = 15; 
 
+// Returns ordered array of enemy type keys that appear across all 10 waves of a stage
+function getStageEnemyTypes(stageId) {
+  const baseId = stageId.startsWith('elite:') ? stageId.slice(6) : stageId;
+  const seen = new Set();
+  for (let w = 1; w <= 10; w++) {
+    const cfg = getWaveConfig(baseId, w);
+    if (!cfg) continue;
+    cfg.enemies.forEach(g => {
+      seen.add(g.type);
+      // Also include secondary spawns (on-death)
+      const et = ENEMY_TYPES[g.type];
+      if (et?.spawnOnDeath) seen.add(et.spawnOnDeath.type);
+    });
+  }
+  const TIER_ORDER = ['red','blue','green','yellow','pink','black','purple','white','boss'];
+  return TIER_ORDER.filter(t => seen.has(t));
+}
+
+// Draws a mini top-down map preview onto a canvas element
+function drawSetupMiniMap(canvasId, mapDef) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const COLS = 22, ROWS = 10;
+  const tw = W / COLS, th = H / ROWS;
+
+  // Background
+  ctx.fillStyle = mapDef.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 0.8;
+  for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c*tw, 0); ctx.lineTo(c*tw, H); ctx.stroke(); }
+  for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*th); ctx.lineTo(W, r*th); ctx.stroke(); }
+
+  // Waypoints in pixel space
+  const wps = mapDef.waypoints.map(([c, r]) => ({ x: c * tw + tw/2, y: r * th + th/2 }));
+
+  // Path shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = mapDef.pathColor;
+  ctx.lineWidth = tw * mapDef.pathWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  wps.forEach((wp, i) => { if (i === 0) ctx.moveTo(wp.x, wp.y); else ctx.lineTo(wp.x, wp.y); });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Path edge highlight
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = tw * mapDef.pathWidth * 0.3;
+  ctx.beginPath();
+  wps.forEach((wp, i) => { if (i === 0) ctx.moveTo(wp.x, wp.y); else ctx.lineTo(wp.x, wp.y); });
+  ctx.stroke();
+
+  // Start marker (green)
+  ctx.shadowColor = '#3ecf8e';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#3ecf8e';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(wps[0].x, wps[0].y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // End marker (red)
+  ctx.shadowColor = '#f55a5a';
+  ctx.fillStyle = '#f55a5a';
+  ctx.beginPath();
+  ctx.arc(wps[wps.length - 1].x, wps[wps.length - 1].y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
 function openBattleSetup(stageId) {
   battleSetupStageId = stageId;
   battleSelectedTowers = [];
@@ -4888,14 +4996,67 @@ function openBattleSetup(stageId) {
   document.getElementById('setup-title').textContent = isPvp?`World Map`:`Stage ${baseStageId}${isEliteBattle?' [ELITE]':''} — ${worldLabel}`;
   document.getElementById('setup-sub').textContent   = `Select up to ${battleDeploySlots()} towers from your Armory to bring`;
 
-  document.getElementById('setup-stage-info').innerHTML = `
-    <div class="setup-info-row"><span class="setup-info-label">Map</span><span class="setup-info-val">${mapDef.name}</span></div>
+  // Compute enemy types and elite mods for this stage
+  const enemyTypesForStage = getStageEnemyTypes(isPvp ? stageId : baseStageId);
+  const rb = getResearchBonuses();
+  const eliteMods = isEliteBattle ? getEliteModifiers(baseStageId) : [];
 
-    <div class="setup-info-row"><span class="setup-info-label">Waves</span><span class="setup-info-val">10</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Deploy slots</span><span class="setup-info-val">${battleDeploySlots()}</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 ${200 + getResearchBonuses().start_gold}</span></div>
-    ${isPvp ? `<div class="setup-info-row"><span class="setup-info-label">Reward</span><span class="setup-info-val" style="color:#3ecf8e">🟢 Claim territory</span></div>` : ''}
+  const enemyBadgesHtml = enemyTypesForStage.map(typeKey => {
+    const et = ENEMY_TYPES[typeKey];
+    if (!et) return '';
+    const spawnNote = et.spawnOnDeath
+      ? `<span style="color:#666;font-size:10px;margin-left:auto;">→ ${et.spawnOnDeath.count}× ${ENEMY_TYPES[et.spawnOnDeath.type]?.name || et.spawnOnDeath.type}</span>`
+      : '<span style="margin-left:auto;"></span>';
+    return `<div class="setup-enemy-badge">
+      <span style="width:11px;height:11px;border-radius:50%;background:${et.color};flex-shrink:0;display:inline-block;"></span>
+      <span style="color:var(--text2);flex:1;">${et.name}</span>
+      <span style="color:#f55a5a;font-size:10px;">❤️ ${et.hp}</span>
+      ${spawnNote}
+    </div>`;
+  }).join('');
+
+  const modsHtml = eliteMods.map(m =>
+    `<div class="setup-elite-mod">${m.label}</div>`
+  ).join('');
+
+  document.getElementById('setup-stage-info').innerHTML = `
+    <canvas id="setup-mini-map" class="setup-mini-map" width="880" height="360" style="margin-bottom:4px;border:1px solid #2a2e42;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:12px;padding:0 2px;">
+      <span style="color:#3ecf8e;">● Start</span>
+      <span style="font-weight:600;color:var(--text2);">${mapDef.name}</span>
+      <span style="color:#f55a5a;">● End</span>
+    </div>
+    <div class="setup-info-stat-grid">
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">🌊 Waves</div>
+        <div class="setup-info-stat-val">10</div>
+      </div>
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">🗡️ Deploy Slots</div>
+        <div class="setup-info-stat-val">${battleDeploySlots()}</div>
+      </div>
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">💰 Starting Gold</div>
+        <div class="setup-info-stat-val">${200 + rb.start_gold}</div>
+      </div>
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">❤️ Starting Lives</div>
+        <div class="setup-info-stat-val">${20 + rb.start_lives}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:${modsHtml ? '0' : '4px'};">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;">Enemy Types</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">${enemyBadgesHtml}</div>
+    </div>
+    ${modsHtml ? `
+      <div style="margin-top:12px;">
+        <div style="font-size:11px;font-weight:600;color:#f0c040;margin-bottom:6px;">💀 Elite Modifiers</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">${modsHtml}</div>
+      </div>
+    ` : ''}
+    ${isPvp ? `<div style="margin-top:8px;font-size:12px;color:#3ecf8e;">🟢 Reward: Claim territory</div>` : ''}
   `;
+  drawSetupMiniMap('setup-mini-map', mapDef);
   renderSetupArmory();
 }
 
@@ -4933,7 +5094,6 @@ function renderSetupArmory() {
 function showSetupTowerStats(armoryIdx) {
   // Clear previous highlight
   document.querySelectorAll('.setup-tower-slot.info-active').forEach(el => el.classList.remove('info-active'));
-  // Highlight the clicked card
   const allSlots = document.querySelectorAll('#setup-armory-grid .setup-tower-slot');
   if (allSlots[armoryIdx]) allSlots[armoryIdx].classList.add('info-active');
 
@@ -4942,22 +5102,59 @@ function showSetupTowerStats(armoryIdx) {
   if (!entry) return;
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
   if (!td) return;
-  const lvlMult = 1 + (entry.level - 1) * (td.upgPctPerLevel || 0.10);
-  const dmg   = Math.round(td.baseStats.dmg * lvlMult);
-  const spd   = td.baseStats.atkSpeed;
-  const range = td.baseStats.range;
-  const proj  = td.baseStats.projectiles;
-  const b = getResearchBonuses();
-  const dmgFinal = Math.round(dmg * (1 + b.tower_dmg));
+
+  // Use the same stat calculation as the armory modal so values always match
+  const { currentStats, enchantBonus } = calculateTowerStats(entry, td);
+
+  // Same formatBonus as openArmorySlotModal (invertColor: lower atkSpeed = green)
+  const formatBonus = (bonus, isTime = false, invertColor = false) => {
+    if (Math.abs(bonus) < 0.01) return '';
+    const sign = bonus > 0 ? '+' : '';
+    const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
+    const isGood = invertColor ? bonus < 0 : bonus > 0;
+    const color = isGood ? '#3ecf8e' : '#f55a5a';
+    return ` <span style="color:${color};font-size:11px;">(${sign}${value}${isTime ? 's' : ''})</span>`;
+  };
+
+  const enchantCount = entry.enchantments ? entry.enchantments.length : 0;
+  const enchantBadges = enchantCount > 0
+    ? entry.enchantments.map(e =>
+        `<span style="font-size:9px;padding:2px 7px;background:var(--bg4);border-radius:4px;border:1px solid rgba(255,255,255,0.1);color:var(--text2);">${e.name}</span>`
+      ).join('')
+    : '';
+
   document.getElementById('setup-stats-content').innerHTML = `
-    <div class="setup-stats-icon">${td.icon}</div>
-    <div class="setup-stats-name">${td.name}</div>
-    <span class="setup-stats-type" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
-    <div class="setup-stat-row"><span class="setup-stat-label">Level</span><span class="setup-stat-val">${entry.level}</span></div>
-    <div class="setup-stat-row"><span class="setup-stat-label">Damage</span><span class="setup-stat-val">${dmgFinal}</span></div>
-    <div class="setup-stat-row"><span class="setup-stat-label">Atk Speed</span><span class="setup-stat-val">${spd}s</span></div>
-    <div class="setup-stat-row"><span class="setup-stat-label">Range</span><span class="setup-stat-val">${range} tiles</span></div>
-    ${proj > 1 ? `<div class="setup-stat-row"><span class="setup-stat-label">Projectiles</span><span class="setup-stat-val">${proj}</span></div>` : ''}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <span style="font-size:28px;line-height:1;">${td.icon}</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">${td.name} <span style="font-size:11px;font-weight:400;color:var(--text3);">Lv ${entry.level}</span></div>
+        <span class="setup-stats-type" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
+      </div>
+    </div>
+    <div class="bmodal-stat-grid" style="margin-bottom:10px;">
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">⚔️ Damage</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">⚡ Atk Speed</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${parseFloat(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">📏 Range</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">🎯 Projectiles</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.projectiles)}</div>
+      </div>
+    </div>
+    ${enchantCount > 0 ? `
+      <div style="margin-bottom:8px;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">✨ Enchantments (${enchantCount})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${enchantBadges}</div>
+      </div>
+    ` : ''}
     ${td.special ? `<div class="setup-stats-special">✦ ${td.special}</div>` : ''}
   `;
   document.getElementById('setup-stats-section').style.visibility = 'visible';
@@ -5861,7 +6058,7 @@ function killEnemy(e, tower) {
     bs.waveEnemyCounts[e.waveNum] = Math.max(0, (bs.waveEnemyCounts[e.waveNum]||1) - 1);
     if (bs.waveEnemyCounts[e.waveNum] === 0) {
       const waveMult = bs.eliteCfg?.waveBonusMult ?? 1;
-      const bonus = Math.round(50 * waveMult);
+      const bonus = Math.round(50 * waveMult * (1 + getResearchBonuses().wave_gold));
       bs.gold += bonus;
       delete bs.waveEnemyCounts[e.waveNum];
       showToast(`Wave ${e.waveNum} cleared! +💰${bonus}`);
@@ -7172,8 +7369,7 @@ function pvpDraw() {
           ctx.font=`bold ${Math.max(9,Math.round(ts*0.19))}px Inter`;
           ctx.textAlign='center';
           ctx.textBaseline='middle';
-          // Test coordinate shows 10-5
-          const stageText = (tx === 67 && ty === 45) ? '10-5' : `1-${diff}`;
+          const stageText = `1-${diff}`;
           ctx.fillText(stageText, cx2, cy2);
         }
 
@@ -7204,8 +7400,7 @@ function pvpDraw() {
         ctx.font=`${Math.max(9,Math.round(ts*0.21))}px Inter`;
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        // Test coordinate shows 10-5
-        const stageText = (tx === 67 && ty === 45) ? '10-5' : `1-${diff}`;
+        const stageText = `1-${diff}`;
         ctx.fillText(stageText, cx2, cy2);
       }
 
