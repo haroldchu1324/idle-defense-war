@@ -3501,6 +3501,7 @@ async function updateResearchBars() {
       if (result?.completed_research?.length > 0) {
         // Refresh from server to get updated state
         await refreshFromServer();
+        updateResearchCards();
         result.completed_research.forEach(research_id => {
           const rd = RESEARCH_DEFS.find(x => x.id === research_id);
           if (rd) {
@@ -3644,6 +3645,7 @@ async function startResearch(id) {
 
     // Only update client state after server confirms
     await refreshFromServer();
+    updateResearchCards();
     closeModal();
     showToast(`🔬 ${rd.name} research started!`);
   } catch(e) {
@@ -3664,6 +3666,7 @@ async function cancelResearch(id) {
 
     // Refresh from server to get updated state and refunded resources
     await refreshFromServer();
+    updateResearchCards();
     closeModal();
     showToast(`Research cancelled — 50% materials refunded`);
   } catch(e) {

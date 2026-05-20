@@ -452,16 +452,27 @@ end $$;
 
 create or replace function public.idw_craft_tower(p_tower_id text)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; cost jsonb; slots int:=5; used int; entry jsonb;
+declare
+  p public.idw_player_state; base_cost jsonb; cost jsonb; disc numeric;
+  slots int:=5; used int; entry jsonb;
 begin
-  p:=public.idw_ensure_player(); cost:=public.idw_tower_cost(p_tower_id);
-  if cost is null then raise exception 'Unknown tower'; end if;
+  p := public.idw_ensure_player();
+  base_cost := public.idw_tower_cost(p_tower_id);
+  if base_cost is null then raise exception 'Unknown tower'; end if;
+  -- Apply craft_cost research discount (econ3_ii: -10% crafting cost)
+  disc := 1.0 + case when coalesce((p.research->'econ3_ii'->>'done')::boolean, false) then -0.10 else 0.0 end;
+  select coalesce(jsonb_object_agg(kv.key, ceil((kv.value::numeric) * disc)::integer), '{}'::jsonb)
+  into cost from jsonb_each(base_cost) as kv;
   if p.player_level < public.idw_tower_unlock_level(p_tower_id) then raise exception 'Need higher level'; end if;
-  if not public.idw_can_pay(p.resources,cost) then raise exception 'Not enough resources'; end if;
-  if coalesce((p.research->'comb4'->>'done')::boolean,false) then slots := slots + 2; end if;
+  if not public.idw_can_pay(p.resources, cost) then raise exception 'Not enough resources'; end if;
+  if coalesce((p.research->'comb4'->>'done')::boolean, false) then slots := slots + 2; end if;
   used := jsonb_array_length(p.armory); if used >= slots then raise exception 'No armory slots'; end if;
-  entry := jsonb_build_object('towerId',p_tower_id,'level',1,'placedAt',extract(epoch from now())*1000);
-  update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, public.idw_negative(cost)), armory=armory||jsonb_build_array(entry), updated_at=now() where user_id=p.user_id;
+  entry := jsonb_build_object('towerId', p_tower_id, 'level', 1, 'placedAt', extract(epoch from now())*1000);
+  update public.idw_player_state
+  set resources = public.idw_apply_resource_delta(resources, public.idw_negative(cost)),
+      armory = armory || jsonb_build_array(entry),
+      updated_at = now()
+  where user_id = p.user_id;
   return public.idw_get_state();
 end $$;
 
