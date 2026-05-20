@@ -2243,11 +2243,14 @@ function selectTowerForEnchant(index) {
     const { currentStats, enchantBonus } = calculateTowerStats(tower, towerDef);
 
     // Helper function to format stat bonus display
-    const formatBonus = (bonus, isTime = false) => {
+    const formatBonus = (bonus, isTime = false, invertColor = false) => {
       if (Math.abs(bonus) < 0.01) return '';
       const sign = bonus > 0 ? '+' : '';
       const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
-      const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+      // invertColor: for stats where lower is better (e.g. atkSpeed cooldown),
+      // a negative bonus is actually a buff — show it green instead of red.
+      const isGood = invertColor ? bonus < 0 : bonus > 0;
+      const color = isGood ? '#3ecf8e' : '#f55a5a';
       return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
     };
 
@@ -2264,7 +2267,7 @@ function selectTowerForEnchant(index) {
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
         <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(-enchantBonus.atkSpeed, true)}</div>
+        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
         <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
         <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
@@ -2597,11 +2600,14 @@ function updateSelectedTowerDisplay() {
     const { currentStats, enchantBonus } = calculateTowerStats(tower, towerDef);
 
     // Helper function to format stat bonus display
-    const formatBonus = (bonus, isTime = false) => {
+    const formatBonus = (bonus, isTime = false, invertColor = false) => {
       if (Math.abs(bonus) < 0.01) return '';
       const sign = bonus > 0 ? '+' : '';
       const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
-      const color = bonus > 0 ? '#3ecf8e' : '#f55a5a';
+      // invertColor: for stats where lower is better (e.g. atkSpeed cooldown),
+      // a negative bonus is actually a buff — show it green instead of red.
+      const isGood = invertColor ? bonus < 0 : bonus > 0;
+      const color = isGood ? '#3ecf8e' : '#f55a5a';
       return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
     };
 
@@ -2617,7 +2623,7 @@ function updateSelectedTowerDisplay() {
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
         <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(-enchantBonus.atkSpeed, true)}</div>
+        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
         <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
         <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
@@ -3921,7 +3927,7 @@ function openArmorySlotModal(slotIdx) {
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">⚡ Atk Speed</div>
-        <div class="bmodal-stat-value">${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(-enchantBonus.atkSpeed, true)}</div>
+        <div class="bmodal-stat-value">${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">🎯 Range</div>
