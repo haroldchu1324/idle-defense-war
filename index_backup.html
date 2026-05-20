@@ -654,7 +654,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-back-btn:hover{background:#1a1d28;color:#d4d8f0;}
 .setup-title{font-family:'Cinzel',serif;font-size:20px;color:#fff;font-weight:700;}
 .setup-sub{font-size:13px;color:#555e80;margin-left:auto;}
-.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 3rem;display:grid;grid-template-columns:1fr 220px 380px;gap:1.5rem;align-items:start;}
+.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 3rem;display:grid;grid-template-columns:1fr 440px;gap:2rem;align-items:start;}
 .setup-section{min-width:0;}
 .setup-tower-slot.info-active .setup-tower-info-btn{background:rgba(62,207,142,0.3)!important;border-color:#3ecf8e!important;color:#3ecf8e!important;}
 .setup-section-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem;}
@@ -696,6 +696,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-stat-label{color:#555e80;}
 .setup-stat-val{color:#d4d8f0;font-weight:600;}
 .setup-stats-special{font-size:9px;color:#f0a040;margin-top:0.5rem;padding:6px 8px;background:rgba(240,160,64,0.08);border-radius:6px;line-height:1.5;border:1px solid rgba(240,160,64,0.2);}
+.setup-col-scroll{overflow-y:auto;max-height:calc(100vh - 140px);}
+.setup-info-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+.setup-info-stat-box{background:#20243a;border-radius:8px;padding:8px 10px;}
+.setup-info-stat-label{font-size:10px;color:var(--text3);margin-bottom:3px;}
+.setup-info-stat-val{font-size:15px;font-weight:700;color:#fff;}
+.setup-mini-map{width:100%;height:auto;border-radius:8px;display:block;}
+.setup-enemy-badge{display:flex;align-items:center;gap:6px;background:#20243a;border-radius:6px;padding:5px 8px;font-size:11px;}
+.setup-elite-mod{font-size:11px;color:#f0c040;background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.2);border-radius:6px;padding:5px 8px;}
 
 /* ── PVP loading overlay ── */
 .pvp-loading-overlay{position:absolute;inset:0;background:rgba(8,10,16,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;z-index:20;}
@@ -1213,27 +1221,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       <div class="setup-sub" id="setup-sub">Choose towers from your Armory to bring</div>
     </div>
     <div class="setup-body">
-      <!-- Left: Armory -->
-      <div class="setup-section">
+      <!-- Left: Armory + Tower Stats inline -->
+      <div class="setup-section setup-col-scroll">
         <div class="setup-section-title">
           Armory — Bring to Battle
           <span id="setup-slot-info" class="setup-slot-badge">0 / 2 selected</span>
         </div>
         <div style="font-size:12px;color:#555e80;margin-bottom:0.75rem;">Selected towers are consumed on deployment. You place them yourself after the battle starts.</div>
-        <div class="setup-armory-scroll">
-          <div class="setup-armory-grid" id="setup-armory-grid"></div>
+        <div class="setup-armory-grid" id="setup-armory-grid" style="margin-bottom:0.5rem;"></div>
+        <!-- Tower Stats shown inline below armory when ℹ clicked -->
+        <div id="setup-stats-section" style="display:none;margin-top:1.25rem;">
+          <div class="setup-section-title" style="font-size:12px;">Tower Stats</div>
+          <div id="setup-stats-content" class="setup-stats-card"></div>
         </div>
       </div>
-      <!-- Middle: Tower stats (shown when ℹ is clicked) -->
-      <div class="setup-section" id="setup-stats-section" style="visibility:hidden;">
-        <div class="setup-section-title" style="font-size:12px;">Tower Stats</div>
-        <div id="setup-stats-content" class="setup-stats-card"></div>
-      </div>
       <!-- Right: Stage Info + Start button -->
-      <div class="setup-section">
+      <div class="setup-section setup-col-scroll">
         <div class="setup-section-title">Stage Info</div>
         <div id="setup-stage-info" class="setup-info-box"></div>
-        <button class="setup-start-btn" id="setup-start-btn" onclick="startBattle()" style="width:100%;margin-top:1rem;">⚔️ Start Battle</button>
+        <div style="position:sticky;bottom:0;padding-top:0.75rem;background:#0e0f14;">
+          <button class="setup-start-btn" id="setup-start-btn" onclick="startBattle()" style="width:100%;">⚔️ Start Battle</button>
+        </div>
       </div>
     </div>
   </div>
@@ -4884,11 +4892,91 @@ const GRID_SNAP = 10;
 const TOWER_FOOTPRINT = 30; 
 const TOWER_RADIUS_PX = 15; 
 
+// Returns ordered array of enemy type keys that appear across all 10 waves of a stage
+function getStageEnemyTypes(stageId) {
+  const baseId = stageId.startsWith('elite:') ? stageId.slice(6) : stageId;
+  const seen = new Set();
+  for (let w = 1; w <= 10; w++) {
+    const cfg = getWaveConfig(baseId, w);
+    if (!cfg) continue;
+    cfg.enemies.forEach(g => {
+      seen.add(g.type);
+      // Also include secondary spawns (on-death)
+      const et = ENEMY_TYPES[g.type];
+      if (et?.spawnOnDeath) seen.add(et.spawnOnDeath.type);
+    });
+  }
+  const TIER_ORDER = ['red','blue','green','yellow','pink','black','purple','white','boss'];
+  return TIER_ORDER.filter(t => seen.has(t));
+}
+
+// Draws a mini top-down map preview onto a canvas element
+function drawSetupMiniMap(canvasId, mapDef) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const COLS = 22, ROWS = 10;
+  const tw = W / COLS, th = H / ROWS;
+
+  // Background
+  ctx.fillStyle = mapDef.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 0.8;
+  for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c*tw, 0); ctx.lineTo(c*tw, H); ctx.stroke(); }
+  for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*th); ctx.lineTo(W, r*th); ctx.stroke(); }
+
+  // Waypoints in pixel space
+  const wps = mapDef.waypoints.map(([c, r]) => ({ x: c * tw + tw/2, y: r * th + th/2 }));
+
+  // Path shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = mapDef.pathColor;
+  ctx.lineWidth = tw * mapDef.pathWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  wps.forEach((wp, i) => { if (i === 0) ctx.moveTo(wp.x, wp.y); else ctx.lineTo(wp.x, wp.y); });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Path edge highlight
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = tw * mapDef.pathWidth * 0.3;
+  ctx.beginPath();
+  wps.forEach((wp, i) => { if (i === 0) ctx.moveTo(wp.x, wp.y); else ctx.lineTo(wp.x, wp.y); });
+  ctx.stroke();
+
+  // Start marker (green)
+  ctx.shadowColor = '#3ecf8e';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#3ecf8e';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(wps[0].x, wps[0].y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // End marker (red)
+  ctx.shadowColor = '#f55a5a';
+  ctx.fillStyle = '#f55a5a';
+  ctx.beginPath();
+  ctx.arc(wps[wps.length - 1].x, wps[wps.length - 1].y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
 function openBattleSetup(stageId) {
   battleSetupStageId = stageId;
   battleSelectedTowers = [];
   const statsSection = document.getElementById('setup-stats-section');
-  if (statsSection) statsSection.style.visibility = 'hidden';
+  if (statsSection) statsSection.style.display = 'none';
   const screen = document.getElementById('battle-screen');
   const setup  = document.getElementById('battle-setup');
   const game   = document.getElementById('battle-game');
@@ -4908,14 +4996,67 @@ function openBattleSetup(stageId) {
   document.getElementById('setup-title').textContent = isPvp?`World Map`:`Stage ${baseStageId}${isEliteBattle?' [ELITE]':''} — ${worldLabel}`;
   document.getElementById('setup-sub').textContent   = `Select up to ${battleDeploySlots()} towers from your Armory to bring`;
 
-  document.getElementById('setup-stage-info').innerHTML = `
-    <div class="setup-info-row"><span class="setup-info-label">Map</span><span class="setup-info-val">${mapDef.name}</span></div>
+  // Compute enemy types and elite mods for this stage
+  const enemyTypesForStage = getStageEnemyTypes(isPvp ? stageId : baseStageId);
+  const rb = getResearchBonuses();
+  const eliteMods = isEliteBattle ? getEliteModifiers(baseStageId) : [];
 
-    <div class="setup-info-row"><span class="setup-info-label">Waves</span><span class="setup-info-val">10</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Deploy slots</span><span class="setup-info-val">${battleDeploySlots()}</span></div>
-    <div class="setup-info-row"><span class="setup-info-label">Starting gold</span><span class="setup-info-val">💰 ${200 + getResearchBonuses().start_gold}</span></div>
-    ${isPvp ? `<div class="setup-info-row"><span class="setup-info-label">Reward</span><span class="setup-info-val" style="color:#3ecf8e">🟢 Claim territory</span></div>` : ''}
+  const enemyBadgesHtml = enemyTypesForStage.map(typeKey => {
+    const et = ENEMY_TYPES[typeKey];
+    if (!et) return '';
+    const spawnNote = et.spawnOnDeath
+      ? `<span style="color:#666;font-size:10px;margin-left:auto;">→ ${et.spawnOnDeath.count}× ${ENEMY_TYPES[et.spawnOnDeath.type]?.name || et.spawnOnDeath.type}</span>`
+      : '<span style="margin-left:auto;"></span>';
+    return `<div class="setup-enemy-badge">
+      <span style="width:11px;height:11px;border-radius:50%;background:${et.color};flex-shrink:0;display:inline-block;"></span>
+      <span style="color:var(--text2);flex:1;">${et.name}</span>
+      <span style="color:#f55a5a;font-size:10px;">❤️ ${et.hp}</span>
+      ${spawnNote}
+    </div>`;
+  }).join('');
+
+  const modsHtml = eliteMods.map(m =>
+    `<div class="setup-elite-mod">${m.label}</div>`
+  ).join('');
+
+  document.getElementById('setup-stage-info').innerHTML = `
+    <canvas id="setup-mini-map" class="setup-mini-map" width="880" height="360" style="margin-bottom:4px;border:1px solid #2a2e42;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:12px;padding:0 2px;">
+      <span style="color:#3ecf8e;">● Start</span>
+      <span style="font-weight:600;color:var(--text2);">${mapDef.name}</span>
+      <span style="color:#f55a5a;">● End</span>
+    </div>
+    <div class="setup-info-stat-grid">
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">🌊 Waves</div>
+        <div class="setup-info-stat-val">10</div>
+      </div>
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">🗡️ Deploy Slots</div>
+        <div class="setup-info-stat-val">${battleDeploySlots()}</div>
+      </div>
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">💰 Starting Gold</div>
+        <div class="setup-info-stat-val">${200 + rb.start_gold}</div>
+      </div>
+      <div class="setup-info-stat-box">
+        <div class="setup-info-stat-label">❤️ Starting Lives</div>
+        <div class="setup-info-stat-val">${20 + rb.start_lives}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:${modsHtml ? '0' : '4px'};">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;">Enemy Types</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">${enemyBadgesHtml}</div>
+    </div>
+    ${modsHtml ? `
+      <div style="margin-top:12px;">
+        <div style="font-size:11px;font-weight:600;color:#f0c040;margin-bottom:6px;">💀 Elite Modifiers</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">${modsHtml}</div>
+      </div>
+    ` : ''}
+    ${isPvp ? `<div style="margin-top:8px;font-size:12px;color:#3ecf8e;">🟢 Reward: Claim territory</div>` : ''}
   `;
+  drawSetupMiniMap('setup-mini-map', mapDef);
   renderSetupArmory();
 }
 
@@ -5016,7 +5157,7 @@ function showSetupTowerStats(armoryIdx) {
     ` : ''}
     ${td.special ? `<div class="setup-stats-special">✦ ${td.special}</div>` : ''}
   `;
-  document.getElementById('setup-stats-section').style.visibility = 'visible';
+  document.getElementById('setup-stats-section').style.display = 'block';
 }
 
 function toggleSetupTower(idx, maxSlots) {
