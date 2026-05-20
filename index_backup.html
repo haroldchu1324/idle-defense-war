@@ -654,12 +654,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .setup-back-btn:hover{background:#1a1d28;color:#d4d8f0;}
 .setup-title{font-family:'Cinzel',serif;font-size:20px;color:#fff;font-weight:700;}
 .setup-sub{font-size:13px;color:#555e80;margin-left:auto;}
-.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 3rem;display:grid;grid-template-columns:1fr 440px;gap:2rem;align-items:start;}
+.setup-body{flex:1;overflow-y:hidden;padding:1.5rem 3rem;display:grid;grid-template-columns:1fr 280px 440px;gap:1.5rem;align-items:start;}
 .setup-section{min-width:0;}
 .setup-tower-slot.info-active .setup-tower-info-btn{background:rgba(62,207,142,0.3)!important;border-color:#3ecf8e!important;color:#3ecf8e!important;}
 .setup-section-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem;}
 .setup-slot-badge{font-size:12px;font-weight:600;padding:2px 10px;border-radius:20px;background:#20243a;color:#4a8fff;border:1px solid #2a5fcc;}
-.setup-armory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,110px));gap:0.75rem;}
+/* 4 columns exactly; auto-fill keeps it responsive on narrower screens */
+.setup-armory-grid{display:grid;grid-template-columns:repeat(auto-fill,110px);gap:0.75rem;max-width:calc(4 * 110px + 3 * 0.75rem);}
 .setup-tower-slot{width:110px;height:110px;background:#1a1d28;border:2px solid #2a2e42;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;transition:all 0.15s;position:relative;}
 .setup-tower-slot:hover{border-color:#4a8fff;background:#20243a;}
 .setup-tower-slot.selected{border-color:#f0c040;background:rgba(240,192,64,0.08);box-shadow:0 0 0 3px rgba(240,192,64,0.2);}
@@ -1221,21 +1222,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
       <div class="setup-sub" id="setup-sub">Choose towers from your Armory to bring</div>
     </div>
     <div class="setup-body">
-      <!-- Left: Armory + Tower Stats inline -->
+      <!-- Col 1: Armory tower grid -->
       <div class="setup-section setup-col-scroll">
         <div class="setup-section-title">
           Armory — Bring to Battle
           <span id="setup-slot-info" class="setup-slot-badge">0 / 2 selected</span>
         </div>
         <div style="font-size:12px;color:#555e80;margin-bottom:0.75rem;">Selected towers are consumed on deployment. You place them yourself after the battle starts.</div>
-        <div class="setup-armory-grid" id="setup-armory-grid" style="margin-bottom:0.5rem;"></div>
-        <!-- Tower Stats shown inline below armory when ℹ clicked -->
-        <div id="setup-stats-section" style="display:none;margin-top:1.25rem;">
-          <div class="setup-section-title" style="font-size:12px;">Tower Stats</div>
-          <div id="setup-stats-content" class="setup-stats-card"></div>
-        </div>
+        <div class="setup-armory-grid" id="setup-armory-grid"></div>
       </div>
-      <!-- Right: Stage Info + Start button -->
+      <!-- Col 2: Tower Stats — sits between Armory and Stage Info; visibility:hidden keeps column space reserved -->
+      <div class="setup-section setup-col-scroll" id="setup-stats-section" style="visibility:hidden;">
+        <div class="setup-section-title" style="font-size:12px;">Tower Stats</div>
+        <div id="setup-stats-content" class="setup-stats-card"></div>
+      </div>
+      <!-- Col 3: Stage Info + Start button -->
       <div class="setup-section setup-col-scroll">
         <div class="setup-section-title">Stage Info</div>
         <div id="setup-stage-info" class="setup-info-box"></div>
@@ -4976,7 +4977,7 @@ function openBattleSetup(stageId) {
   battleSetupStageId = stageId;
   battleSelectedTowers = [];
   const statsSection = document.getElementById('setup-stats-section');
-  if (statsSection) statsSection.style.display = 'none';
+  if (statsSection) statsSection.style.visibility = 'hidden';
   const screen = document.getElementById('battle-screen');
   const setup  = document.getElementById('battle-setup');
   const game   = document.getElementById('battle-game');
@@ -5157,7 +5158,7 @@ function showSetupTowerStats(armoryIdx) {
     ` : ''}
     ${td.special ? `<div class="setup-stats-special">✦ ${td.special}</div>` : ''}
   `;
-  document.getElementById('setup-stats-section').style.display = 'block';
+  document.getElementById('setup-stats-section').style.visibility = 'visible';
 }
 
 function toggleSetupTower(idx, maxSlots) {
