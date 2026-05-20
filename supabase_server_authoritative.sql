@@ -214,16 +214,77 @@ begin
   return p;
 end $$;
 
-create or replace function public.idw_node_stored_amount(ns jsonb, tier_idx int)
+-- ── Research production bonus helper ────────────────────────────────────────
+-- Returns the total additive production bonus fraction for p_res_id
+-- from all completed research items, matching client getResearchBonuses().
+-- e.g. 0.14 means +14% production.
+create or replace function public.idw_research_prod_bonus(p_research jsonb, p_res_id text)
+returns numeric language sql stable as $$
+  with bonuses(id, applies_to, pct) as (values
+    -- res_prod: per-resource bonuses (mirrors RESEARCH_DEFS bonus.type='res_prod')
+    ('prod1_i',        'wood',    0.08::numeric),
+    ('prod2_i',        'ore',     0.08::numeric),
+    ('prod3_i',        'fiber',   0.08::numeric),
+    ('prod4_i',        'leather', 0.08::numeric),
+    ('prod5_i',        'stone',   0.08::numeric),
+    ('prod1_ii',       'wood',    0.12::numeric),
+    ('prod2_ii',       'ore',     0.12::numeric),
+    ('prod3_ii',       'fiber',   0.12::numeric),
+    ('prod4_ii',       'leather', 0.12::numeric),
+    ('prod5_ii',       'stone',   0.12::numeric),
+    ('prod1_iii',      'wood',    0.18::numeric),
+    ('prod2_iii',      'ore',     0.18::numeric),
+    -- all_prod: applies to every resource (mirrors bonus.type='all_prod')
+    ('prod_syn_ii',    'all',     0.06::numeric),
+    ('prod_mega_iii',  'all',     0.15::numeric),
+    ('unified_prod_iv','all',     0.25::numeric),
+    ('transcendent_v', 'all',     0.50::numeric)
+  )
+  select coalesce(sum(pct), 0)
+  from bonuses
+  where coalesce((p_research->id->>'done')::boolean, false)
+    and (applies_to = 'all' or applies_to = p_res_id);
+$$;
+
+-- ── Node stored amount (matches client nodeProdPerHour formula exactly) ──────
+-- Client formula:
+--   base     = round(baseProd[tier] * (1 + (upgradeLevel-1) * 0.50))
+--   levelMult= 1 + (playerLevel-1) * 0.001
+--   resMult  = 1 + researchProdBonus(resId)
+--   prodPerHour = round(base * levelMult * resMult)
+-- Old server used power(1.15, lvl-1) — wrong at higher levels.
+-- Drop old signature first so CREATE OR REPLACE can change the parameter list.
+drop function if exists public.idw_node_stored_amount(jsonb, int);
+
+create or replace function public.idw_node_stored_amount(
+  ns jsonb, tier_idx int, player_level int, p_research jsonb, p_res_id text
+)
 returns integer language plpgsql stable as $$
-declare now_ms numeric := extract(epoch from now())*1000; last_ms numeric; lvl int; elapsed_hours numeric; amount numeric; cap numeric;
+declare
+  now_ms        numeric := extract(epoch from now())*1000;
+  last_ms       numeric;
+  lvl           int;
+  elapsed_hours numeric;
+  base_rate     numeric;
+  level_mult    numeric;
+  res_mult      numeric;
+  amount        numeric;
+  cap           numeric;
 begin
-  if not coalesce((ns->>'unlocked')::boolean,false) or coalesce((ns->>'upgrading')::boolean,false) then return 0; end if;
-  last_ms := coalesce((ns->>'lastCollectAt')::numeric, now_ms);
-  lvl := coalesce((ns->>'upgradeLevel')::int,1);
-  elapsed_hours := greatest(0, least(now_ms-last_ms, 8*60*60*1000)) / 3600000.0;
-  amount := coalesce((ns->>'storedAmount')::numeric,0) + public.idw_base_prod(tier_idx) * power(1.15,lvl-1) * elapsed_hours;
-  cap := public.idw_storage_cap(tier_idx,lvl);
+  if not coalesce((ns->>'unlocked')::boolean, false)
+     or coalesce((ns->>'upgrading')::boolean, false) then return 0; end if;
+  last_ms       := coalesce((ns->>'lastCollectAt')::numeric, now_ms);
+  lvl           := coalesce((ns->>'upgradeLevel')::int, 1);
+  elapsed_hours := greatest(0, least(now_ms - last_ms, 8*60*60*1000)) / 3600000.0;
+  -- matches client: baseProd * (1 + (upgradeLevel-1) * 0.50)
+  base_rate  := public.idw_base_prod(tier_idx) * (1.0 + (lvl - 1) * 0.50);
+  -- matches client: 1 + bonusProd(playerLevel) = 1 + (level-1)*0.001
+  level_mult := 1.0 + (greatest(player_level, 1) - 1) * 0.001;
+  -- matches client: 1 + researchProdBonus(resId)
+  res_mult   := 1.0 + public.idw_research_prod_bonus(p_research, p_res_id);
+  amount     := coalesce((ns->>'storedAmount')::numeric, 0)
+                + base_rate * level_mult * res_mult * elapsed_hours;
+  cap        := public.idw_storage_cap(tier_idx, lvl);
   return floor(least(amount, cap))::integer;
 end $$;
 
@@ -234,7 +295,7 @@ begin
   foreach res_id in array array['wood','stone','fiber','leather','ore'] loop
     for i in 0..4 loop
       ns := n->res_id->i;
-      stored := public.idw_node_stored_amount(ns, i);
+      stored := public.idw_node_stored_amount(ns, i, p.player_level, p.research, res_id);
       ns := jsonb_set(ns,'{storedAmount}',to_jsonb(stored),true);
       n := jsonb_set(n, array[res_id,i::text], ns, true);
     end loop;
@@ -347,7 +408,7 @@ begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid node'; end if;
   p:=public.idw_tick_upgrades(public.idw_ensure_player());
   ns := p.nodes->p_res_id->p_tier_idx;
-  amount := public.idw_node_stored_amount(ns,p_tier_idx);
+  amount := public.idw_node_stored_amount(ns, p_tier_idx, p.player_level, p.research, p_res_id);
   if amount <= 0 then return public.idw_get_state(); end if;
   ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true);
   ns := jsonb_set(ns,'{lastCollectAt}',to_jsonb(now_ms),true);
