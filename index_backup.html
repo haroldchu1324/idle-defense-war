@@ -4953,7 +4953,6 @@ function renderSetupArmory() {
 function showSetupTowerStats(armoryIdx) {
   // Clear previous highlight
   document.querySelectorAll('.setup-tower-slot.info-active').forEach(el => el.classList.remove('info-active'));
-  // Highlight the clicked card
   const allSlots = document.querySelectorAll('#setup-armory-grid .setup-tower-slot');
   if (allSlots[armoryIdx]) allSlots[armoryIdx].classList.add('info-active');
 
@@ -4962,22 +4961,59 @@ function showSetupTowerStats(armoryIdx) {
   if (!entry) return;
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
   if (!td) return;
-  const lvlMult = 1 + (entry.level - 1) * (td.upgPctPerLevel || 0.10);
-  const dmg   = Math.round(td.baseStats.dmg * lvlMult);
-  const spd   = td.baseStats.atkSpeed;
-  const range = td.baseStats.range;
-  const proj  = td.baseStats.projectiles;
-  const b = getResearchBonuses();
-  const dmgFinal = Math.round(dmg * (1 + b.tower_dmg));
+
+  // Use the same stat calculation as the armory modal so values always match
+  const { currentStats, enchantBonus } = calculateTowerStats(entry, td);
+
+  // Same formatBonus as openArmorySlotModal (invertColor: lower atkSpeed = green)
+  const formatBonus = (bonus, isTime = false, invertColor = false) => {
+    if (Math.abs(bonus) < 0.01) return '';
+    const sign = bonus > 0 ? '+' : '';
+    const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
+    const isGood = invertColor ? bonus < 0 : bonus > 0;
+    const color = isGood ? '#3ecf8e' : '#f55a5a';
+    return ` <span style="color:${color};font-size:11px;">(${sign}${value}${isTime ? 's' : ''})</span>`;
+  };
+
+  const enchantCount = entry.enchantments ? entry.enchantments.length : 0;
+  const enchantBadges = enchantCount > 0
+    ? entry.enchantments.map(e =>
+        `<span style="font-size:9px;padding:2px 7px;background:var(--bg4);border-radius:4px;border:1px solid rgba(255,255,255,0.1);color:var(--text2);">${e.name}</span>`
+      ).join('')
+    : '';
+
   document.getElementById('setup-stats-content').innerHTML = `
-    <div class="setup-stats-icon">${td.icon}</div>
-    <div class="setup-stats-name">${td.name}</div>
-    <span class="setup-stats-type" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
-    <div class="setup-stat-row"><span class="setup-stat-label">Level</span><span class="setup-stat-val">${entry.level}</span></div>
-    <div class="setup-stat-row"><span class="setup-stat-label">Damage</span><span class="setup-stat-val">${dmgFinal}</span></div>
-    <div class="setup-stat-row"><span class="setup-stat-label">Atk Speed</span><span class="setup-stat-val">${spd}s</span></div>
-    <div class="setup-stat-row"><span class="setup-stat-label">Range</span><span class="setup-stat-val">${range} tiles</span></div>
-    ${proj > 1 ? `<div class="setup-stat-row"><span class="setup-stat-label">Projectiles</span><span class="setup-stat-val">${proj}</span></div>` : ''}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <span style="font-size:28px;line-height:1;">${td.icon}</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">${td.name} <span style="font-size:11px;font-weight:400;color:var(--text3);">Lv ${entry.level}</span></div>
+        <span class="setup-stats-type" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
+      </div>
+    </div>
+    <div class="bmodal-stat-grid" style="margin-bottom:10px;">
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">⚔️ Damage</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">⚡ Atk Speed</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${parseFloat(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">📏 Range</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+      </div>
+      <div class="bmodal-stat">
+        <div class="bmodal-stat-label">🎯 Projectiles</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.projectiles)}</div>
+      </div>
+    </div>
+    ${enchantCount > 0 ? `
+      <div style="margin-bottom:8px;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">✨ Enchantments (${enchantCount})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${enchantBadges}</div>
+      </div>
+    ` : ''}
     ${td.special ? `<div class="setup-stats-special">✦ ${td.special}</div>` : ''}
   `;
   document.getElementById('setup-stats-section').style.visibility = 'visible';
