@@ -535,6 +535,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 }
 .research-tree-row::-webkit-scrollbar{display:none;}
 
+/* Category tab bar */
+.research-tab-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.25rem;}
+.research-tab{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:13px;font-weight:600;padding:7px 16px;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;white-space:nowrap;}
+.research-tab:hover{background:var(--bg4);color:var(--text);}
+.research-tab.active{background:rgba(74,143,255,0.15);border-color:var(--blue2);color:var(--blue);}
+/* Wrapping card grid replaces the horizontal-scroll row per category */
+.research-card-grid{display:flex;flex-wrap:wrap;gap:12px;padding-bottom:4px;}
+
 /* Connector between nodes */
 .research-connector{
   display:flex;align-items:center;flex-shrink:0;
@@ -600,7 +608,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .badge-locked{background:var(--bg3);color:var(--text3);border-color:var(--border);}
 .badge-researching{background:rgba(240,160,64,0.15);color:var(--orange);border-color:var(--orange);}
 
-.rnode-name{font-size:12px;font-weight:700;color:#fff;line-height:1.3;margin-top:8px;}
+.rnode-name{font-size:12px;font-weight:700;color:#fff;line-height:1.3;margin-top:4px;}
 .rnode-effect{font-size:10px;color:var(--green);font-weight:600;}
 .rnode-desc{font-size:10px;color:var(--text3);line-height:1.4;}
 .rnode-cost{font-size:10px;color:var(--text2);}
@@ -3209,6 +3217,17 @@ RESEARCH_DEFS.forEach(r => {
 });
 
 let activeResearchId = null;
+let activeResearchTab = null; // persists across buildResearchPanel rebuilds
+
+function switchResearchTab(catId) {
+  activeResearchTab = catId;
+  RESEARCH_CATEGORIES.forEach(cat => {
+    const btn = document.getElementById('rtab-' + cat.id);
+    const sec = document.getElementById('rcatsection-' + cat.id);
+    if (btn) btn.classList.toggle('active', cat.id === catId);
+    if (sec) sec.style.display = cat.id === catId ? '' : 'none';
+  });
+}
 
 function getResearchBonuses() {
   const b = { prod:{}, all_prod:0, tower_dmg:0, tower_spd:0, tower_range:0, silo_cap:0, craft_cost:0, research_speed:0, start_gold:0, wave_gold:0, start_lives:0 };
@@ -3306,69 +3325,74 @@ function buildResearchPanel() {
   if (!panel) return;
   panel.innerHTML = '';
 
-  // Add research overview panel
+  // Default to first category if none selected yet
+  if (!activeResearchTab) activeResearchTab = RESEARCH_CATEGORIES[0].id;
+
+  // Overview: one pill per category
   const progress = getResearchProgress();
   const overviewDiv = document.createElement('div');
   overviewDiv.className = 'research-overview';
   overviewDiv.innerHTML = `
     <div class="research-overview-header">📊 Research Progress Overview</div>
     <div class="research-tier-progress">
-      <div class="tier-prog" data-tier="I">Tier I: ${progress.I}/${RESEARCH_DEFS.filter(r => r.tier === 'I').length}</div>
-      <div class="tier-prog" data-tier="II">Tier II: ${progress.II}/${RESEARCH_DEFS.filter(r => r.tier === 'II').length}</div>
-      <div class="tier-prog" data-tier="III">Tier III: ${progress.III}/${RESEARCH_DEFS.filter(r => r.tier === 'III').length}</div>
-      <div class="tier-prog" data-tier="IV">Tier IV: ${progress.IV}/${RESEARCH_DEFS.filter(r => r.tier === 'IV').length}</div>
-      <div class="tier-prog" data-tier="V">Tier V: ${progress.V}/${RESEARCH_DEFS.filter(r => r.tier === 'V').length}</div>
+      ${RESEARCH_CATEGORIES.map(cat => {
+        const done = getCompletedResearchByCategory(cat.id);
+        const tot  = getTotalResearchByCategory(cat.id);
+        return `<div class="tier-prog">${cat.icon} ${cat.name}: ${done}/${tot}</div>`;
+      }).join('')}
       <div class="tier-prog total">Total: ${progress.total}/${RESEARCH_DEFS.length}</div>
     </div>
   `;
   panel.appendChild(overviewDiv);
 
-  // Group research by tiers for better organization
-  const tiers = ['I', 'II', 'III', 'IV', 'V'];
+  // Tab bar — one button per category
+  const tabBar = document.createElement('div');
+  tabBar.className = 'research-tab-bar';
+  RESEARCH_CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.id = 'rtab-' + cat.id;
+    btn.className = 'research-tab' + (cat.id === activeResearchTab ? ' active' : '');
+    btn.textContent = cat.icon + ' ' + cat.name;
+    btn.onclick = () => switchResearchTab(cat.id);
+    tabBar.appendChild(btn);
+  });
+  panel.appendChild(tabBar);
 
+  // One section per category; only the active one is visible
   RESEARCH_CATEGORIES.forEach(cat => {
     const nodes = RESEARCH_DEFS.filter(r => r.category === cat.id);
     if (!nodes.length) return;
 
     const completed = getCompletedResearchByCategory(cat.id);
-    const total = getTotalResearchByCategory(cat.id);
-    const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const total     = getTotalResearchByCategory(cat.id);
+    const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    const catDiv = document.createElement('div');
-    catDiv.className = 'research-category';
-    catDiv.setAttribute('data-category', cat.id);
-    catDiv.innerHTML = `
+    const section = document.createElement('div');
+    section.id = 'rcatsection-' + cat.id;
+    // reuse .research-category so existing colour-accent CSS applies
+    section.className = 'research-category';
+    section.setAttribute('data-category', cat.id);
+    section.style.display = cat.id === activeResearchTab ? '' : 'none';
+
+    section.innerHTML = `
       <div class="research-cat-header">
         <span class="research-cat-icon">${cat.icon}</span>
         <span class="research-cat-name">${cat.name}</span>
-        <span class="research-cat-progress">${completed}/${total} (${progressPct}%)</span>
+        <span class="research-cat-progress">${completed}/${total} (${pct}%)</span>
         <span class="research-cat-desc">${cat.desc}</span>
       </div>
-      <div class="research-tree-row" id="rtree-${cat.id}"></div>
+      <div class="research-card-grid" id="rtree-${cat.id}"></div>
     `;
-    panel.appendChild(catDiv);
+    panel.appendChild(section);
 
-    const row = document.getElementById('rtree-' + cat.id);
-
-    // Group nodes by tier for better visual organization
-    tiers.forEach(tier => {
-      const tierNodes = nodes.filter(n => n.tier === tier);
-      if (!tierNodes.length) return;
-
-      tierNodes.forEach((rd, i) => {
-        if (row.children.length > 0) {
-          const conn = document.createElement('div');
-          conn.className = 'research-connector';
-          conn.id = `rconn-to-${rd.id}`;
-          row.appendChild(conn);
-        }
-
-        const card = document.createElement('div');
-        card.id = 'rnode-' + rd.id;
-        card.setAttribute('data-tier', rd.tier);
-        card.onclick = () => openResearchModal(rd.id);
-        row.appendChild(card);
-      });
+    const grid = document.getElementById('rtree-' + cat.id);
+    // All tiers shown flat — no tier sub-grouping, no connectors
+    nodes.forEach(rd => {
+      const card = document.createElement('div');
+      card.id = 'rnode-' + rd.id;
+      card.setAttribute('data-tier', rd.tier);
+      card.onclick = () => openResearchModal(rd.id);
+      grid.appendChild(card);
     });
   });
 
@@ -3416,7 +3440,6 @@ function updateResearchCards() {
     card.innerHTML = `
       <div class="rnode-top">
         <span class="rnode-icon">${rd.icon}</span>
-        <span class="rnode-tier" data-tier="${rd.tier}">Tier ${rd.tier}</span>
         <span class="rnode-status-badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="rnode-name">${rd.name}</div>
