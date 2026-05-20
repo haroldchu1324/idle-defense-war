@@ -3633,7 +3633,8 @@ async function startResearch(id) {
     await serverRpc('idw_start_research', {
       p_research_id: id,
       p_cost: rd.cost,
-      p_requires: rd.requires
+      p_requires: rd.requires,
+      p_duration_ms: rd.durationMs
     });
 
     // Only update client state after server confirms
