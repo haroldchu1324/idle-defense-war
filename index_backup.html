@@ -3421,8 +3421,9 @@ function updateResearchCards() {
       const pct = Math.min(((now - rs.startMs) / rs.durationMs) * 100, 100).toFixed(1);
       const rem = Math.max(0, Math.ceil((rs.durationMs - (now - rs.startMs)) / 1000));
       progHtml = `
-        <div class="rnode-time" id="rptimer-${rd.id}">⏱ ${fmtCountdown(rem)}</div>
-        <div class="rnode-prog-wrap"><div class="rnode-prog" id="rprog-${rd.id}" style="width:${pct}%"></div></div>
+        <div style="color:var(--orange);font-size:11px;font-weight:700;margin-top:2px;">🔬 Researching…</div>
+        <div class="rnode-time" id="rptimer-${rd.id}" style="font-size:12px;font-weight:600;">⏱ ${fmtCountdown(rem)}</div>
+        <div class="rnode-prog-wrap" style="height:6px;margin-top:4px;"><div class="rnode-prog" id="rprog-${rd.id}" style="width:${pct}%"></div></div>
       `;
     } else if (!rs.done) {
       const costs = Object.entries(rd.cost).map(([k,v]) => {
@@ -3561,6 +3562,10 @@ function renderResearchModal() {
     const elapsed = now - rs.startMs;
     const pct = Math.min((elapsed / rs.durationMs) * 100, 100).toFixed(1);
     const rem = Math.max(0, Math.ceil((rs.durationMs - elapsed) / 1000));
+    const refundLine = Object.entries(rd.cost).map(([k,v]) => {
+      const def = RESOURCE_DEFS.find(x=>x.id===k);
+      return `${def?.icon||''} ${Math.floor(v*0.5).toLocaleString()} ${def?.label||k}`;
+    }).join('  ');
     body = `
       <div class="rmodal-in-progress">
         <div style="font-size:14px;font-weight:700;color:var(--orange);margin-bottom:4px;">🔬 Researching…</div>
@@ -3571,7 +3576,7 @@ function renderResearchModal() {
       <div class="bmodal-btns">
         <button class="bmodal-btn cancel-upg" onclick="cancelResearch('${rd.id}')">
           ✕ Cancel Research
-          <div class="btn-sub">Refunds 50% of materials spent</div>
+          <div class="btn-sub">Refunds 50%: ${refundLine}</div>
         </button>
       </div>
     `;
