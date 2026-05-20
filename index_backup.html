@@ -7172,8 +7172,7 @@ function pvpDraw() {
           ctx.font=`bold ${Math.max(9,Math.round(ts*0.19))}px Inter`;
           ctx.textAlign='center';
           ctx.textBaseline='middle';
-          // Test coordinate shows 10-5
-          const stageText = (tx === 67 && ty === 45) ? '10-5' : `1-${diff}`;
+          const stageText = `1-${diff}`;
           ctx.fillText(stageText, cx2, cy2);
         }
 
@@ -7204,8 +7203,7 @@ function pvpDraw() {
         ctx.font=`${Math.max(9,Math.round(ts*0.21))}px Inter`;
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        // Test coordinate shows 10-5
-        const stageText = (tx === 67 && ty === 45) ? '10-5' : `1-${diff}`;
+        const stageText = `1-${diff}`;
         ctx.fillText(stageText, cx2, cy2);
       }
 

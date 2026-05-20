@@ -657,3 +657,162 @@ begin
   return public.idw_get_state();
 end $$;
 grant execute on function public.pvp_upgrade_base(integer) to authenticated;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- RESEARCH SYSTEM FUNCTIONS
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- Start a research item: validate prereqs, deduct resources, begin timer
+create or replace function public.idw_start_research(
+  p_research_id text,
+  p_cost jsonb,
+  p_requires text[],
+  p_duration_ms bigint
+)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  req text;
+  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
+  rs jsonb;
+begin
+  p := public.idw_ensure_player();
+
+  -- Only one research at a time
+  if p.active_research_id is not null then
+    raise exception 'Already researching: %', p.active_research_id;
+  end if;
+
+  rs := p.research->p_research_id;
+  if coalesce((rs->>'done')::boolean, false) then
+    raise exception 'Research already completed';
+  end if;
+  if coalesce((rs->>'researching')::boolean, false) then
+    raise exception 'Research already in progress';
+  end if;
+
+  -- Check all prerequisites are done
+  if p_requires is not null then
+    foreach req in array p_requires loop
+      if not coalesce((p.research->req->>'done')::boolean, false) then
+        raise exception 'Prerequisite not met: %', req;
+      end if;
+    end loop;
+  end if;
+
+  -- Check and deduct resources
+  if not public.idw_can_pay(p.resources, p_cost) then
+    raise exception 'Not enough resources';
+  end if;
+
+  update public.idw_player_state
+  set
+    resources = public.idw_apply_resource_delta(resources, public.idw_negative(p_cost)),
+    research = jsonb_set(
+      coalesce(research, '{}'::jsonb),
+      array[p_research_id],
+      jsonb_build_object(
+        'done', false,
+        'researching', true,
+        'startMs', now_ms,
+        'durationMs', p_duration_ms,
+        'cost', p_cost
+      )
+    ),
+    active_research_id = p_research_id,
+    updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_start_research(text, jsonb, text[], bigint) to authenticated;
+
+-- Cancel in-progress research and refund 50% of original cost
+create or replace function public.idw_cancel_research(p_research_id text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  rs jsonb;
+  orig_cost jsonb;
+  refund jsonb := '{}'::jsonb;
+  k text; v integer;
+begin
+  p := public.idw_ensure_player();
+
+  rs := p.research->p_research_id;
+  if not coalesce((rs->>'researching')::boolean, false) then
+    raise exception 'Research not in progress';
+  end if;
+
+  -- Build 50% refund from stored cost
+  orig_cost := coalesce(rs->'cost', '{}'::jsonb);
+  for k, v in
+    select key, greatest(1, (value::numeric / 2)::integer)
+    from jsonb_each_text(orig_cost)
+  loop
+    refund := jsonb_set(refund, array[k], to_jsonb(v), true);
+  end loop;
+
+  update public.idw_player_state
+  set
+    resources = public.idw_apply_resource_delta(resources, refund),
+    research = jsonb_set(
+      research,
+      array[p_research_id],
+      jsonb_build_object('done', false, 'researching', false, 'startMs', 0, 'durationMs', 0)
+    ),
+    active_research_id = null,
+    updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_cancel_research(text) to authenticated;
+
+-- Complete any research whose timer has expired; awards 30 XP per completion
+create or replace function public.idw_check_research_completion()
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
+  rs jsonb;
+  rid text;
+  completed text[] := '{}';
+begin
+  p := public.idw_ensure_player();
+
+  rid := p.active_research_id;
+  if rid is null then
+    return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
+  end if;
+
+  rs := p.research->rid;
+  if coalesce((rs->>'researching')::boolean, false)
+     and now_ms >= coalesce((rs->>'startMs')::bigint, 0) + coalesce((rs->>'durationMs')::bigint, 0) then
+
+    update public.idw_player_state
+    set
+      research = jsonb_set(
+        research,
+        array[rid],
+        jsonb_build_object('done', true, 'researching', false, 'startMs', 0, 'durationMs', 0)
+      ),
+      active_research_id = null,
+      player_xp = player_xp + 30,
+      updated_at = now()
+    where user_id = p.user_id;
+
+    completed := array_append(completed, rid);
+  end if;
+
+  return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
+end $$;
+grant execute on function public.idw_check_research_completion() to authenticated;
+
+-- Called on login to resolve any research that completed while offline
+create or replace function public.idw_resolve_offline_research()
+returns jsonb language plpgsql security definer set search_path=public as $$
+begin
+  return public.idw_check_research_completion();
+end $$;
+grant execute on function public.idw_resolve_offline_research() to authenticated;
