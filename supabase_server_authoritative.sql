@@ -271,11 +271,23 @@ end $$;
 
 create or replace function public.idw_get_state()
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state;
+declare p public.idw_player_state; v_old_last_seen timestamptz;
 begin
   p := public.idw_ensure_player();
+  -- Capture the OLD last_seen BEFORE stamping so the client can compute
+  -- the true offline duration (now - old_last_seen).
+  v_old_last_seen := p.last_seen;
   p := public.idw_tick_upgrades(p);
   p := public.idw_tick_silo_upgrades(p);
+  -- Stamp last_seen = now() so the NEXT call to idw_get_state (i.e. next login)
+  -- sees the accurate "last time this player was online" instead of the stale
+  -- row-creation default.
+  update public.idw_player_state
+    set last_seen = now(), updated_at = now()
+    where user_id = p.user_id;
+  -- Restore old value into p so idw_state_to_v2 returns it to the client.
+  -- The client uses this to display the correct "Offline Xh Ym" banner.
+  p.last_seen := v_old_last_seen;
   return jsonb_build_object('v2', public.idw_state_to_v2(p));
 end $$;
 

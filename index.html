@@ -1755,9 +1755,29 @@ function applyOfflineProgress(lastSeen) {
 }
 
 function showOfflineTimeBanner(lastSeen) {
-  if(!lastSeen) return;
+  if(!lastSeen || typeof lastSeen !== 'number' || isNaN(lastSeen)) return;
+  const now = Date.now();
+  const rawElapsed = now - lastSeen;
+
+  // Sanity guard 1: elapsed must be positive.
+  // Negative means the saved timestamp is in the future (clock skew / bad value).
+  if (rawElapsed <= 0) {
+    console.warn('[offline] Skipping banner: rawElapsed=', rawElapsed, 'lastSeen=', lastSeen, '— timestamp appears to be in the future');
+    return;
+  }
+  // Sanity guard 2: skip if lastSeen looks like a stale row-creation default.
+  // If the player was truly away >30 days that is fine — the cap below still applies.
+  // This guard only fires when last_seen was never updated (old DB row), which
+  // causes a huge elapsed that doesn't match real offline time.
+  // After the SQL fix, last_seen is stamped on every idw_get_state call so this
+  // guard should never trigger for correctly-initialised accounts.
+  if (rawElapsed > 30 * 24 * 60 * 60 * 1000) {
+    console.warn('[offline] Skipping banner: rawElapsed=', (rawElapsed/3600000).toFixed(1), 'h — last_seen appears to be a stale default, not a real last-login');
+    return;
+  }
+
   const maxMs = 8*60*60*1000;
-  const elapsed = Math.min(Date.now()-lastSeen, maxMs);
+  const elapsed = Math.min(rawElapsed, maxMs);
   if(elapsed < 60000) return; // only show if away > 1 minute
   const h=Math.floor(elapsed/3600000), m=Math.floor((elapsed%3600000)/60000);
   const ts=h>0?`${h}h ${m}m`:`${m}m`;

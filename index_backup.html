@@ -115,13 +115,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .username-tag{font-size:14px;color:var(--text2);white-space:nowrap;}
 
 /* ══ ENCHANTING SYSTEM ══ */
-.enchant-container{display:flex;gap:24px;height:100%;padding:16px;}
-.enchant-inventory{flex:1;min-width:280px;max-width:350px;}
+/* align-items:flex-start stops the left sidebar height from pushing the spinner around */
+.enchant-container{display:flex;gap:24px;padding:16px;align-items:flex-start;}
+/* fixed-width sidebar: won't grow/shrink when Selected Tower card appears */
+.enchant-inventory{flex:0 0 300px;min-width:280px;max-width:350px;}
 .enchant-wheel-area{flex:1;display:flex;flex-direction:column;}
 .enchant-section-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 
 /* Inventory List */
-.enchant-inventory-list{max-height:300px;overflow-y:auto;margin-bottom:16px;}
+/* padding-right gives scrollbar its own lane so it never overlaps cards */
+.enchant-inventory-list{max-height:300px;overflow-y:auto;margin-bottom:16px;padding-right:6px;scrollbar-width:thin;}
 .enchant-tower-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:12px;}
 .enchant-tower-item:hover{background:var(--bg4);border-color:var(--border2);}
 .enchant-tower-item.selected{border-color:var(--blue);background:rgba(74,143,255,0.1);}
@@ -135,7 +138,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);displ
 .selected-tower-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;}
 
 /* Enchanting Strip */
-.strip-container{display:flex;flex-direction:column;align-items:center;gap:16px;flex:1;justify-content:center;position:relative;}
+/* Removed flex:1 + justify-content:center — vertical centering shifted the spinner when sidebar height changed.
+   padding-top anchors the spinner at a fixed distance from the top regardless of sidebar content. */
+.strip-container{display:flex;flex-direction:column;align-items:center;gap:16px;position:relative;padding-top:24px;width:100%;}
 .strip-wrapper{position:relative;display:inline-block;}
 .strip-viewport{width:600px;height:84px;overflow:hidden;position:relative;border-radius:8px;background:var(--bg2);border:2px solid var(--border);}
 .enchant-strip{display:flex;height:100%;transition:transform 5s cubic-bezier(0.23,1,0.320,1);will-change:transform;}
@@ -2092,6 +2097,17 @@ function closeResourceInfoModal() {
 }
 
 // ═══════════════════════════════════════════════
+// ─── Shared stat-formatting helpers (single source of truth for display) ───
+// Always use these so "Your Towers" list and "Selected Tower" panel match exactly.
+function formatStatVal(val) {
+  // Round to 2 decimal places (same as selected-tower panel)
+  return Math.round(val * 100) / 100;
+}
+function formatStatSpd(val) {
+  return val.toFixed(2);
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 // ENCHANTING SYSTEM
 // ═══════════════════════════════════════════════
 
@@ -2154,6 +2170,9 @@ function buildEnchantInventory() {
     const originalIndex = armoryTowers.findIndex(t => t === tower);
     const enchantCount = tower.enchantments ? tower.enchantments.length : 0;
 
+    // Use calculateTowerStats so this list always matches the Selected Tower panel
+    const { currentStats: listStats } = calculateTowerStats(tower, towerDef);
+
     const item = document.createElement('div');
     item.className = `enchant-tower-item ${selectedTowerForEnchant === originalIndex ? 'selected' : ''}`;
     item.onclick = () => selectTowerForEnchant(originalIndex);
@@ -2163,7 +2182,7 @@ function buildEnchantInventory() {
       <div class="enchant-tower-info">
         <div class="enchant-tower-name">${towerDef.name} Lv.${tower.level || 1}</div>
         <div class="enchant-tower-stats">
-          DMG: ${Math.round(tower.dmg || towerDef.baseStats.dmg)} | SPD: ${(tower.atkSpeed || towerDef.baseStats.atkSpeed).toFixed(2)} | RNG: ${Math.round(tower.range || towerDef.baseStats.range)}
+          DMG: ${formatStatVal(listStats.dmg)} | SPD: ${formatStatSpd(listStats.atkSpeed)} | RNG: ${formatStatVal(listStats.range)}
         </div>
         <div class="enchant-tower-enchants">
           Enchants: ${enchantCount}
@@ -2223,9 +2242,9 @@ function selectTowerForEnchant(index) {
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
-        <div>⚔️ DMG: ${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
-        <div>🎯 Range: ${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+        <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
+        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
         <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
       </div>
@@ -2574,9 +2593,9 @@ function updateSelectedTowerDisplay() {
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
-        <div>⚔️ DMG: ${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
-        <div>🎯 Range: ${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+        <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
+        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true)}</div>
+        <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
         <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
       </div>
