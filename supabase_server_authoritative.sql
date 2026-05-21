@@ -718,37 +718,52 @@ begin
   effect_value := (effect->>'value')::numeric;
 
   -- Initialize tower stats if they don't exist (based on level)
-  -- These base stats should come from tower definitions, but for now use reasonable defaults
+  -- Base stats and level scaling must match client-side TOWER_DEFS and applyEnchantmentLocally()
+  -- Formula: base * (1 + (level-1) * 0.15)
   if not (tower ? 'dmg') then
-    -- Apply level scaling: base * (1 + (level-1) * 0.15)
     case tower->>'towerId'
-      when 'archer' then tower := jsonb_set(tower, '{dmg}', to_jsonb(25 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      when 'catapult' then tower := jsonb_set(tower, '{dmg}', to_jsonb(80 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      when 'crossbow' then tower := jsonb_set(tower, '{dmg}', to_jsonb(45 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      else tower := jsonb_set(tower, '{dmg}', to_jsonb(25 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'archer'    then tower := jsonb_set(tower, '{dmg}', to_jsonb(25    * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult'  then tower := jsonb_set(tower, '{dmg}', to_jsonb(40    * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow'  then tower := jsonb_set(tower, '{dmg}', to_jsonb(20    * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'ice_tower' then tower := jsonb_set(tower, '{dmg}', to_jsonb(15    * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'sniper'    then tower := jsonb_set(tower, '{dmg}', to_jsonb(150   * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'inferno'   then tower := jsonb_set(tower, '{dmg}', to_jsonb(40    * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'god_tower' then tower := jsonb_set(tower, '{dmg}', to_jsonb(99999 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else                  tower := jsonb_set(tower, '{dmg}', to_jsonb(25    * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
     end case;
   end if;
 
   if not (tower ? 'atkSpeed') then
     case tower->>'towerId'
-      when 'archer' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      when 'catapult' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(3.0 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      when 'crossbow' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(2.2 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      else tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'archer'    then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.2 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'catapult'  then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(5.0 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'crossbow'  then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.8 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'ice_tower' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.5 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'sniper'    then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(4.0 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'inferno'   then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(0.8 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'god_tower' then tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.0 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      else                  tower := jsonb_set(tower, '{atkSpeed}', to_jsonb(1.2 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
     end case;
   end if;
 
   if not (tower ? 'range') then
     case tower->>'towerId'
-      when 'archer' then tower := jsonb_set(tower, '{range}', to_jsonb(150 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      when 'catapult' then tower := jsonb_set(tower, '{range}', to_jsonb(200 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      when 'crossbow' then tower := jsonb_set(tower, '{range}', to_jsonb(180 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
-      else tower := jsonb_set(tower, '{range}', to_jsonb(150 * (1 + (coalesce((tower->>'level')::numeric, 1) - 1) * 0.15)));
+      when 'archer'    then tower := jsonb_set(tower, '{range}', to_jsonb(2.5));
+      when 'catapult'  then tower := jsonb_set(tower, '{range}', to_jsonb(2.2));
+      when 'crossbow'  then tower := jsonb_set(tower, '{range}', to_jsonb(2.5));
+      when 'ice_tower' then tower := jsonb_set(tower, '{range}', to_jsonb(2.0));
+      when 'sniper'    then tower := jsonb_set(tower, '{range}', to_jsonb(4.5));
+      when 'inferno'   then tower := jsonb_set(tower, '{range}', to_jsonb(1.8));
+      when 'god_tower' then tower := jsonb_set(tower, '{range}', to_jsonb(50.0));
+      else                  tower := jsonb_set(tower, '{range}', to_jsonb(2.5));
     end case;
   end if;
 
   if not (tower ? 'projectiles') then
-    tower := jsonb_set(tower, '{projectiles}', to_jsonb(1));
+    case tower->>'towerId'
+      when 'crossbow' then tower := jsonb_set(tower, '{projectiles}', to_jsonb(3));
+      else                 tower := jsonb_set(tower, '{projectiles}', to_jsonb(1));
+    end case;
   end if;
 
   -- Now apply enchantment effects
