@@ -1474,7 +1474,7 @@ function applyServerPayload(payload) {
     activeResearchId = null;
     RESEARCH_DEFS.forEach(rd => { if (researchState[rd.id]?.researching) activeResearchId = rd.id; });
   }
-  if (s.armoryTowers) armoryTowers = s.armoryTowers;
+  if (s.armoryTowers) armoryTowers = s.armoryTowers.map(recalcTowerStatsFromEnchants);
   // Always update campCompleted even if empty array
   if (s.campCompleted !== undefined) {
     const serverCompleted = Array.isArray(s.campCompleted) ? s.campCompleted : [];
@@ -2604,13 +2604,8 @@ async function applyEnchantment(enchant) {
       }
     });
 
-    // Update local state with server response
-    if (result) {
-      applyServerPayload(result);
-    } else {
-      console.log('Server RPC not available, applying locally');
-      applyEnchantmentLocally(enchant);
-    }
+    // Server saved to DB; apply locally so client formula is always used for display
+    applyEnchantmentLocally(enchant);
 
     // Update UI
     buildEnchantInventory();
@@ -2625,6 +2620,33 @@ async function applyEnchantment(enchant) {
     renderArmoryGrid(); // Update armory display with new stats
     updateSelectedTowerDisplay(); // Update the selected tower info panel
   }
+}
+
+function recalcTowerStatsFromEnchants(tower) {
+  if (!tower.enchantments || tower.enchantments.length === 0) return tower;
+  const towerDef = TOWER_DEFS.find(td => td.id === tower.towerId);
+  if (!towerDef) return tower;
+  const t = Object.assign({}, tower);
+  t.dmg = towerDef.baseStats.dmg * (1 + (t.level - 1) * 0.15);
+  t.atkSpeed = towerDef.baseStats.atkSpeed * (1 + (t.level - 1) * 0.15);
+  t.range = towerDef.baseStats.range * (1 + (t.level - 1) * 0.15);
+  t.projectiles = towerDef.baseStats.projectiles || 1;
+  for (const enchant of t.enchantments) {
+    const e = enchant.effect;
+    switch (e.type) {
+      case 'damage':      t.dmg *= (1 + e.value); break;
+      case 'atkSpeed':    t.atkSpeed *= (1 - e.value); break;
+      case 'range':       t.range *= (1 + e.value); break;
+      case 'projectiles': t.projectiles += e.value; break;
+      case 'level':       t.level = (t.level || 1) + e.value; break;
+      case 'allStats':
+        t.dmg *= (1 + e.value);
+        t.atkSpeed *= (1 - e.value);
+        t.range *= (1 + e.value);
+        break;
+    }
+  }
+  return t;
 }
 
 function applyEnchantmentLocally(enchant) {
