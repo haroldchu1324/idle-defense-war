@@ -97,11 +97,12 @@ select case tower_id
   when 'catapult' then '{"stone":120,"wood":60}'::jsonb
   when 'crossbow' then '{"wood":150,"fiber":80,"ore":40}'::jsonb
   when 'ice_tower' then '{"stone":100,"fiber":60,"leather":40}'::jsonb
-  when 'sniper' then '{"wood":250,"ore":120,"leather":60}'::jsonb
+  when 'sniper' then '{"ore":200,"leather":100,"wood":80}'::jsonb
+  when 'inferno' then '{"ore":350,"stone":200,"leather":150,"fiber":100}'::jsonb
   else null end;
 $$;
 create or replace function public.idw_tower_unlock_level(tower_id text) returns integer language sql immutable as $$
-select case tower_id when 'god_tower' then 0 when 'archer' then 0 when 'catapult' then 0 when 'crossbow' then 10 when 'ice_tower' then 10 when 'sniper' then 20 else 9999 end;
+select case tower_id when 'god_tower' then 0 when 'archer' then 0 when 'catapult' then 0 when 'crossbow' then 10 when 'ice_tower' then 10 when 'sniper' then 20 when 'inferno' then 40 else 9999 end;
 $$;
 
 create or replace function public.idw_stage_reward(stage_id text) returns jsonb language sql immutable as $$
