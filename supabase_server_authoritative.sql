@@ -782,7 +782,8 @@ begin
   where user_id = p.user_id;
 
   -- Return updated game state
-  return jsonb_build_object('v2', public.idw_state_to_v2((select * from public.idw_player_state where user_id = p.user_id)));
+  p.armory := new_armory;
+  return jsonb_build_object('v2', public.idw_state_to_v2(p));
 end $$;
 
 create or replace function public.idw_save_state(p_state jsonb)
