@@ -106,16 +106,116 @@ $$;
 
 create or replace function public.idw_stage_reward(stage_id text) returns jsonb language sql immutable as $$
 select case stage_id
-  when '1-1' then '{"wood":50}'::jsonb
-  when '1-2' then '{"wood":80,"fiber":30}'::jsonb
-  when '1-3' then '{"stone":60}'::jsonb
-  when '1-4' then '{"stone":70,"ore":40}'::jsonb
-  when '1-5' then '{"ore":100,"leather":50}'::jsonb
-  when '1-6' then '{"fiber":80,"leather":60}'::jsonb
-  when '1-7' then '{"leather":150,"ore":50}'::jsonb
-  when '1-8' then '{"stone":120,"ore":80}'::jsonb
-  when '1-9' then '{"ore":200,"fiber":100}'::jsonb
-  when '1-10' then '{"wood":500,"stone":500,"fiber":500,"leather":500,"ore":500}'::jsonb
+  -- World 1 (matches client-side fallback table)
+  when '1-1'  then '{"wood":300,"fiber":150,"xp":45}'::jsonb
+  when '1-2'  then '{"wood":450,"stone":225,"xp":60}'::jsonb
+  when '1-3'  then '{"stone":450,"fiber":300,"xp":75}'::jsonb
+  when '1-4'  then '{"stone":600,"ore":225,"xp":98}'::jsonb
+  when '1-5'  then '{"ore":450,"leather":300,"xp":120}'::jsonb
+  when '1-6'  then '{"fiber":600,"leather":375,"xp":143}'::jsonb
+  when '1-7'  then '{"leather":750,"ore":450,"xp":173}'::jsonb
+  when '1-8'  then '{"stone":900,"ore":525,"xp":203}'::jsonb
+  when '1-9'  then '{"ore":1050,"fiber":600,"xp":240}'::jsonb
+  when '1-10' then '{"wood":3000,"stone":3000,"fiber":3000,"leather":3000,"ore":3000,"xp":450}'::jsonb
+  -- World 2 (~1.5x World 1)
+  when '2-1'  then '{"wood":450,"fiber":225,"xp":68}'::jsonb
+  when '2-2'  then '{"wood":675,"stone":340,"xp":90}'::jsonb
+  when '2-3'  then '{"stone":675,"fiber":450,"xp":113}'::jsonb
+  when '2-4'  then '{"stone":900,"ore":340,"xp":147}'::jsonb
+  when '2-5'  then '{"ore":675,"leather":450,"xp":180}'::jsonb
+  when '2-6'  then '{"fiber":900,"leather":563,"xp":215}'::jsonb
+  when '2-7'  then '{"leather":1125,"ore":675,"xp":260}'::jsonb
+  when '2-8'  then '{"stone":1350,"ore":788,"xp":305}'::jsonb
+  when '2-9'  then '{"ore":1575,"fiber":900,"xp":360}'::jsonb
+  when '2-10' then '{"wood":4500,"stone":4500,"fiber":4500,"leather":4500,"ore":4500,"xp":675}'::jsonb
+  -- World 3 (~2x World 1)
+  when '3-1'  then '{"wood":600,"fiber":300,"xp":90}'::jsonb
+  when '3-2'  then '{"wood":900,"stone":450,"xp":120}'::jsonb
+  when '3-3'  then '{"stone":900,"fiber":600,"xp":150}'::jsonb
+  when '3-4'  then '{"stone":1200,"ore":450,"xp":196}'::jsonb
+  when '3-5'  then '{"ore":900,"leather":600,"xp":240}'::jsonb
+  when '3-6'  then '{"fiber":1200,"leather":750,"xp":286}'::jsonb
+  when '3-7'  then '{"leather":1500,"ore":900,"xp":346}'::jsonb
+  when '3-8'  then '{"stone":1800,"ore":1050,"xp":406}'::jsonb
+  when '3-9'  then '{"ore":2100,"fiber":1200,"xp":480}'::jsonb
+  when '3-10' then '{"wood":6000,"stone":6000,"fiber":6000,"leather":6000,"ore":6000,"xp":900}'::jsonb
+  -- World 4 (~3x World 1)
+  when '4-1'  then '{"wood":900,"fiber":450,"xp":135}'::jsonb
+  when '4-2'  then '{"wood":1350,"stone":675,"xp":180}'::jsonb
+  when '4-3'  then '{"stone":1350,"fiber":900,"xp":225}'::jsonb
+  when '4-4'  then '{"stone":1800,"ore":675,"xp":294}'::jsonb
+  when '4-5'  then '{"ore":1350,"leather":900,"xp":360}'::jsonb
+  when '4-6'  then '{"fiber":1800,"leather":1125,"xp":429}'::jsonb
+  when '4-7'  then '{"leather":2250,"ore":1350,"xp":519}'::jsonb
+  when '4-8'  then '{"stone":2700,"ore":1575,"xp":609}'::jsonb
+  when '4-9'  then '{"ore":3150,"fiber":1800,"xp":720}'::jsonb
+  when '4-10' then '{"wood":9000,"stone":9000,"fiber":9000,"leather":9000,"ore":9000,"xp":1350}'::jsonb
+  -- World 5 (~5x World 1)
+  when '5-1'  then '{"wood":1500,"fiber":750,"xp":225}'::jsonb
+  when '5-2'  then '{"wood":2250,"stone":1125,"xp":300}'::jsonb
+  when '5-3'  then '{"stone":2250,"fiber":1500,"xp":375}'::jsonb
+  when '5-4'  then '{"stone":3000,"ore":1125,"xp":490}'::jsonb
+  when '5-5'  then '{"ore":2250,"leather":1500,"xp":600}'::jsonb
+  when '5-6'  then '{"fiber":3000,"leather":1875,"xp":715}'::jsonb
+  when '5-7'  then '{"leather":3750,"ore":2250,"xp":865}'::jsonb
+  when '5-8'  then '{"stone":4500,"ore":2625,"xp":1015}'::jsonb
+  when '5-9'  then '{"ore":5250,"fiber":3000,"xp":1200}'::jsonb
+  when '5-10' then '{"wood":15000,"stone":15000,"fiber":15000,"leather":15000,"ore":15000,"xp":2250}'::jsonb
+  -- World 6 (~7x World 1)
+  when '6-1'  then '{"wood":2100,"fiber":1050,"xp":315}'::jsonb
+  when '6-2'  then '{"wood":3150,"stone":1575,"xp":420}'::jsonb
+  when '6-3'  then '{"stone":3150,"fiber":2100,"xp":525}'::jsonb
+  when '6-4'  then '{"stone":4200,"ore":1575,"xp":686}'::jsonb
+  when '6-5'  then '{"ore":3150,"leather":2100,"xp":840}'::jsonb
+  when '6-6'  then '{"fiber":4200,"leather":2625,"xp":1001}'::jsonb
+  when '6-7'  then '{"leather":5250,"ore":3150,"xp":1211}'::jsonb
+  when '6-8'  then '{"stone":6300,"ore":3675,"xp":1421}'::jsonb
+  when '6-9'  then '{"ore":7350,"fiber":4200,"xp":1680}'::jsonb
+  when '6-10' then '{"wood":21000,"stone":21000,"fiber":21000,"leather":21000,"ore":21000,"xp":3150}'::jsonb
+  -- World 7 (~10x World 1)
+  when '7-1'  then '{"wood":3000,"fiber":1500,"xp":450}'::jsonb
+  when '7-2'  then '{"wood":4500,"stone":2250,"xp":600}'::jsonb
+  when '7-3'  then '{"stone":4500,"fiber":3000,"xp":750}'::jsonb
+  when '7-4'  then '{"stone":6000,"ore":2250,"xp":980}'::jsonb
+  when '7-5'  then '{"ore":4500,"leather":3000,"xp":1200}'::jsonb
+  when '7-6'  then '{"fiber":6000,"leather":3750,"xp":1430}'::jsonb
+  when '7-7'  then '{"leather":7500,"ore":4500,"xp":1730}'::jsonb
+  when '7-8'  then '{"stone":9000,"ore":5250,"xp":2030}'::jsonb
+  when '7-9'  then '{"ore":10500,"fiber":6000,"xp":2400}'::jsonb
+  when '7-10' then '{"wood":30000,"stone":30000,"fiber":30000,"leather":30000,"ore":30000,"xp":4500}'::jsonb
+  -- World 8 (~15x World 1)
+  when '8-1'  then '{"wood":4500,"fiber":2250,"xp":675}'::jsonb
+  when '8-2'  then '{"wood":6750,"stone":3375,"xp":900}'::jsonb
+  when '8-3'  then '{"stone":6750,"fiber":4500,"xp":1125}'::jsonb
+  when '8-4'  then '{"stone":9000,"ore":3375,"xp":1470}'::jsonb
+  when '8-5'  then '{"ore":6750,"leather":4500,"xp":1800}'::jsonb
+  when '8-6'  then '{"fiber":9000,"leather":5625,"xp":2145}'::jsonb
+  when '8-7'  then '{"leather":11250,"ore":6750,"xp":2595}'::jsonb
+  when '8-8'  then '{"stone":13500,"ore":7875,"xp":3045}'::jsonb
+  when '8-9'  then '{"ore":15750,"fiber":9000,"xp":3600}'::jsonb
+  when '8-10' then '{"wood":45000,"stone":45000,"fiber":45000,"leather":45000,"ore":45000,"xp":6750}'::jsonb
+  -- World 9 (~20x World 1)
+  when '9-1'  then '{"wood":6000,"fiber":3000,"xp":900}'::jsonb
+  when '9-2'  then '{"wood":9000,"stone":4500,"xp":1200}'::jsonb
+  when '9-3'  then '{"stone":9000,"fiber":6000,"xp":1500}'::jsonb
+  when '9-4'  then '{"stone":12000,"ore":4500,"xp":1960}'::jsonb
+  when '9-5'  then '{"ore":9000,"leather":6000,"xp":2400}'::jsonb
+  when '9-6'  then '{"fiber":12000,"leather":7500,"xp":2860}'::jsonb
+  when '9-7'  then '{"leather":15000,"ore":9000,"xp":3460}'::jsonb
+  when '9-8'  then '{"stone":18000,"ore":10500,"xp":4060}'::jsonb
+  when '9-9'  then '{"ore":21000,"fiber":12000,"xp":4800}'::jsonb
+  when '9-10' then '{"wood":60000,"stone":60000,"fiber":60000,"leather":60000,"ore":60000,"xp":9000}'::jsonb
+  -- World 10 (~30x World 1)
+  when '10-1'  then '{"wood":9000,"fiber":4500,"xp":1350}'::jsonb
+  when '10-2'  then '{"wood":13500,"stone":6750,"xp":1800}'::jsonb
+  when '10-3'  then '{"stone":13500,"fiber":9000,"xp":2250}'::jsonb
+  when '10-4'  then '{"stone":18000,"ore":6750,"xp":2940}'::jsonb
+  when '10-5'  then '{"ore":13500,"leather":9000,"xp":3600}'::jsonb
+  when '10-6'  then '{"fiber":18000,"leather":11250,"xp":4290}'::jsonb
+  when '10-7'  then '{"leather":22500,"ore":13500,"xp":5190}'::jsonb
+  when '10-8'  then '{"stone":27000,"ore":15750,"xp":6090}'::jsonb
+  when '10-9'  then '{"ore":31500,"fiber":18000,"xp":7200}'::jsonb
+  when '10-10' then '{"wood":90000,"stone":90000,"fiber":90000,"leather":90000,"ore":90000,"xp":13500}'::jsonb
   else '{}'::jsonb end;
 $$;
 
@@ -503,22 +603,43 @@ end $$;
 
 create or replace function public.idw_submit_battle_result(p_battle_id uuid, p_won boolean, p_waves int, p_lives int, p_client_gold int)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; b public.idw_battle_attempts; reward jsonb:='{}'::jsonb; max_duration interval := interval '2 hours'; v_first_clear boolean := false;
+declare
+  p public.idw_player_state;
+  b public.idw_battle_attempts;
+  v_reward jsonb := '{}'::jsonb;       -- renamed from 'reward' to avoid ambiguity with idw_battle_attempts.reward column
+  v_resource_reward jsonb;             -- reward minus xp key, for resource update
+  v_xp_gained int := 0;
+  max_duration interval := interval '2 hours';
+  v_first_clear boolean := false;
 begin
-  p:=public.idw_ensure_player();
+  p := public.idw_ensure_player();
   select * into b from public.idw_battle_attempts where id=p_battle_id and user_id=p.user_id for update;
   if b.id is null then raise exception 'Battle not found'; end if;
   if b.result <> 'started' then raise exception 'Battle already submitted'; end if;
   if now() - b.started_at > max_duration then raise exception 'Battle expired'; end if;
   if p_won and p_waves >= 10 and p_lives > 0 then
     v_first_clear := not (b.stage_id = any(p.campaign_completed));
-    reward := public.idw_stage_reward(b.stage_id);
-    update public.idw_player_state set resources=public.idw_apply_resource_delta(resources,reward), campaign_completed=(case when b.stage_id=any(campaign_completed) then campaign_completed else array_append(campaign_completed,b.stage_id) end), updated_at=now() where user_id=p.user_id;
-    update public.idw_battle_attempts set result='victory', reward=reward, finished_at=now(), client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold) where id=p_battle_id;
+    v_reward := public.idw_stage_reward(b.stage_id);
+    -- Extract XP separately; apply only resources to resources column
+    v_xp_gained := coalesce((v_reward->>'xp')::int, 0);
+    v_resource_reward := v_reward - 'xp';
+    update public.idw_player_state
+      set resources = public.idw_apply_resource_delta(resources, v_resource_reward),
+          player_xp = player_xp + v_xp_gained,
+          campaign_completed = (case when b.stage_id=any(campaign_completed) then campaign_completed else array_append(campaign_completed,b.stage_id) end),
+          updated_at = now()
+      where user_id = p.user_id;
+    update public.idw_battle_attempts
+      set result='victory', reward=v_reward, finished_at=now(),
+          client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold)
+      where id=p_battle_id;
   else
-    update public.idw_battle_attempts set result='defeat', finished_at=now(), client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold) where id=p_battle_id;
+    update public.idw_battle_attempts
+      set result='defeat', finished_at=now(),
+          client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold)
+      where id=p_battle_id;
   end if;
-  return jsonb_build_object('reward',reward,'first_clear',v_first_clear,'state',public.idw_get_state());
+  return jsonb_build_object('reward',v_reward,'xp_gained',v_xp_gained,'first_clear',v_first_clear,'state',public.idw_get_state());
 end $$;
 
 -- ══════════════════════════════════════════════════════════════════════════════
