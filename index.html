@@ -2283,11 +2283,11 @@ const ENCHANT_TYPES = [
 ];
 
 const RARITY_WEIGHTS = {
-  common: 70,
-  uncommon: 20,
-  rare: 7,
-  epic: 2.5,
-  legendary: 0.5
+  common: 60,
+  uncommon: 25,
+  rare: 10,
+  epic: 4,
+  legendary: 1
 };
 
 let selectedTowerForEnchant = null;
@@ -2422,21 +2422,13 @@ function generateEnchantStrip() {
   const basePattern = [];
   const patternLength = 30; // Shorter base pattern
 
-  // Calculate how many of each rarity in base pattern
-  const rarityCount = {
-    common: 0,
-    uncommon: Math.floor(patternLength * 0.20),
-    rare:     Math.floor(patternLength * 0.07),
-    epic:     Math.floor(patternLength * 0.025),
-    legendary:Math.floor(patternLength * 0.005)
-  };
-
-  // Ensure every rarity has enough slots for all its enchants so each appears at least once
+  // Derive slot counts from RARITY_WEIGHTS so they always stay in sync
+  const totalWeight = Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
+  const rarityCount = {};
   ['uncommon', 'rare', 'epic', 'legendary'].forEach(rarity => {
     const needed = ENCHANT_TYPES.filter(e => e.rarity === rarity).length;
-    if (needed > rarityCount[rarity]) rarityCount[rarity] = needed;
+    rarityCount[rarity] = Math.max(needed, Math.floor(patternLength * RARITY_WEIGHTS[rarity] / totalWeight));
   });
-
   // Common fills the remainder so total always equals patternLength exactly
   rarityCount.common = Math.max(1, patternLength - rarityCount.uncommon - rarityCount.rare - rarityCount.epic - rarityCount.legendary);
 
