@@ -4898,6 +4898,20 @@ function getStageEnemyTypes(stageId) {
   return TIER_ORDER.filter(t => seen.has(t));
 }
 
+// Returns total enemy count per type across all 10 waves of a stage (primary spawns only)
+function getStageEnemyCounts(stageId) {
+  const baseId = stageId.startsWith('elite:') ? stageId.slice(6) : stageId;
+  const counts = {};
+  for (let w = 1; w <= 10; w++) {
+    const cfg = getWaveConfig(baseId, w);
+    if (!cfg) continue;
+    cfg.enemies.forEach(g => {
+      counts[g.type] = (counts[g.type] || 0) + g.count;
+    });
+  }
+  return counts;
+}
+
 // Draws a mini top-down map preview onto a canvas element
 function drawSetupMiniMap(canvasId, mapDef) {
   const canvas = document.getElementById(canvasId);
@@ -4986,18 +5000,21 @@ function openBattleSetup(stageId) {
 
   // Compute enemy types and elite mods for this stage
   const enemyTypesForStage = getStageEnemyTypes(isPvp ? stageId : baseStageId);
+  const enemyCountsForStage = getStageEnemyCounts(isPvp ? stageId : baseStageId);
   const rb = getResearchBonuses();
   const eliteMods = isEliteBattle ? getEliteModifiers(baseStageId) : [];
 
   const enemyBadgesHtml = enemyTypesForStage.map(typeKey => {
     const et = ENEMY_TYPES[typeKey];
     if (!et) return '';
+    const total = enemyCountsForStage[typeKey] || 0;
     const spawnNote = et.spawnOnDeath
       ? `<span style="color:#666;font-size:10px;margin-left:auto;">→ ${et.spawnOnDeath.count}× ${ENEMY_TYPES[et.spawnOnDeath.type]?.name || et.spawnOnDeath.type}</span>`
       : '<span style="margin-left:auto;"></span>';
     return `<div class="setup-enemy-badge">
       <span style="width:11px;height:11px;border-radius:50%;background:${et.color};flex-shrink:0;display:inline-block;"></span>
       <span style="color:var(--text2);flex:1;">${et.name}</span>
+      <span style="color:#aaa;font-size:10px;">×${total}</span>
       <span style="color:#f55a5a;font-size:10px;">❤️ ${et.hp}</span>
       ${spawnNote}
     </div>`;
