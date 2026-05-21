@@ -891,10 +891,10 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .al-filter-clear{background:var(--bg3);color:var(--text2);border:1px solid var(--border);width:100%;padding:8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,color 0.15s;}
 .al-filter-clear:hover{border-color:var(--border2);color:var(--text);}
 .al-home{display:flex;flex-direction:column;flex:1;overflow:hidden;}
-.al-tab-bar{height:52px;min-height:52px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0 1rem;gap:2px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
+.al-tab-bar{height:52px;min-height:52px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0;gap:0;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
 .al-tab-bar::-webkit-scrollbar{display:none;}
-.al-tab{padding:0 16px;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:14px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;transition:all 0.15s;}
-.al-tab:hover{color:var(--text2);}
+.al-tab{flex:1;min-width:0;padding:0 8px;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;text-align:center;transition:color 0.15s,border-color 0.15s;}
+.al-tab:hover{color:var(--text2);background:rgba(255,255,255,0.03);}
 .al-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
 .al-panel{display:none;flex:1;overflow-y:auto;padding:1rem 1.25rem;flex-direction:column;gap:0.75rem;}
 .al-panel.active{display:flex;}
@@ -917,7 +917,35 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .al-announcement-label{font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;}
 .al-announcement-text{font-size:13px;color:var(--text2);line-height:1.6;}
 .al-chat-wrap{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--bg2);border:1px solid var(--border);border-radius:11px;overflow:hidden;}
-.al-chat-messages{flex:1;overflow-y:auto;padding:0.75rem;display:flex;flex-direction:column;gap:10px;min-height:180px;}
+.al-chat-messages{flex:1;overflow-y:auto;padding:0.75rem 1rem;display:flex;flex-direction:column;gap:12px;min-height:180px;}
+.al-chat-messages::-webkit-scrollbar{width:4px;}
+.al-chat-messages::-webkit-scrollbar-track{background:transparent;}
+.al-chat-messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.al-announce-box{background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--gold);border-radius:8px;padding:0.75rem 1rem;}
+.al-announce-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;}
+.al-announce-title{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:0.04em;}
+.al-announce-meta{font-size:11px;color:var(--text3);}
+.al-announce-text{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+.al-announce-empty{font-size:12px;color:var(--text3);font-style:italic;}
+.al-announce-edit-btn{font-size:11px;padding:3px 10px;background:var(--bg4);border:1px solid var(--border2);border-radius:5px;color:var(--text2);cursor:pointer;transition:background 0.15s;}
+.al-announce-edit-btn:hover{background:var(--border2);color:#fff;}
+.al-announce-textarea{width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:8px 10px;resize:vertical;font-family:inherit;margin-top:0.5rem;box-sizing:border-box;}
+.al-announce-save-row{display:flex;gap:6px;margin-top:6px;}
+.al-terr-header{display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:0.75rem;}
+.al-terr-stat{text-align:center;}
+.al-terr-stat-val{font-size:22px;font-weight:700;color:#fff;}
+.al-terr-stat-label{font-size:11px;color:var(--text3);margin-top:2px;}
+.al-buff-card{display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0.85rem;border-radius:9px;border:1px solid var(--border);transition:opacity 0.2s,border-color 0.2s;}
+.al-buff-card.unlocked{background:var(--bg3);border-color:var(--green);opacity:1;}
+.al-buff-card.locked{background:var(--bg2);opacity:0.65;}
+.al-buff-card:hover{opacity:1;}
+.al-buff-icon{font-size:22px;flex-shrink:0;line-height:1;padding-top:2px;}
+.al-buff-name{font-size:13px;font-weight:600;color:#fff;margin-bottom:2px;}
+.al-buff-desc{font-size:12px;color:var(--text2);}
+.al-buff-req{font-size:11px;margin-top:4px;}
+.al-buff-active{color:var(--green);font-weight:600;}
+.al-buff-locked{color:var(--text3);}
+.al-terr-prog{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.75rem;}
 .al-chat-msg-head{display:flex;align-items:center;gap:6px;margin-bottom:2px;}
 .al-chat-username{font-size:12px;font-weight:600;color:var(--text);}
 .al-chat-time{font-size:10px;color:var(--text3);margin-left:auto;}
@@ -1726,7 +1754,12 @@ async function startGame(user) {
   showLoadingScreen();
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
-  try{await loadFromDB();await new Promise(r=>setTimeout(r,450));}
+  try{
+    await loadFromDB();
+    // Pre-load alliance state so territory buffs apply from game start
+    serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
+    await new Promise(r=>setTimeout(r,450));
+  }
   catch(e){console.warn('startGame failed:',e);}
   finally{
     // Full panel build on login
@@ -4952,6 +4985,7 @@ function battleDeploySlots() {
   if (researchState['bat1']?.done) slots += 1;
   if (researchState['bat3']?.done) slots += 1;
   if (researchState['bat5']?.done) slots += 2;
+  slots += getAllianceBuffs().extra_slot;
   return slots;
 }
 
@@ -5520,16 +5554,18 @@ function makeTower(td, level, x, y, entry) {
   const range      = (entry?.range      !== undefined) ? entry.range      : td.baseStats.range;
   const projectiles= (entry?.projectiles!== undefined) ? entry.projectiles: td.baseStats.projectiles;
   const rb = getResearchBonuses();
+  const ab = getAllianceBuffs();
+  const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower');
   return {
     id: Math.random(),
     towerId: td.id,
     td, level,
     x, y,
     r: TOWER_RADIUS_PX,
-    dmg:      Math.round(dmg * (1 + rb.tower_dmg)),
-    atkSpeed: atkSpeed / (1 + rb.tower_spd),
+    dmg:      Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg)),
+    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd),
     range:    range * tileW * (1 + rb.tower_range),
-    projectiles,
+    projectiles: projectiles + (isAoeTower ? 0 : ab.extra_projectile),
     projectileSpeed: 280,
     piercing: 0,
     special: td.id,
@@ -5883,6 +5919,8 @@ function spawnEnemy(template) {
     wpIdx: 1,
     dist: 0,
     slowTimer: 0,
+    alSlowTimer: 0,
+    alSlowPct: 0,
     isDead: false,
     isReached: false,
   };
@@ -5913,6 +5951,8 @@ function spawnChildEnemy(parent, typeKey, count) {
       wpIdx: parent.wpIdx,
       dist: parent.dist,
       slowTimer: 0,
+      alSlowTimer: 0,
+      alSlowPct: 0,
       isDead: false,
       isReached: false,
     });
@@ -6012,8 +6052,10 @@ function updateSpawn(dt) {
 function updateEnemies(dt) {
   bs.enemies.forEach(e => {
     if (e.isDead || e.isReached) return;
-    const speed = e.slowTimer > 0 ? e.speed * 0.5 : e.speed;
-    if (e.slowTimer > 0) e.slowTimer -= dt * 1000;
+    let _speedMult = 1.0;
+    if (e.slowTimer   > 0) { _speedMult *= 0.50;                       e.slowTimer   -= dt * 1000; }
+    if (e.alSlowTimer > 0) { _speedMult *= (1 - (e.alSlowPct || 0.25)); e.alSlowTimer -= dt * 1000; }
+    const speed = e.speed * _speedMult;
 
     const target = bs.waypoints[e.wpIdx];
     if (!target) { e.isReached = true; bs.lives = Math.max(0, bs.lives-1); return; }
@@ -6131,7 +6173,22 @@ function updateProjectiles(dt) {
       } else {
         // Normal hit
         if (target) {
-          target.hp -= p.dmg;
+          const _abHit = getAllianceBuffs();
+          let hitDmg = p.dmg;
+          // Alliance crit: 10% chance for +bonus damage
+          if (_abHit.crit_bonus > 0 && Math.random() < 0.10) {
+            hitDmg = Math.round(hitDmg * (1 + _abHit.crit_bonus));
+          }
+          // Alliance boss damage bonus
+          if (_abHit.boss_dmg > 0 && target.type === 'boss') {
+            hitDmg = Math.round(hitDmg * (1 + _abHit.boss_dmg));
+          }
+          target.hp -= hitDmg;
+          // Alliance slow (stacks multiplicatively with ice_tower)
+          if (_abHit.slow > 0) {
+            target.alSlowTimer = Math.max(target.alSlowTimer || 0, 1500);
+            target.alSlowPct   = _abHit.slow;
+          }
           if (p.special === 'ice_tower') target.slowTimer = 2000;
           if (target.hp <= 0) killEnemy(target, null);
           // Pierce: continue as new projectile toward next enemy
@@ -8156,6 +8213,43 @@ async function startSiloUpgrade(resId, tierIdx) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// ALLIANCE TERRITORY BUFFS
+// ═══════════════════════════════════════════════════════════════
+
+const ALLIANCE_TERRITORY_MILESTONES = [
+  { territories:  1, icon:'🌲', name:'Forester Network',    desc:'+5% wood production',                    type:'wood_prod',         pct:0.05  },
+  { territories:  5, icon:'⛏️',  name:'Resource Expansion',  desc:'+10% all resource production',           type:'all_resource_prod',  pct:0.10  },
+  { territories: 15, icon:'⚔️', name:'War Forges',           desc:'+10% turret damage',                     type:'tower_dmg',          pct:0.10  },
+  { territories: 25, icon:'⚡', name:'Battle Tempo',         desc:'+15% turret attack speed',               type:'tower_spd',          pct:0.15  },
+  { territories: 40, icon:'🧊', name:'Freezing Arrowheads', desc:'Non-AOE turrets slow targets by 25%',    type:'slow',               pct:0.25  },
+  { territories: 60, icon:'🏹', name:'Multi-Barrage',        desc:'Non-AOE turrets fire +1 projectile',     type:'extra_projectile',   count:1   },
+  { territories: 80, icon:'🛡️', name:'War Bonds',            desc:'+20% alliance troop HP',                 type:'troop_hp',           pct:0.20  },
+  { territories:100, icon:'🗡️', name:'Grand Campaign',       desc:'+1 maximum equipped turret in battle',   type:'extra_slot',         count:1   },
+  { territories:120, icon:'💥', name:'Critical Warfare',     desc:'Projectile hits have 10% chance for +50% bonus damage', type:'crit_bonus', pct:0.50 },
+  { territories:150, icon:'👁️', name:'Giant Slayer',         desc:'Boss enemies take +15% damage',          type:'boss_dmg',           pct:0.15  },
+];
+
+function getAllianceBuffs() {
+  const tc = (allianceState?.in_alliance) ? (allianceState.territory_count || 0) : 0;
+  const ab = { tower_dmg:0, tower_spd:0, extra_slot:0, extra_projectile:0, slow:0, crit_bonus:0, boss_dmg:0, troop_hp:0, wood_prod:0, all_resource_prod:0 };
+  if (!tc) return ab;
+  for (const m of ALLIANCE_TERRITORY_MILESTONES) {
+    if (tc < m.territories) break;
+    if (m.type === 'tower_dmg')          ab.tower_dmg          += m.pct;
+    else if (m.type === 'tower_spd')     ab.tower_spd          += m.pct;
+    else if (m.type === 'extra_slot')    ab.extra_slot         += m.count;
+    else if (m.type === 'extra_projectile') ab.extra_projectile += m.count;
+    else if (m.type === 'slow')          ab.slow               += m.pct;
+    else if (m.type === 'crit_bonus')    ab.crit_bonus         += m.pct;
+    else if (m.type === 'boss_dmg')      ab.boss_dmg           += m.pct;
+    else if (m.type === 'troop_hp')      ab.troop_hp           += m.pct;
+    else if (m.type === 'wood_prod')     ab.wood_prod          += m.pct;
+    else if (m.type === 'all_resource_prod') ab.all_resource_prod += m.pct;
+  }
+  return ab;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ALLIANCE
 // ═══════════════════════════════════════════════════════════════
 
@@ -8408,7 +8502,12 @@ function alMembersPanel(state) {
 }
 
 function alChatPanel(state) {
-  const announcement = state.alliance.announcement || '';
+  const a            = state.alliance;
+  const isCommander  = state.my_rank === 'commander';
+  const announcement = a.announcement || '';
+  const updatedAt    = a.announcement_updated_at ? alFmtTimeAgo(a.announcement_updated_at) : null;
+  const updatedBy    = a.announcement_updated_by || null;
+
   const chat = (state.chat || []).slice().sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   const msgs = chat.map(m => `
     <div>
@@ -8419,13 +8518,32 @@ function alChatPanel(state) {
       </div>
       <div class="al-chat-text">${m.message}</div>
     </div>`).join('');
+
   return `
     <div class="al-panel" id="al-panel-chat" style="overflow:hidden;gap:0.75rem;">
-      ${announcement ? `
-      <div class="al-announcement">
-        <div class="al-announcement-label">📢 Announcement</div>
-        <div class="al-announcement-text">${announcement}</div>
-      </div>` : ''}
+
+      <!-- Announcement box -->
+      <div class="al-announce-box" id="al-announce-box">
+        <div class="al-announce-header">
+          <span class="al-announce-title">📢 ALLIANCE ANNOUNCEMENT</span>
+          <span class="al-announce-meta">${updatedAt && updatedBy ? `Last edited ${updatedAt} by ${updatedBy}` : ''}</span>
+          ${isCommander ? `<button class="al-announce-edit-btn" onclick="alStartEditAnnouncement()">✏️ Edit</button>` : ''}
+        </div>
+        <div id="al-announce-view">
+          ${announcement
+            ? `<div class="al-announce-text">${announcement}</div>`
+            : `<div class="al-announce-empty">No announcement set.</div>`}
+        </div>
+        <div id="al-announce-edit" style="display:none;">
+          <textarea class="al-announce-textarea" id="al-announce-input" rows="3" maxlength="500">${announcement.replace(/</g,'&lt;')}</textarea>
+          <div class="al-announce-save-row">
+            <button class="al-btn al-btn-join" style="padding:6px 16px;font-size:12px;" onclick="alSaveAnnouncement()">Save</button>
+            <button class="al-btn" style="padding:6px 16px;font-size:12px;" onclick="alCancelEditAnnouncement()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat -->
       <div class="al-chat-wrap">
         <div class="al-chat-messages" id="al-chat-messages">${msgs||'<div class="al-placeholder">No messages yet. Say hello!</div>'}</div>
         <div class="al-chat-input-row">
@@ -8437,7 +8555,71 @@ function alChatPanel(state) {
 }
 
 function alTerritoryPanel() {
-  return `<div class="al-panel" id="al-panel-territory"><div class="al-placeholder">🗺️ Territory map<br><span style="font-size:11px;">Coming soon — shows alliance-held tiles on the world map</span></div></div>`;
+  const tc = allianceState?.territory_count || 0;
+  const unlockedCount = ALLIANCE_TERRITORY_MILESTONES.filter(m => tc >= m.territories).length;
+  const nextMilestone = ALLIANCE_TERRITORY_MILESTONES.find(m => tc < m.territories);
+  const progressPct = nextMilestone
+    ? Math.min(100, (tc / nextMilestone.territories) * 100).toFixed(1)
+    : 100;
+
+  const buffCards = ALLIANCE_TERRITORY_MILESTONES.map(m => {
+    const unlocked = tc >= m.territories;
+    const remaining = Math.max(0, m.territories - tc);
+    return `
+      <div class="al-buff-card ${unlocked ? 'unlocked' : 'locked'}">
+        <div class="al-buff-icon">${m.icon}</div>
+        <div class="al-buff-info" style="flex:1;min-width:0;">
+          <div class="al-buff-name">${m.name}
+            <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">${m.territories} territories</span>
+          </div>
+          <div class="al-buff-desc">${m.desc}</div>
+          <div class="al-buff-req">
+            ${unlocked
+              ? `<span class="al-buff-active">✅ Unlocked &amp; Active</span>`
+              : `<span class="al-buff-locked">🔒 ${remaining} more ${remaining === 1 ? 'territory' : 'territories'} needed</span>`}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="al-panel" id="al-panel-territory">
+      <div class="al-terr-header">
+        <div class="al-terr-stat">
+          <div class="al-terr-stat-val">${tc}</div>
+          <div class="al-terr-stat-label">Territories Held</div>
+        </div>
+        <div class="al-terr-stat">
+          <div class="al-terr-stat-val">${unlockedCount}</div>
+          <div class="al-terr-stat-label">Buffs Active</div>
+        </div>
+        <div class="al-terr-stat">
+          <div class="al-terr-stat-val">${nextMilestone ? nextMilestone.territories : '✓'}</div>
+          <div class="al-terr-stat-label">Next Milestone</div>
+        </div>
+      </div>
+
+      ${nextMilestone ? `
+      <div class="al-terr-prog">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:6px;">
+          <span>Next: <span style="color:#fff;font-weight:600;">${nextMilestone.icon} ${nextMilestone.name}</span></span>
+          <span>${tc} / ${nextMilestone.territories}</span>
+        </div>
+        <div style="height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,var(--blue),#6ab4ff);border-radius:4px;transition:width 0.4s;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">
+          Capture PvP tiles to earn territories for your alliance.
+        </div>
+      </div>` : `
+      <div style="text-align:center;padding:0.75rem;font-size:13px;color:var(--green);font-weight:600;">
+        🏆 All territory milestones unlocked!
+      </div>`}
+
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        ${buffCards}
+      </div>
+    </div>`;
 }
 
 function alResearchPanel() {
@@ -8569,6 +8751,27 @@ async function alSaveSettings() {
     renderAllianceHome(document.getElementById('al-content'), newState);
     switchAllianceTab('settings');
     showToast('✅ Settings saved!');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+function alStartEditAnnouncement() {
+  document.getElementById('al-announce-view').style.display = 'none';
+  document.getElementById('al-announce-edit').style.display = '';
+  document.getElementById('al-announce-input')?.focus();
+}
+
+function alCancelEditAnnouncement() {
+  document.getElementById('al-announce-edit').style.display = 'none';
+  document.getElementById('al-announce-view').style.display = '';
+}
+
+async function alSaveAnnouncement() {
+  const text = (document.getElementById('al-announce-input')?.value || '').trim();
+  try {
+    const state = await serverRpc('idw_set_announcement', { p_text: text });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    switchAllianceTab('chat');
+    showToast('📢 Announcement updated!');
   } catch(e) { /* toast shown by serverRpc */ }
 }
 

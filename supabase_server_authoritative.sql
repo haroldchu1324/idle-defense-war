@@ -1025,18 +1025,21 @@ alter table public.idw_player_state
   add column if not exists pl_permanent_buffs   integer not null default 0;
 
 create table if not exists public.idw_alliances (
-  id           uuid    primary key default gen_random_uuid(),
-  name         text    not null,
-  tag          text    not null,
-  description  text    not null default '',
-  announcement text    not null default '',
-  join_type    text    not null default 'open' check (join_type in ('open','apply','invite')),
-  min_power    integer not null default 0,
-  language     text    not null default 'EN',
-  max_members  integer not null default 50,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  id                      uuid    primary key default gen_random_uuid(),
+  name                    text    not null,
+  tag                     text    not null,
+  description             text    not null default '',
+  announcement            text    not null default '',
+  announcement_updated_at timestamptz,
+  announcement_updated_by text,
+  join_type               text    not null default 'open' check (join_type in ('open','apply','invite')),
+  min_power               integer not null default 0,
+  language                text    not null default 'EN',
+  max_members             integer not null default 50,
+  created_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now()
 );
+-- (alter stmts for already-created DBs are in the migration scripts)
 
 create unique index if not exists idw_alliances_name_ci on public.idw_alliances (lower(name));
 create unique index if not exists idw_alliances_tag_ci  on public.idw_alliances (upper(tag));
