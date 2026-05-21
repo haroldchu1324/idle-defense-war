@@ -2424,16 +2424,23 @@ function generateEnchantStrip() {
 
   // Calculate how many of each rarity in base pattern
   const rarityCount = {
-    common: Math.floor(patternLength * 0.70),      // 70% = 21 items
-    uncommon: Math.floor(patternLength * 0.20),    // 20% = 6 items
-    rare: Math.floor(patternLength * 0.07),        // 7% = 2 items
-    epic: Math.floor(patternLength * 0.025),       // 2.5% = 1 item (rounded up)
-    legendary: Math.floor(patternLength * 0.005)   // 0.5% = 0 item
+    common: Math.floor(patternLength * 0.70),
+    uncommon: Math.floor(patternLength * 0.20),
+    rare: Math.floor(patternLength * 0.07),
+    epic: Math.floor(patternLength * 0.025),
+    legendary: Math.floor(patternLength * 0.005)
   };
 
-  // Ensure we have at least 1 legendary and fill to exact pattern length
-  if (rarityCount.legendary === 0) rarityCount.legendary = 1;
-  rarityCount.common = patternLength - rarityCount.uncommon - rarityCount.rare - rarityCount.epic - rarityCount.legendary;
+  // Ensure every rarity has enough slots for all its enchants so each one
+  // appears in the strip at least once — borrow slots from common
+  Object.keys(rarityCount).forEach(rarity => {
+    const needed = ENCHANT_TYPES.filter(e => e.rarity === rarity).length;
+    if (needed > rarityCount[rarity]) {
+      rarityCount.common -= (needed - rarityCount[rarity]);
+      rarityCount[rarity] = needed;
+    }
+  });
+  if (rarityCount.common < 1) rarityCount.common = 1;
 
   console.log('Base pattern rarity distribution:', rarityCount);
 
@@ -2544,10 +2551,21 @@ function spinEnchantStrip() {
   const wonEnchant = getRandomEnchant();
 
   // Step 2: Find all strip indices where this enchantment appears
-  const matchingIndices = strip.enchantments.reduce((acc, e, i) => {
+  let matchingIndices = strip.enchantments.reduce((acc, e, i) => {
     if (e.id === wonEnchant.id) acc.push(i);
     return acc;
   }, []);
+  // Fallback: match by rarity if exact enchant not found
+  if (matchingIndices.length === 0) {
+    matchingIndices = strip.enchantments.reduce((acc, e, i) => {
+      if (e.rarity === wonEnchant.rarity) acc.push(i);
+      return acc;
+    }, []);
+  }
+  // Last resort: any index
+  if (matchingIndices.length === 0) {
+    matchingIndices = strip.enchantments.map((_, i) => i);
+  }
 
   // Step 3: Pick a target index in the latter half for a satisfying spin distance
   const minIdx = Math.floor(strip.enchantments.length * 0.55);
