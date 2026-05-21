@@ -8159,64 +8159,25 @@ async function startSiloUpgrade(resId, tierIdx) {
 // ALLIANCE
 // ═══════════════════════════════════════════════════════════════
 
-// TEST TOGGLE: set true to preview the in-alliance home view
-let playerInAlliance = false;
+let allianceState = null;     // cached result of idw_get_alliance_state()
 let allianceActiveTab = 'members';
 let allianceBrowserFilters = { joinType:'all', minPower:'', maxPower:'', lang:'all', sort:'power', joinableOnly:false, search:'' };
+let _alRefreshTimer = null;
 
-const MOCK_ALLIANCES = [
-  { id:1, name:'Wolf Pack',    tag:'WOLF', members:32, max:50, power:4820000, reqPower:100000,  joinType:'open',   lang:'EN', desc:'Top 3 alliance. Active daily. PVP focused.' },
-  { id:2, name:'Iron Shield',  tag:'ISH',  members:28, max:50, power:3150000, reqPower:50000,   joinType:'apply',  lang:'EN', desc:'Friendly guild. All are welcome to apply.' },
-  { id:3, name:'Shadow Order', tag:'SHAD', members:45, max:50, power:6200000, reqPower:500000,  joinType:'invite', lang:'EN', desc:'Elite PVP guild. Invite only.' },
-  { id:4, name:'Dragon Flame', tag:'DRGN', members:12, max:30, power:980000,  reqPower:0,       joinType:'open',   lang:'EN', desc:'New guild, growing fast! Come join us.' },
-  { id:5, name:'Storm Riders', tag:'STRM', members:38, max:50, power:2800000, reqPower:200000,  joinType:'apply',  lang:'EN', desc:'Active guild with weekly events and alliance wars.' },
-  { id:6, name:'Crimson Tide', tag:'CRMS', members:50, max:50, power:7500000, reqPower:1000000, joinType:'invite', lang:'EN', desc:'Server #1. Elite members only.' },
-];
-
-const MOCK_MY_ALLIANCE = {
-  name:'Wolf Pack', tag:'WOLF', members:32, max:50, power:4820000,
-  desc:'Top 3 alliance. Active daily. PVP focused.',
-  announcement:'📢 Alliance war starts Friday! All members must participate. Minimum 3 attacks required. Prizes for top contributors.',
-};
-
-const MOCK_MEMBERS = [
-  { username:'HaroldChu',  rank:'commander', power:850000, level:42, lands:12, lastOnline:Date.now()-300000 },
-  { username:'ShadowWolf', rank:'officer',   power:620000, level:38, lands:9,  lastOnline:Date.now()-1800000 },
-  { username:'IronFist',   rank:'officer',   power:580000, level:35, lands:8,  lastOnline:Date.now()-3600000 },
-  { username:'StormBreak', rank:'veteran',   power:420000, level:31, lands:6,  lastOnline:Date.now()-7200000 },
-  { username:'FrostByte',  rank:'veteran',   power:380000, level:29, lands:5,  lastOnline:Date.now()-86400000 },
-  { username:'NightBlade', rank:'member',    power:290000, level:24, lands:4,  lastOnline:Date.now()-172800000 },
-  { username:'RedFalcon',  rank:'member',    power:240000, level:21, lands:3,  lastOnline:Date.now()-259200000 },
-  { username:'DarkMage',   rank:'recruit',   power:120000, level:15, lands:1,  lastOnline:Date.now()-604800000 },
-  { username:'NewPlayer1', rank:'recruit',   power:45000,  level:8,  lands:0,  lastOnline:Date.now()-864000000 },
-];
-
-let allianceChatMessages = [
-  { username:'HaroldChu',  rank:'commander', msg:'Good work everyone on last alliance war result 🏆', time:Date.now()-7200000 },
-  { username:'IronFist',   rank:'officer',   msg:'New research unlocked — check the Research tab',   time:Date.now()-5400000 },
-  { username:'StormBreak', rank:'veteran',   msg:'Can someone help me with sector 7?',                time:Date.now()-3600000 },
-  { username:'FrostByte',  rank:'veteran',   msg:'On it StormBreak, give me 10 min',                  time:Date.now()-3540000 },
-  { username:'ShadowWolf', rank:'officer',   msg:'Attacking east quadrant tonight — coordinate!',     time:Date.now()-600000 },
-];
-
-function initAlliance() {
-  const el = document.getElementById('al-content');
-  if (!el) return;
-  if (playerInAlliance) renderAllianceHome(el);
-  else renderAllianceBrowser(el);
-}
+// ── helpers ──
 
 function alFmtPower(n) {
   if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
   if (n >= 1e3) return Math.round(n/1e3)+'K';
-  return n.toLocaleString();
+  return (n||0).toLocaleString();
 }
 
 function alFmtTimeAgo(ts) {
-  const s = Math.floor((Date.now()-ts)/1000);
-  if (s < 60)   return 'Just now';
-  if (s < 3600) return Math.floor(s/60)+'m ago';
-  if (s < 86400)return Math.floor(s/3600)+'h ago';
+  if (!ts) return 'Unknown';
+  const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (s < 60)    return 'Just now';
+  if (s < 3600)  return Math.floor(s/60)+'m ago';
+  if (s < 86400) return Math.floor(s/3600)+'h ago';
   return Math.floor(s/86400)+'d ago';
 }
 
@@ -8232,55 +8193,93 @@ function alRankBadge(rank) {
   return `<span class="al-rank-badge al-rank-${rank}">${icon[rank]||''} ${label[rank]||rank}</span>`;
 }
 
+function alCanManage(myRank) {
+  return myRank === 'commander' || myRank === 'officer';
+}
+
+function alCanManageMember(myRank, targetRank) {
+  const order = {commander:1,officer:2,veteran:3,member:4,recruit:5};
+  return (order[myRank]||9) < (order[targetRank]||9);
+}
+
+// ── init ──
+
+async function initAlliance() {
+  const el = document.getElementById('al-content');
+  if (!el) return;
+  el.innerHTML = '<div class="al-placeholder" style="margin:auto;">Loading…</div>';
+  try {
+    const data = await serverRpc('idw_get_alliance_state');
+    allianceState = data;
+    if (data.in_alliance) renderAllianceHome(el, data);
+    else renderAllianceBrowser(el);
+  } catch(e) {
+    el.innerHTML = '<div class="al-placeholder" style="margin:auto;color:#f44;">Failed to load alliance data. Please try again.</div>';
+  }
+}
+
+// ── browser view ──
+
+function alRefreshList() {
+  clearTimeout(_alRefreshTimer);
+  _alRefreshTimer = setTimeout(async () => {
+    const listEl = document.getElementById('al-list-inner');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="al-placeholder">Loading…</div>';
+    try {
+      const f = allianceBrowserFilters;
+      const list = await serverRpc('idw_list_alliances', {
+        p_search:        f.search || '',
+        p_join_type:     f.joinType || 'all',
+        p_min_power:     parseInt(f.minPower) || 0,
+        p_max_power:     parseInt(f.maxPower) || 0,
+        p_lang:          f.lang || 'all',
+        p_sort:          f.sort || 'power',
+        p_joinable_only: !!f.joinableOnly,
+      });
+      if (!list || list.length === 0) {
+        listEl.innerHTML = '<div class="al-placeholder">No alliances found. Be the first to create one!</div>';
+        return;
+      }
+      listEl.innerHTML = list.map(a => `
+        <div class="al-card">
+          <div class="al-card-head">
+            <div class="al-card-name">${a.name}</div>
+            <div class="al-card-tag">[${a.tag}]</div>
+            ${alJoinBadge(a.join_type)}
+          </div>
+          <div class="al-card-stats">
+            <div class="al-stat">👥 <span>${a.member_count}/${a.max_members}</span></div>
+            <div class="al-stat">⚡ <span>${alFmtPower(a.total_power)}</span></div>
+            <div class="al-stat">🔒 <span>${a.min_power > 0 ? alFmtPower(a.min_power)+' req' : 'No req'}</span></div>
+            <div class="al-stat">🌐 <span>${a.language}</span></div>
+          </div>
+          <div class="al-card-desc">${a.description||''}</div>
+          <div class="al-card-actions">
+            ${a.join_type==='open'  ? `<button class="al-btn al-btn-join"  onclick="alJoin('${a.id}')">Join</button>`   : ''}
+            ${a.join_type==='apply' ? `<button class="al-btn al-btn-apply" onclick="alApply('${a.id}')">Apply</button>` : ''}
+          </div>
+        </div>`).join('');
+    } catch(e) {
+      listEl.innerHTML = '<div class="al-placeholder" style="color:#f44;">Failed to load alliances.</div>';
+    }
+  }, 300);
+}
+
 function renderAllianceBrowser(el) {
   const f = allianceBrowserFilters;
-  let list = MOCK_ALLIANCES.filter(a => {
-    if (f.search && !a.name.toLowerCase().includes(f.search.toLowerCase()) && !a.tag.toLowerCase().includes(f.search.toLowerCase())) return false;
-    if (f.joinType !== 'all' && a.joinType !== f.joinType) return false;
-    if (f.minPower && a.power < parseInt(f.minPower)) return false;
-    if (f.maxPower && a.power > parseInt(f.maxPower)) return false;
-    if (f.lang !== 'all' && a.lang !== f.lang) return false;
-    if (f.joinableOnly && (a.joinType === 'invite' || a.members >= a.max)) return false;
-    return true;
-  });
-  if (f.sort === 'members') list.sort((a,b) => b.members - a.members);
-  else list.sort((a,b) => b.power - a.power);
-
-  const cards = list.length === 0
-    ? '<div class="al-placeholder">No alliances match your filters</div>'
-    : list.map(a => `
-      <div class="al-card">
-        <div class="al-card-head">
-          <div class="al-card-name">${a.name}</div>
-          <div class="al-card-tag">[${a.tag}]</div>
-          ${alJoinBadge(a.joinType)}
-        </div>
-        <div class="al-card-stats">
-          <div class="al-stat">👥 <span>${a.members}/${a.max}</span></div>
-          <div class="al-stat">⚡ <span>${alFmtPower(a.power)}</span></div>
-          <div class="al-stat">🔒 <span>${a.reqPower > 0 ? alFmtPower(a.reqPower)+' req' : 'No req'}</span></div>
-          <div class="al-stat">🌐 <span>${a.lang}</span></div>
-        </div>
-        <div class="al-card-desc">${a.desc}</div>
-        <div class="al-card-actions">
-          <button class="al-btn al-btn-view" onclick="alViewDetail(${a.id})">View</button>
-          ${a.joinType==='open'  ? `<button class="al-btn al-btn-join"  onclick="alJoin(${a.id})">Join</button>` : ''}
-          ${a.joinType==='apply' ? `<button class="al-btn al-btn-apply" onclick="alApply(${a.id})">Apply</button>` : ''}
-        </div>
-      </div>`).join('');
-
   el.innerHTML = `
     <div class="al-browser">
       <div class="al-list-wrap">
         <input class="al-search" placeholder="Search alliance name…" value="${f.search.replace(/"/g,'&quot;')}"
-          oninput="allianceBrowserFilters.search=this.value;renderAllianceBrowser(document.getElementById('al-content'))">
-        <div class="al-list">${cards}</div>
+          oninput="allianceBrowserFilters.search=this.value;alRefreshList()">
+        <div class="al-list" id="al-list-inner"><div class="al-placeholder">Loading…</div></div>
       </div>
       <div class="al-filters">
         <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">Filters</div>
         <div>
           <div class="al-filter-label">Join Type</div>
-          <select class="al-filter-input" onchange="allianceBrowserFilters.joinType=this.value;renderAllianceBrowser(document.getElementById('al-content'))">
+          <select class="al-filter-input" onchange="allianceBrowserFilters.joinType=this.value;alRefreshList()">
             <option value="all"    ${f.joinType==='all'?'selected':''}>All</option>
             <option value="open"   ${f.joinType==='open'?'selected':''}>Open</option>
             <option value="apply"  ${f.joinType==='apply'?'selected':''}>Apply</option>
@@ -8290,16 +8289,16 @@ function renderAllianceBrowser(el) {
         <div>
           <div class="al-filter-label">Min Power</div>
           <input class="al-filter-input" type="number" placeholder="e.g. 500000" value="${f.minPower}"
-            onchange="allianceBrowserFilters.minPower=this.value;renderAllianceBrowser(document.getElementById('al-content'))">
+            onchange="allianceBrowserFilters.minPower=this.value;alRefreshList()">
         </div>
         <div>
           <div class="al-filter-label">Max Power</div>
           <input class="al-filter-input" type="number" placeholder="e.g. 5000000" value="${f.maxPower}"
-            onchange="allianceBrowserFilters.maxPower=this.value;renderAllianceBrowser(document.getElementById('al-content'))">
+            onchange="allianceBrowserFilters.maxPower=this.value;alRefreshList()">
         </div>
         <div>
           <div class="al-filter-label">Language</div>
-          <select class="al-filter-input" onchange="allianceBrowserFilters.lang=this.value;renderAllianceBrowser(document.getElementById('al-content'))">
+          <select class="al-filter-input" onchange="allianceBrowserFilters.lang=this.value;alRefreshList()">
             <option value="all" ${f.lang==='all'?'selected':''}>All</option>
             <option value="EN"  ${f.lang==='EN'?'selected':''}>English</option>
             <option value="ES"  ${f.lang==='ES'?'selected':''}>Spanish</option>
@@ -8308,29 +8307,33 @@ function renderAllianceBrowser(el) {
         </div>
         <div>
           <div class="al-filter-label">Sort By</div>
-          <select class="al-filter-input" onchange="allianceBrowserFilters.sort=this.value;renderAllianceBrowser(document.getElementById('al-content'))">
+          <select class="al-filter-input" onchange="allianceBrowserFilters.sort=this.value;alRefreshList()">
             <option value="power"   ${f.sort==='power'?'selected':''}>Power</option>
             <option value="members" ${f.sort==='members'?'selected':''}>Members</option>
           </select>
         </div>
         <label class="al-filter-check">
-          <input type="checkbox" ${f.joinableOnly?'checked':''} onchange="allianceBrowserFilters.joinableOnly=this.checked;renderAllianceBrowser(document.getElementById('al-content'))">
+          <input type="checkbox" ${f.joinableOnly?'checked':''} onchange="allianceBrowserFilters.joinableOnly=this.checked;alRefreshList()">
           Only show joinable
         </label>
-        <button class="al-filter-clear" onclick="allianceBrowserFilters={joinType:'all',minPower:'',maxPower:'',lang:'all',sort:'power',joinableOnly:false,search:''};initAlliance()">Clear Filters</button>
-        <div style="border-top:1px solid var(--border);padding-top:0.6rem;text-align:center;">
-          <span style="font-size:11px;color:var(--text3);">Testing: </span>
-          <a href="#" onclick="playerInAlliance=true;allianceActiveTab='members';initAlliance();return false;" style="font-size:11px;color:var(--blue);text-decoration:none;">Enter Alliance View →</a>
+        <button class="al-filter-clear" onclick="allianceBrowserFilters={joinType:'all',minPower:'',maxPower:'',lang:'all',sort:'power',joinableOnly:false,search:''};alRefreshList()">Clear Filters</button>
+        <div style="border-top:1px solid var(--border);padding-top:0.6rem;">
+          <button class="al-btn al-btn-join" style="width:100%;padding:9px;" onclick="alShowCreate()">+ Create Alliance</button>
         </div>
       </div>
     </div>`;
+  alRefreshList();
 }
 
-function renderAllianceHome(el) {
-  const a = MOCK_MY_ALLIANCE;
-  const isOfficer = true; // mock: current player is commander
+// ── home view ──
+
+function renderAllianceHome(el, state) {
+  allianceState = state;
+  const a = state.alliance;
+  const myRank = state.my_rank;
+  const canManage = alCanManage(myRank);
   const tabs = ['members','chat','territory','research'];
-  if (isOfficer) tabs.push('settings');
+  if (canManage) tabs.push('settings');
   const tabBar = tabs.map(t => {
     const label = {members:'👥 Members',chat:'💬 Chat',territory:'🗺️ Territory',research:'🔬 Research',settings:'⚙️ Settings'}[t];
     return `<button class="al-tab${t===allianceActiveTab?' active':''}" data-tab="${t}" onclick="switchAllianceTab('${t}')">${label}</button>`;
@@ -8345,45 +8348,57 @@ function renderAllianceHome(el) {
           <span style="font-weight:700;color:var(--blue);">[${a.tag}]</span>
           <span style="color:#fff;">${a.name}</span>
           <span style="color:var(--border2);">|</span>
-          <span>👥 ${a.members}/${a.max}</span>
+          <span>👥 ${a.member_count}/${a.max_members}</span>
           <span style="color:var(--border2);">|</span>
-          <span>⚡ ${alFmtPower(a.power)}</span>
+          <span>⚡ ${alFmtPower(a.total_power)}</span>
         </div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-        ${alMembersPanel(isOfficer)}
-        ${alChatPanel()}
+        ${alMembersPanel(state)}
+        ${alChatPanel(state)}
         ${alTerritoryPanel()}
         ${alResearchPanel()}
-        ${isOfficer ? alSettingsPanel(a) : ''}
+        ${canManage ? alSettingsPanel(state) : ''}
       </div>
     </div>`;
   switchAllianceTab(allianceActiveTab);
 }
 
-function alMembersPanel(canManage) {
-  const rows = MOCK_MEMBERS.map(m => `
-    <tr class="${m.rank==='commander'?'al-commander-row':''}">
+function alMembersPanel(state) {
+  const myRank = state.my_rank;
+  const myUserId = state.my_user_id;
+  const canManage = alCanManage(myRank);
+  const members = state.members || [];
+
+  if (members.length === 0) {
+    return `<div class="al-panel" id="al-panel-members"><div class="al-placeholder">No members found.</div></div>`;
+  }
+
+  const rows = members.map(m => {
+    const canAct = canManage && m.user_id !== myUserId && alCanManageMember(myRank, m.rank);
+    return `
+    <tr>
       <td>${alRankBadge(m.rank)}</td>
       <td style="color:#fff;font-weight:${m.rank==='commander'?700:400};">${m.username}</td>
-      <td>${alFmtPower(m.power)}</td>
-      <td>Lv ${m.level}</td>
-      <td>${m.lands}</td>
-      <td>${alFmtTimeAgo(m.lastOnline)}</td>
-      ${canManage ? `<td>${m.rank!=='commander'
+      <td>${alFmtPower(m.power||0)}</td>
+      <td>Lv ${m.level||1}</td>
+      <td>${alFmtTimeAgo(m.last_online)}</td>
+      ${canManage ? `<td>${canAct
         ? `<div style="display:flex;gap:4px;">
-            <button class="al-action-btn" onclick="showToast('🔺 Promoted ${m.username}')">Promote</button>
-            <button class="al-action-btn" onclick="showToast('🔻 Demoted ${m.username}')">Demote</button>
-            <button class="al-action-btn danger" onclick="showToast('👢 Kicked ${m.username}')">Kick</button>
+            <button class="al-action-btn" onclick="alPromote('${m.user_id}','${m.username}')">Promote</button>
+            <button class="al-action-btn" onclick="alDemote('${m.user_id}','${m.username}')">Demote</button>
+            <button class="al-action-btn danger" onclick="alKick('${m.user_id}','${m.username}')">Kick</button>
            </div>`
         : ''}</td>` : ''}
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
   return `
     <div class="al-panel" id="al-panel-members">
       <div style="overflow-x:auto;">
         <table class="al-members-table">
           <thead><tr>
-            <th>Rank</th><th>Username</th><th>Power</th><th>Level</th><th>Lands</th><th>Last Online</th>
+            <th>Rank</th><th>Username</th><th>Power</th><th>Level</th><th>Last Online</th>
             ${canManage?'<th>Actions</th>':''}
           </tr></thead>
           <tbody>${rows}</tbody>
@@ -8392,24 +8407,27 @@ function alMembersPanel(canManage) {
     </div>`;
 }
 
-function alChatPanel() {
-  const msgs = allianceChatMessages.slice().sort((a,b)=>a.time-b.time).map(m => `
+function alChatPanel(state) {
+  const announcement = state.alliance.announcement || '';
+  const chat = (state.chat || []).slice().sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  const msgs = chat.map(m => `
     <div>
       <div class="al-chat-msg-head">
         <span class="al-chat-username">${m.username}</span>
         ${alRankBadge(m.rank)}
-        <span class="al-chat-time">${alFmtTimeAgo(m.time)}</span>
+        <span class="al-chat-time">${alFmtTimeAgo(m.created_at)}</span>
       </div>
-      <div class="al-chat-text">${m.msg}</div>
+      <div class="al-chat-text">${m.message}</div>
     </div>`).join('');
   return `
     <div class="al-panel" id="al-panel-chat" style="overflow:hidden;gap:0.75rem;">
+      ${announcement ? `
       <div class="al-announcement">
         <div class="al-announcement-label">📢 Announcement</div>
-        <div class="al-announcement-text">${MOCK_MY_ALLIANCE.announcement}</div>
-      </div>
+        <div class="al-announcement-text">${announcement}</div>
+      </div>` : ''}
       <div class="al-chat-wrap">
-        <div class="al-chat-messages" id="al-chat-messages">${msgs}</div>
+        <div class="al-chat-messages" id="al-chat-messages">${msgs||'<div class="al-placeholder">No messages yet. Say hello!</div>'}</div>
         <div class="al-chat-input-row">
           <input class="al-chat-input" id="al-chat-input" placeholder="Type a message…" onkeydown="if(event.key==='Enter')alSendChat()">
           <button class="al-chat-send" onclick="alSendChat()">Send</button>
@@ -8426,30 +8444,34 @@ function alResearchPanel() {
   return `<div class="al-panel" id="al-panel-research"><div class="al-placeholder">🔬 Alliance Research<br><span style="font-size:11px;">Coming soon — pool resources to unlock alliance-wide upgrades</span></div></div>`;
 }
 
-function alSettingsPanel(a) {
+function alSettingsPanel(state) {
+  const a = state.alliance;
+  const isCommander = state.my_rank === 'commander';
   return `
     <div class="al-panel" id="al-panel-settings">
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:1rem;max-width:440px;">
         <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:1rem;">⚙️ Alliance Settings</div>
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
+          ${isCommander ? `
           <div><div class="al-filter-label">Alliance Name</div>
-            <input class="al-filter-input" value="${a.name}" style="font-size:13px;padding:9px 12px;"></div>
+            <input class="al-filter-input" id="al-settings-name" value="${a.name.replace(/"/g,'&quot;')}" style="font-size:13px;padding:9px 12px;"></div>
           <div><div class="al-filter-label">Tag (max 5 chars)</div>
-            <input class="al-filter-input" value="${a.tag}" style="font-size:13px;padding:9px 12px;max-width:120px;"></div>
-          <div><div class="al-filter-label">Description</div>
-            <textarea class="al-filter-input" rows="3" style="resize:vertical;font-size:13px;padding:9px 12px;">${a.desc}</textarea></div>
+            <input class="al-filter-input" id="al-settings-tag" value="${a.tag.replace(/"/g,'&quot;')}" maxlength="5" style="font-size:13px;padding:9px 12px;max-width:120px;"></div>
           <div><div class="al-filter-label">Join Type</div>
-            <select class="al-filter-input" style="font-size:13px;padding:9px 12px;">
-              <option>Open</option><option selected>Apply</option><option>Invite Only</option>
-            </select></div>
-          <button class="al-btn al-btn-join" style="align-self:flex-start;padding:9px 22px;font-size:13px;" onclick="showToast('✅ Settings saved!')">Save Changes</button>
+            <select class="al-filter-input" id="al-settings-jointype" style="font-size:13px;padding:9px 12px;">
+              <option value="open"   ${a.join_type==='open'?'selected':''}>Open</option>
+              <option value="apply"  ${a.join_type==='apply'?'selected':''}>Apply</option>
+              <option value="invite" ${a.join_type==='invite'?'selected':''}>Invite Only</option>
+            </select></div>` : ''}
+          <div><div class="al-filter-label">Description</div>
+            <textarea class="al-filter-input" id="al-settings-desc" rows="3" style="resize:vertical;font-size:13px;padding:9px 12px;">${a.description||''}</textarea></div>
+          <div><div class="al-filter-label">Announcement</div>
+            <textarea class="al-filter-input" id="al-settings-announce" rows="2" style="resize:vertical;font-size:13px;padding:9px 12px;">${a.announcement||''}</textarea></div>
+          <button class="al-btn al-btn-join" style="align-self:flex-start;padding:9px 22px;font-size:13px;" onclick="alSaveSettings()">Save Changes</button>
           <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
             <button class="al-btn al-btn-danger" style="padding:9px 22px;font-size:13px;" onclick="alLeave()">🚪 Leave Alliance</button>
           </div>
         </div>
-      </div>
-      <div style="font-size:11px;color:var(--text3);padding-top:0.25rem;">
-        Testing: <a href="#" onclick="playerInAlliance=false;initAlliance();return false;" style="color:var(--blue);text-decoration:none;">← Back to Browser</a>
       </div>
     </div>`;
 }
@@ -8466,41 +8488,129 @@ function switchAllianceTab(tab) {
   if (tab==='chat') setTimeout(()=>{ const el=document.getElementById('al-chat-messages'); if(el) el.scrollTop=el.scrollHeight; }, 30);
 }
 
-function alSendChat() {
+// ── actions ──
+
+async function alSendChat() {
   const input = document.getElementById('al-chat-input');
   const msg = (input?.value||'').trim();
   if (!msg) return;
-  allianceChatMessages.push({ username:'HaroldChu', rank:'commander', msg, time:Date.now() });
   input.value = '';
-  renderAllianceHome(document.getElementById('al-content'));
-  switchAllianceTab('chat');
+  try {
+    const state = await serverRpc('idw_send_alliance_chat', { p_message: msg });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    switchAllianceTab('chat');
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
-function alViewDetail(id) {
-  const a = MOCK_ALLIANCES.find(x=>x.id===id);
-  if (!a) return;
-  showToast(`📋 ${a.name} [${a.tag}] · ${alFmtPower(a.power)} power · ${a.members}/${a.max} members`);
+async function alJoin(allianceId) {
+  try {
+    const state = await serverRpc('idw_join_alliance', { p_alliance_id: allianceId });
+    allianceActiveTab = 'members';
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast('✅ Joined alliance!');
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
-function alJoin(id) {
-  const a = MOCK_ALLIANCES.find(x=>x.id===id);
-  if (!a) return;
-  playerInAlliance = true;
-  allianceActiveTab = 'members';
-  initAlliance();
-  showToast(`✅ Joined ${a.name}!`);
+async function alApply(allianceId) {
+  try {
+    await serverRpc('idw_apply_alliance', { p_alliance_id: allianceId });
+    showToast('📨 Application sent!');
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
-function alApply(id) {
-  const a = MOCK_ALLIANCES.find(x=>x.id===id);
-  if (!a) return;
-  showToast(`📨 Application sent to ${a.name}!`);
+async function alLeave() {
+  if (!confirm('Are you sure you want to leave this alliance?')) return;
+  try {
+    await serverRpc('idw_leave_alliance');
+    allianceState = null;
+    renderAllianceBrowser(document.getElementById('al-content'));
+    showToast('👋 Left the alliance');
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
-function alLeave() {
-  playerInAlliance = false;
-  initAlliance();
-  showToast('👋 Left the alliance');
+async function alPromote(userId, username) {
+  try {
+    const state = await serverRpc('idw_promote_member', { p_target_user_id: userId });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`🔺 Promoted ${username}`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alDemote(userId, username) {
+  try {
+    const state = await serverRpc('idw_demote_member', { p_target_user_id: userId });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`🔻 Demoted ${username}`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alKick(userId, username) {
+  if (!confirm(`Kick ${username} from the alliance?`)) return;
+  try {
+    const state = await serverRpc('idw_kick_member', { p_target_user_id: userId });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`👢 Kicked ${username}`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alSaveSettings() {
+  const state = allianceState;
+  if (!state) return;
+  const isCommander = state.my_rank === 'commander';
+  const name     = isCommander ? (document.getElementById('al-settings-name')?.value||'').trim()   : state.alliance.name;
+  const tag      = isCommander ? (document.getElementById('al-settings-tag')?.value||'').trim()    : state.alliance.tag;
+  const jtype    = isCommander ? (document.getElementById('al-settings-jointype')?.value||'open')  : state.alliance.join_type;
+  const desc     = (document.getElementById('al-settings-desc')?.value||'').trim();
+  const announce = (document.getElementById('al-settings-announce')?.value||'').trim();
+  try {
+    const newState = await serverRpc('idw_update_alliance_settings', {
+      p_name: name, p_tag: tag, p_description: desc, p_announcement: announce, p_join_type: jtype
+    });
+    renderAllianceHome(document.getElementById('al-content'), newState);
+    switchAllianceTab('settings');
+    showToast('✅ Settings saved!');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+function alShowCreate() {
+  const el = document.getElementById('al-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="max-width:440px;margin:2rem auto;padding:1.5rem;background:var(--bg2);border:1px solid var(--border);border-radius:12px;">
+      <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:1.25rem;">⚔️ Create Alliance</div>
+      <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        <div><div class="al-filter-label">Alliance Name</div>
+          <input class="al-filter-input" id="al-create-name" placeholder="e.g. Wolf Pack" style="font-size:13px;padding:9px 12px;"></div>
+        <div><div class="al-filter-label">Tag (max 5 chars)</div>
+          <input class="al-filter-input" id="al-create-tag" placeholder="e.g. WOLF" maxlength="5" style="font-size:13px;padding:9px 12px;max-width:120px;"></div>
+        <div><div class="al-filter-label">Description</div>
+          <textarea class="al-filter-input" id="al-create-desc" rows="3" placeholder="Describe your alliance…" style="resize:vertical;font-size:13px;padding:9px 12px;"></textarea></div>
+        <div><div class="al-filter-label">Join Type</div>
+          <select class="al-filter-input" id="al-create-jointype" style="font-size:13px;padding:9px 12px;">
+            <option value="open">Open</option>
+            <option value="apply">Apply</option>
+            <option value="invite">Invite Only</option>
+          </select></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="al-btn al-btn-join" onclick="alSubmitCreate()" style="padding:9px 22px;font-size:13px;">Create</button>
+          <button class="al-btn" onclick="initAlliance()" style="padding:9px 22px;font-size:13px;">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function alSubmitCreate() {
+  const name  = (document.getElementById('al-create-name')?.value||'').trim();
+  const tag   = (document.getElementById('al-create-tag')?.value||'').trim();
+  const desc  = (document.getElementById('al-create-desc')?.value||'').trim();
+  const jtype = document.getElementById('al-create-jointype')?.value || 'open';
+  if (!name || !tag) { showToast('⚠️ Name and tag are required'); return; }
+  try {
+    const state = await serverRpc('idw_create_alliance', { p_name: name, p_tag: tag, p_description: desc, p_join_type: jtype });
+    allianceActiveTab = 'members';
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`✅ Alliance "${name}" created!`);
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
 function switchSection(name){
