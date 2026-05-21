@@ -2605,8 +2605,8 @@ async function applyEnchantment(enchant) {
     });
 
     // Update local state with server response
-    if (result && result.state) {
-      applyServerPayload(result.state);
+    if (result) {
+      applyServerPayload(result);
     } else {
       console.log('Server RPC not available, applying locally');
       applyEnchantmentLocally(enchant);
@@ -7607,12 +7607,17 @@ function pvpDraw() {
         // Stage level info for owned territories - moved to center
         if(ts>=18){
           const ownedSpecDef = SPECIAL_TERRITORIES[idx];
+          const ownedTv = pvpTiles[idx]?.tv || 1;
           ctx.textAlign='center';
           ctx.textBaseline='middle';
           if (ownedSpecDef) {
             ctx.globalAlpha = 1.0;
             ctx.font = `${Math.round(ts * 0.26)}px serif`;
             ctx.fillText(ownedSpecDef.icon, cx2, cy2);
+          } else if (!ownedSpecDef && ownedTv > 1) {
+            ctx.globalAlpha = 1.0;
+            ctx.font = `${Math.round(ts * 0.26)}px serif`;
+            ctx.fillText('⭐', cx2, cy2);
           } else {
             ctx.fillStyle='rgba(255,255,255,0.9)';
             ctx.font=`bold ${Math.max(9,Math.round(ts*0.19))}px Inter`;

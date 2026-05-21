@@ -2605,8 +2605,8 @@ async function applyEnchantment(enchant) {
     });
 
     // Update local state with server response
-    if (result && result.state) {
-      applyServerPayload(result.state);
+    if (result) {
+      applyServerPayload(result);
     } else {
       console.log('Server RPC not available, applying locally');
       applyEnchantmentLocally(enchant);
