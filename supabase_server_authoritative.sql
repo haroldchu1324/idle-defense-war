@@ -105,8 +105,8 @@ select case tower_id when 'god_tower' then 0 when 'archer' then 0 when 'catapult
 $$;
 
 create or replace function public.idw_stage_reward(stage_id text) returns jsonb language sql immutable as $$
+-- Values match client-side CAMPAIGN_REWARDS constant exactly (source of truth)
 select case stage_id
-  -- World 1 (matches client-side fallback table)
   when '1-1'  then '{"wood":300,"fiber":150,"xp":45}'::jsonb
   when '1-2'  then '{"wood":450,"stone":225,"xp":60}'::jsonb
   when '1-3'  then '{"stone":450,"fiber":300,"xp":75}'::jsonb
@@ -117,105 +117,96 @@ select case stage_id
   when '1-8'  then '{"stone":900,"ore":525,"xp":203}'::jsonb
   when '1-9'  then '{"ore":1050,"fiber":600,"xp":240}'::jsonb
   when '1-10' then '{"wood":3000,"stone":3000,"fiber":3000,"leather":3000,"ore":3000,"xp":450}'::jsonb
-  -- World 2 (~1.5x World 1)
-  when '2-1'  then '{"wood":450,"fiber":225,"xp":68}'::jsonb
-  when '2-2'  then '{"wood":675,"stone":340,"xp":90}'::jsonb
-  when '2-3'  then '{"stone":675,"fiber":450,"xp":113}'::jsonb
-  when '2-4'  then '{"stone":900,"ore":340,"xp":147}'::jsonb
-  when '2-5'  then '{"ore":675,"leather":450,"xp":180}'::jsonb
-  when '2-6'  then '{"fiber":900,"leather":563,"xp":215}'::jsonb
-  when '2-7'  then '{"leather":1125,"ore":675,"xp":260}'::jsonb
-  when '2-8'  then '{"stone":1350,"ore":788,"xp":305}'::jsonb
-  when '2-9'  then '{"ore":1575,"fiber":900,"xp":360}'::jsonb
-  when '2-10' then '{"wood":4500,"stone":4500,"fiber":4500,"leather":4500,"ore":4500,"xp":675}'::jsonb
-  -- World 3 (~2x World 1)
-  when '3-1'  then '{"wood":600,"fiber":300,"xp":90}'::jsonb
-  when '3-2'  then '{"wood":900,"stone":450,"xp":120}'::jsonb
-  when '3-3'  then '{"stone":900,"fiber":600,"xp":150}'::jsonb
-  when '3-4'  then '{"stone":1200,"ore":450,"xp":196}'::jsonb
-  when '3-5'  then '{"ore":900,"leather":600,"xp":240}'::jsonb
-  when '3-6'  then '{"fiber":1200,"leather":750,"xp":286}'::jsonb
-  when '3-7'  then '{"leather":1500,"ore":900,"xp":346}'::jsonb
-  when '3-8'  then '{"stone":1800,"ore":1050,"xp":406}'::jsonb
-  when '3-9'  then '{"ore":2100,"fiber":1200,"xp":480}'::jsonb
-  when '3-10' then '{"wood":6000,"stone":6000,"fiber":6000,"leather":6000,"ore":6000,"xp":900}'::jsonb
-  -- World 4 (~3x World 1)
-  when '4-1'  then '{"wood":900,"fiber":450,"xp":135}'::jsonb
-  when '4-2'  then '{"wood":1350,"stone":675,"xp":180}'::jsonb
-  when '4-3'  then '{"stone":1350,"fiber":900,"xp":225}'::jsonb
-  when '4-4'  then '{"stone":1800,"ore":675,"xp":294}'::jsonb
-  when '4-5'  then '{"ore":1350,"leather":900,"xp":360}'::jsonb
-  when '4-6'  then '{"fiber":1800,"leather":1125,"xp":429}'::jsonb
-  when '4-7'  then '{"leather":2250,"ore":1350,"xp":519}'::jsonb
-  when '4-8'  then '{"stone":2700,"ore":1575,"xp":609}'::jsonb
-  when '4-9'  then '{"ore":3150,"fiber":1800,"xp":720}'::jsonb
-  when '4-10' then '{"wood":9000,"stone":9000,"fiber":9000,"leather":9000,"ore":9000,"xp":1350}'::jsonb
-  -- World 5 (~5x World 1)
-  when '5-1'  then '{"wood":1500,"fiber":750,"xp":225}'::jsonb
-  when '5-2'  then '{"wood":2250,"stone":1125,"xp":300}'::jsonb
-  when '5-3'  then '{"stone":2250,"fiber":1500,"xp":375}'::jsonb
-  when '5-4'  then '{"stone":3000,"ore":1125,"xp":490}'::jsonb
-  when '5-5'  then '{"ore":2250,"leather":1500,"xp":600}'::jsonb
-  when '5-6'  then '{"fiber":3000,"leather":1875,"xp":715}'::jsonb
-  when '5-7'  then '{"leather":3750,"ore":2250,"xp":865}'::jsonb
-  when '5-8'  then '{"stone":4500,"ore":2625,"xp":1015}'::jsonb
-  when '5-9'  then '{"ore":5250,"fiber":3000,"xp":1200}'::jsonb
-  when '5-10' then '{"wood":15000,"stone":15000,"fiber":15000,"leather":15000,"ore":15000,"xp":2250}'::jsonb
-  -- World 6 (~7x World 1)
-  when '6-1'  then '{"wood":2100,"fiber":1050,"xp":315}'::jsonb
-  when '6-2'  then '{"wood":3150,"stone":1575,"xp":420}'::jsonb
-  when '6-3'  then '{"stone":3150,"fiber":2100,"xp":525}'::jsonb
-  when '6-4'  then '{"stone":4200,"ore":1575,"xp":686}'::jsonb
-  when '6-5'  then '{"ore":3150,"leather":2100,"xp":840}'::jsonb
-  when '6-6'  then '{"fiber":4200,"leather":2625,"xp":1001}'::jsonb
-  when '6-7'  then '{"leather":5250,"ore":3150,"xp":1211}'::jsonb
-  when '6-8'  then '{"stone":6300,"ore":3675,"xp":1421}'::jsonb
-  when '6-9'  then '{"ore":7350,"fiber":4200,"xp":1680}'::jsonb
-  when '6-10' then '{"wood":21000,"stone":21000,"fiber":21000,"leather":21000,"ore":21000,"xp":3150}'::jsonb
-  -- World 7 (~10x World 1)
-  when '7-1'  then '{"wood":3000,"fiber":1500,"xp":450}'::jsonb
-  when '7-2'  then '{"wood":4500,"stone":2250,"xp":600}'::jsonb
-  when '7-3'  then '{"stone":4500,"fiber":3000,"xp":750}'::jsonb
-  when '7-4'  then '{"stone":6000,"ore":2250,"xp":980}'::jsonb
-  when '7-5'  then '{"ore":4500,"leather":3000,"xp":1200}'::jsonb
-  when '7-6'  then '{"fiber":6000,"leather":3750,"xp":1430}'::jsonb
-  when '7-7'  then '{"leather":7500,"ore":4500,"xp":1730}'::jsonb
-  when '7-8'  then '{"stone":9000,"ore":5250,"xp":2030}'::jsonb
-  when '7-9'  then '{"ore":10500,"fiber":6000,"xp":2400}'::jsonb
-  when '7-10' then '{"wood":30000,"stone":30000,"fiber":30000,"leather":30000,"ore":30000,"xp":4500}'::jsonb
-  -- World 8 (~15x World 1)
-  when '8-1'  then '{"wood":4500,"fiber":2250,"xp":675}'::jsonb
-  when '8-2'  then '{"wood":6750,"stone":3375,"xp":900}'::jsonb
-  when '8-3'  then '{"stone":6750,"fiber":4500,"xp":1125}'::jsonb
-  when '8-4'  then '{"stone":9000,"ore":3375,"xp":1470}'::jsonb
-  when '8-5'  then '{"ore":6750,"leather":4500,"xp":1800}'::jsonb
-  when '8-6'  then '{"fiber":9000,"leather":5625,"xp":2145}'::jsonb
-  when '8-7'  then '{"leather":11250,"ore":6750,"xp":2595}'::jsonb
-  when '8-8'  then '{"stone":13500,"ore":7875,"xp":3045}'::jsonb
-  when '8-9'  then '{"ore":15750,"fiber":9000,"xp":3600}'::jsonb
-  when '8-10' then '{"wood":45000,"stone":45000,"fiber":45000,"leather":45000,"ore":45000,"xp":6750}'::jsonb
-  -- World 9 (~20x World 1)
-  when '9-1'  then '{"wood":6000,"fiber":3000,"xp":900}'::jsonb
-  when '9-2'  then '{"wood":9000,"stone":4500,"xp":1200}'::jsonb
-  when '9-3'  then '{"stone":9000,"fiber":6000,"xp":1500}'::jsonb
-  when '9-4'  then '{"stone":12000,"ore":4500,"xp":1960}'::jsonb
-  when '9-5'  then '{"ore":9000,"leather":6000,"xp":2400}'::jsonb
-  when '9-6'  then '{"fiber":12000,"leather":7500,"xp":2860}'::jsonb
-  when '9-7'  then '{"leather":15000,"ore":9000,"xp":3460}'::jsonb
-  when '9-8'  then '{"stone":18000,"ore":10500,"xp":4060}'::jsonb
-  when '9-9'  then '{"ore":21000,"fiber":12000,"xp":4800}'::jsonb
-  when '9-10' then '{"wood":60000,"stone":60000,"fiber":60000,"leather":60000,"ore":60000,"xp":9000}'::jsonb
-  -- World 10 (~30x World 1)
-  when '10-1'  then '{"wood":9000,"fiber":4500,"xp":1350}'::jsonb
-  when '10-2'  then '{"wood":13500,"stone":6750,"xp":1800}'::jsonb
-  when '10-3'  then '{"stone":13500,"fiber":9000,"xp":2250}'::jsonb
-  when '10-4'  then '{"stone":18000,"ore":6750,"xp":2940}'::jsonb
-  when '10-5'  then '{"ore":13500,"leather":9000,"xp":3600}'::jsonb
-  when '10-6'  then '{"fiber":18000,"leather":11250,"xp":4290}'::jsonb
-  when '10-7'  then '{"leather":22500,"ore":13500,"xp":5190}'::jsonb
-  when '10-8'  then '{"stone":27000,"ore":15750,"xp":6090}'::jsonb
-  when '10-9'  then '{"ore":31500,"fiber":18000,"xp":7200}'::jsonb
-  when '10-10' then '{"wood":90000,"stone":90000,"fiber":90000,"leather":90000,"ore":90000,"xp":13500}'::jsonb
+  when '2-1'  then '{"wood":540,"fiber":270,"xp":81}'::jsonb
+  when '2-2'  then '{"wood":810,"stone":405,"xp":108}'::jsonb
+  when '2-3'  then '{"stone":810,"fiber":540,"xp":135}'::jsonb
+  when '2-4'  then '{"stone":1080,"ore":405,"xp":176}'::jsonb
+  when '2-5'  then '{"ore":810,"leather":540,"xp":216}'::jsonb
+  when '2-6'  then '{"fiber":1080,"leather":675,"xp":257}'::jsonb
+  when '2-7'  then '{"leather":1350,"ore":810,"xp":311}'::jsonb
+  when '2-8'  then '{"stone":1620,"ore":945,"xp":365}'::jsonb
+  when '2-9'  then '{"ore":1890,"fiber":1080,"xp":432}'::jsonb
+  when '2-10' then '{"wood":5400,"stone":5400,"fiber":5400,"leather":5400,"ore":5400,"xp":810}'::jsonb
+  when '3-1'  then '{"wood":780,"fiber":390,"xp":117}'::jsonb
+  when '3-2'  then '{"wood":1170,"stone":585,"xp":156}'::jsonb
+  when '3-3'  then '{"stone":1170,"fiber":780,"xp":195}'::jsonb
+  when '3-4'  then '{"stone":1560,"ore":585,"xp":255}'::jsonb
+  when '3-5'  then '{"ore":1170,"leather":780,"xp":312}'::jsonb
+  when '3-6'  then '{"fiber":1560,"leather":975,"xp":372}'::jsonb
+  when '3-7'  then '{"leather":1950,"ore":1170,"xp":450}'::jsonb
+  when '3-8'  then '{"stone":2340,"ore":1365,"xp":528}'::jsonb
+  when '3-9'  then '{"ore":2730,"fiber":1560,"xp":624}'::jsonb
+  when '3-10' then '{"wood":7800,"stone":7800,"fiber":7800,"leather":7800,"ore":7800,"xp":1170}'::jsonb
+  when '4-1'  then '{"wood":1020,"fiber":510,"xp":153}'::jsonb
+  when '4-2'  then '{"wood":1530,"stone":765,"xp":204}'::jsonb
+  when '4-3'  then '{"stone":1530,"fiber":1020,"xp":255}'::jsonb
+  when '4-4'  then '{"stone":2040,"ore":765,"xp":333}'::jsonb
+  when '4-5'  then '{"ore":1530,"leather":1020,"xp":408}'::jsonb
+  when '4-6'  then '{"fiber":2040,"leather":1275,"xp":486}'::jsonb
+  when '4-7'  then '{"leather":2550,"ore":1530,"xp":588}'::jsonb
+  when '4-8'  then '{"stone":3060,"ore":1785,"xp":690}'::jsonb
+  when '4-9'  then '{"ore":3570,"fiber":2040,"xp":816}'::jsonb
+  when '4-10' then '{"wood":10200,"stone":10200,"fiber":10200,"leather":10200,"ore":10200,"xp":1530}'::jsonb
+  when '5-1'  then '{"wood":1260,"fiber":630,"xp":189}'::jsonb
+  when '5-2'  then '{"wood":1890,"stone":945,"xp":252}'::jsonb
+  when '5-3'  then '{"stone":1890,"fiber":1260,"xp":315}'::jsonb
+  when '5-4'  then '{"stone":2520,"ore":945,"xp":412}'::jsonb
+  when '5-5'  then '{"ore":1890,"leather":1260,"xp":504}'::jsonb
+  when '5-6'  then '{"fiber":2520,"leather":1575,"xp":601}'::jsonb
+  when '5-7'  then '{"leather":3150,"ore":1890,"xp":727}'::jsonb
+  when '5-8'  then '{"stone":3780,"ore":2205,"xp":853}'::jsonb
+  when '5-9'  then '{"ore":4410,"fiber":2520,"xp":1008}'::jsonb
+  when '5-10' then '{"wood":12600,"stone":12600,"fiber":12600,"leather":12600,"ore":12600,"xp":1890}'::jsonb
+  when '6-1'  then '{"wood":1500,"fiber":750,"xp":225}'::jsonb
+  when '6-2'  then '{"wood":2250,"stone":1125,"xp":300}'::jsonb
+  when '6-3'  then '{"stone":2250,"fiber":1500,"xp":375}'::jsonb
+  when '6-4'  then '{"stone":3000,"ore":1125,"xp":490}'::jsonb
+  when '6-5'  then '{"ore":2250,"leather":1500,"xp":600}'::jsonb
+  when '6-6'  then '{"fiber":3000,"leather":1875,"xp":715}'::jsonb
+  when '6-7'  then '{"leather":3750,"ore":2250,"xp":865}'::jsonb
+  when '6-8'  then '{"stone":4500,"ore":2625,"xp":1015}'::jsonb
+  when '6-9'  then '{"ore":5250,"fiber":3000,"xp":1200}'::jsonb
+  when '6-10' then '{"wood":15000,"stone":15000,"fiber":15000,"leather":15000,"ore":15000,"xp":2250}'::jsonb
+  when '7-1'  then '{"wood":1740,"fiber":870,"xp":261}'::jsonb
+  when '7-2'  then '{"wood":2610,"stone":1305,"xp":348}'::jsonb
+  when '7-3'  then '{"stone":2610,"fiber":1740,"xp":435}'::jsonb
+  when '7-4'  then '{"stone":3480,"ore":1305,"xp":568}'::jsonb
+  when '7-5'  then '{"ore":2610,"leather":1740,"xp":696}'::jsonb
+  when '7-6'  then '{"fiber":3480,"leather":2175,"xp":829}'::jsonb
+  when '7-7'  then '{"leather":4350,"ore":2610,"xp":1003}'::jsonb
+  when '7-8'  then '{"stone":5220,"ore":3045,"xp":1177}'::jsonb
+  when '7-9'  then '{"ore":6090,"fiber":3480,"xp":1392}'::jsonb
+  when '7-10' then '{"wood":17400,"stone":17400,"fiber":17400,"leather":17400,"ore":17400,"xp":2610}'::jsonb
+  when '8-1'  then '{"wood":1980,"fiber":990,"xp":297}'::jsonb
+  when '8-2'  then '{"wood":2970,"stone":1485,"xp":396}'::jsonb
+  when '8-3'  then '{"stone":2970,"fiber":1980,"xp":495}'::jsonb
+  when '8-4'  then '{"stone":3960,"ore":1485,"xp":647}'::jsonb
+  when '8-5'  then '{"ore":2970,"leather":1980,"xp":792}'::jsonb
+  when '8-6'  then '{"fiber":3960,"leather":2475,"xp":944}'::jsonb
+  when '8-7'  then '{"leather":4950,"ore":2970,"xp":1142}'::jsonb
+  when '8-8'  then '{"stone":5940,"ore":3465,"xp":1340}'::jsonb
+  when '8-9'  then '{"ore":6930,"fiber":3960,"xp":1584}'::jsonb
+  when '8-10' then '{"wood":19800,"stone":19800,"fiber":19800,"leather":19800,"ore":19800,"xp":2970}'::jsonb
+  when '9-1'  then '{"wood":2220,"fiber":1110,"xp":333}'::jsonb
+  when '9-2'  then '{"wood":3330,"stone":1665,"xp":444}'::jsonb
+  when '9-3'  then '{"stone":3330,"fiber":2220,"xp":555}'::jsonb
+  when '9-4'  then '{"stone":4440,"ore":1665,"xp":725}'::jsonb
+  when '9-5'  then '{"ore":3330,"leather":2220,"xp":888}'::jsonb
+  when '9-6'  then '{"fiber":4440,"leather":2775,"xp":1058}'::jsonb
+  when '9-7'  then '{"leather":5550,"ore":3330,"xp":1280}'::jsonb
+  when '9-8'  then '{"stone":6660,"ore":3885,"xp":1502}'::jsonb
+  when '9-9'  then '{"ore":7770,"fiber":4440,"xp":1776}'::jsonb
+  when '9-10' then '{"wood":22200,"stone":22200,"fiber":22200,"leather":22200,"ore":22200,"xp":3330}'::jsonb
+  when '10-1'  then '{"wood":2460,"fiber":1230,"xp":369}'::jsonb
+  when '10-2'  then '{"wood":3690,"stone":1845,"xp":492}'::jsonb
+  when '10-3'  then '{"stone":3690,"fiber":2460,"xp":615}'::jsonb
+  when '10-4'  then '{"stone":4920,"ore":1845,"xp":804}'::jsonb
+  when '10-5'  then '{"ore":3690,"leather":2460,"xp":984}'::jsonb
+  when '10-6'  then '{"fiber":4920,"leather":3075,"xp":1173}'::jsonb
+  when '10-7'  then '{"leather":6150,"ore":3690,"xp":1419}'::jsonb
+  when '10-8'  then '{"stone":7380,"ore":4305,"xp":1665}'::jsonb
+  when '10-9'  then '{"ore":8610,"fiber":4920,"xp":1968}'::jsonb
+  when '10-10' then '{"wood":24600,"stone":24600,"fiber":24600,"leather":24600,"ore":24600,"xp":3690}'::jsonb
   else '{}'::jsonb end;
 $$;
 
