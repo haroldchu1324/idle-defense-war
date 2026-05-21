@@ -893,7 +893,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .al-home{display:flex;flex-direction:column;flex:1;overflow:hidden;}
 .al-tab-bar{height:52px;min-height:52px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0;gap:0;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
 .al-tab-bar::-webkit-scrollbar{display:none;}
-.al-tab{flex:1;min-width:0;padding:0 8px;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;text-align:center;transition:color 0.15s,border-color 0.15s;}
+.al-tab{flex:1;min-width:0;max-width:96px;padding:0 6px;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;text-align:center;transition:color 0.15s,border-color 0.15s;}
 .al-tab:hover{color:var(--text2);background:rgba(255,255,255,0.03);}
 .al-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
 .al-panel{display:none;flex:1;overflow-y:auto;padding:1rem 1.25rem;flex-direction:column;gap:0.75rem;}
@@ -8230,8 +8230,10 @@ const ALLIANCE_TERRITORY_MILESTONES = [
 ];
 
 function getAllianceBuffs() {
-  const tc = (allianceState?.in_alliance) ? (allianceState.territory_count || 0) : 0;
-  const ab = { tower_dmg:0, tower_spd:0, extra_slot:0, extra_projectile:0, slow:0, crit_bonus:0, boss_dmg:0, troop_hp:0, wood_prod:0, all_resource_prod:0 };
+  const tc       = (allianceState?.in_alliance) ? (allianceState.territory_value            || 0) : 0;
+  const prodBon  = (allianceState?.in_alliance) ? (allianceState.territory_production_bonus || 0) : 0;
+  const defBon   = (allianceState?.in_alliance) ? (allianceState.territory_defense_bonus    || 0) : 0;
+  const ab = { tower_dmg:0, tower_spd:0, extra_slot:0, extra_projectile:0, slow:0, crit_bonus:0, boss_dmg:0, troop_hp:0, wood_prod:0, all_resource_prod:0, territory_prod_bonus: prodBon, territory_def_bonus: defBon };
   if (!tc) return ab;
   for (const m of ALLIANCE_TERRITORY_MILESTONES) {
     if (tc < m.territories) break;
@@ -8555,7 +8557,9 @@ function alChatPanel(state) {
 }
 
 function alTerritoryPanel() {
-  const tc = allianceState?.territory_count || 0;
+  const tc      = allianceState?.territory_value            || 0;
+  const prodBon = allianceState?.territory_production_bonus || 0;
+  const defBon  = allianceState?.territory_defense_bonus    || 0;
   const unlockedCount = ALLIANCE_TERRITORY_MILESTONES.filter(m => tc >= m.territories).length;
   const nextMilestone = ALLIANCE_TERRITORY_MILESTONES.find(m => tc < m.territories);
   const progressPct = nextMilestone
@@ -8570,13 +8574,13 @@ function alTerritoryPanel() {
         <div class="al-buff-icon">${m.icon}</div>
         <div class="al-buff-info" style="flex:1;min-width:0;">
           <div class="al-buff-name">${m.name}
-            <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">${m.territories} territories</span>
+            <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">${m.territories} TV</span>
           </div>
           <div class="al-buff-desc">${m.desc}</div>
           <div class="al-buff-req">
             ${unlocked
               ? `<span class="al-buff-active">✅ Unlocked &amp; Active</span>`
-              : `<span class="al-buff-locked">🔒 ${remaining} more ${remaining === 1 ? 'territory' : 'territories'} needed</span>`}
+              : `<span class="al-buff-locked">🔒 Need ${m.territories} TV (${remaining} more)</span>`}
           </div>
         </div>
       </div>`;
@@ -8587,7 +8591,7 @@ function alTerritoryPanel() {
       <div class="al-terr-header">
         <div class="al-terr-stat">
           <div class="al-terr-stat-val">${tc}</div>
-          <div class="al-terr-stat-label">Territories Held</div>
+          <div class="al-terr-stat-label">Territory Value</div>
         </div>
         <div class="al-terr-stat">
           <div class="al-terr-stat-val">${unlockedCount}</div>
@@ -8598,6 +8602,15 @@ function alTerritoryPanel() {
           <div class="al-terr-stat-label">Next Milestone</div>
         </div>
       </div>
+      ${(prodBon > 0 || defBon > 0) ? `
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        ${prodBon > 0 ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--green);border-radius:7px;padding:0.4rem 0.75rem;font-size:12px;">
+          ⛏️ <span style="color:var(--green);font-weight:600;">+${(prodBon*100).toFixed(0)}%</span> <span style="color:var(--text2);">production from territories</span>
+        </div>` : ''}
+        ${defBon > 0 ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--blue);border-radius:7px;padding:0.4rem 0.75rem;font-size:12px;">
+          🛡️ <span style="color:var(--blue);font-weight:600;">+${(defBon*100).toFixed(0)}%</span> <span style="color:var(--text2);">defense from territories</span>
+        </div>` : ''}
+      </div>` : ''}
 
       ${nextMilestone ? `
       <div class="al-terr-prog">
@@ -8609,7 +8622,7 @@ function alTerritoryPanel() {
           <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,var(--blue),#6ab4ff);border-radius:4px;transition:width 0.4s;"></div>
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:5px;">
-          Capture PvP tiles to earn territories for your alliance.
+          Capture PvP tiles to earn territory value. High-value tiles (+3, +5, +10) count more.
         </div>
       </div>` : `
       <div style="text-align:center;padding:0.75rem;font-size:13px;color:var(--green);font-weight:600;">
