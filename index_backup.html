@@ -2424,23 +2424,21 @@ function generateEnchantStrip() {
 
   // Calculate how many of each rarity in base pattern
   const rarityCount = {
-    common: Math.floor(patternLength * 0.70),
+    common: 0,
     uncommon: Math.floor(patternLength * 0.20),
-    rare: Math.floor(patternLength * 0.07),
-    epic: Math.floor(patternLength * 0.025),
-    legendary: Math.floor(patternLength * 0.005)
+    rare:     Math.floor(patternLength * 0.07),
+    epic:     Math.floor(patternLength * 0.025),
+    legendary:Math.floor(patternLength * 0.005)
   };
 
-  // Ensure every rarity has enough slots for all its enchants so each one
-  // appears in the strip at least once — borrow slots from common
-  Object.keys(rarityCount).forEach(rarity => {
+  // Ensure every rarity has enough slots for all its enchants so each appears at least once
+  ['uncommon', 'rare', 'epic', 'legendary'].forEach(rarity => {
     const needed = ENCHANT_TYPES.filter(e => e.rarity === rarity).length;
-    if (needed > rarityCount[rarity]) {
-      rarityCount.common -= (needed - rarityCount[rarity]);
-      rarityCount[rarity] = needed;
-    }
+    if (needed > rarityCount[rarity]) rarityCount[rarity] = needed;
   });
-  if (rarityCount.common < 1) rarityCount.common = 1;
+
+  // Common fills the remainder so total always equals patternLength exactly
+  rarityCount.common = Math.max(1, patternLength - rarityCount.uncommon - rarityCount.rare - rarityCount.epic - rarityCount.legendary);
 
   console.log('Base pattern rarity distribution:', rarityCount);
 
