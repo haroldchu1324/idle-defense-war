@@ -492,19 +492,55 @@ begin
   return jsonb_build_object('ok',true);
 end $$;
 
-create or replace function public.idw_collect_resource(p_res_id text, p_tier_idx int)
+create or replace function public.idw_collect_resource(p_res_id text, p_tier_idx integer)
 returns jsonb language plpgsql security definer set search_path=public as $$
-declare p public.idw_player_state; ns jsonb; amount int; n jsonb; now_ms numeric := extract(epoch from now())*1000;
+declare
+  p          public.idw_player_state;
+  ns         jsonb;
+  amount     int;
+  n          jsonb;
+  now_ms     numeric := extract(epoch from now())*1000;
+  v_terr     int     := 0;
+  v_prod_bon numeric := 0;
+  v_mult     numeric := 1.0;
 begin
-  if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then raise exception 'Invalid node'; end if;
-  p:=public.idw_tick_upgrades(public.idw_ensure_player());
+  if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4
+    then raise exception 'Invalid node'; end if;
+
+  p  := public.idw_tick_upgrades(public.idw_ensure_player());
   ns := p.nodes->p_res_id->p_tier_idx;
   amount := public.idw_node_stored_amount(ns, p_tier_idx, p.player_level, p.research, p_res_id);
   if amount <= 0 then return public.idw_get_state(); end if;
-  ns := jsonb_set(ns,'{storedAmount}','0'::jsonb,true);
-  ns := jsonb_set(ns,'{lastCollectAt}',to_jsonb(now_ms),true);
-  n := jsonb_set(p.nodes, array[p_res_id,p_tier_idx::text], ns, true);
-  update public.idw_player_state set resources=public.idw_apply_resource_delta(resources, jsonb_build_object(p_res_id,amount)), nodes=n, updated_at=now() where user_id=p.user_id returning * into p;
+
+  -- Alliance territory value + per-tile production bonuses
+  select
+    coalesce(sum(pw.territory_value), 0)::int,
+    coalesce(sum(case when pw.territory_bonus_type = 'production' then pw.territory_bonus_value else 0 end), 0)
+  into v_terr, v_prod_bon
+  from public.pvp_world pw
+  join public.idw_alliance_members am1 on am1.user_id = pw.owner_id
+  join public.idw_alliance_members am2 on am2.alliance_id = am1.alliance_id
+  where am2.user_id = p.user_id;
+
+  -- Milestone bonuses (territory value thresholds) — all apply to ALL resource types
+  if v_terr >= 1 then v_mult := v_mult + 0.05; end if;  -- +5% all resources
+  if v_terr >= 5 then v_mult := v_mult + 0.10; end if;  -- +10% all resources
+  -- Per-tile production bonus (stacks on top of milestones)
+  v_mult := v_mult + v_prod_bon;
+
+  amount := greatest(1, floor(amount::numeric * v_mult)::int);
+
+  ns := jsonb_set(ns, '{storedAmount}', '0'::jsonb, true);
+  ns := jsonb_set(ns, '{lastCollectAt}', to_jsonb(now_ms), true);
+  n  := jsonb_set(p.nodes, array[p_res_id, p_tier_idx::text], ns, true);
+
+  update public.idw_player_state
+    set resources  = public.idw_apply_resource_delta(resources, jsonb_build_object(p_res_id, amount)),
+        nodes      = n,
+        updated_at = now()
+  where user_id = p.user_id
+  returning * into p;
+
   return public.idw_get_state();
 end $$;
 
@@ -806,13 +842,29 @@ grant execute on function public.idw_save_state(jsonb) to authenticated;
 -- Add level column to pvp_world (safe to run multiple times)
 alter table public.pvp_world add column if not exists level integer not null default 1;
 
--- Recreate pvp_get_tiles to expose level
+-- Recreate pvp_get_tiles to expose level, territory value, and special territory data
 drop function if exists public.pvp_get_tiles();
-create or replace function public.pvp_get_tiles()
-returns table(tile_idx integer, owner_id uuid, color text, attacking_until timestamptz, level integer, is_mine boolean)
+create function public.pvp_get_tiles()
+returns table(
+  tile_idx             integer,
+  owner_id             uuid,
+  color                text,
+  attacking_until      timestamptz,
+  level                integer,
+  is_mine              boolean,
+  territory_value      integer,
+  territory_bonus_type text,
+  territory_bonus_value numeric,
+  special_id           text
+)
 language sql security definer set search_path=public as $$
-  select w.tile_idx, w.owner_id, null::text as color, w.attacking_until, w.level,
-    (w.owner_id = auth.uid()) as is_mine
+  select
+    w.tile_idx, w.owner_id, null::text as color, w.attacking_until, w.level,
+    (w.owner_id = auth.uid()) as is_mine,
+    coalesce(w.territory_value, 1) as territory_value,
+    w.territory_bonus_type,
+    coalesce(w.territory_bonus_value, 0) as territory_bonus_value,
+    w.special_id
   from public.pvp_world w;
 $$;
 grant execute on function public.pvp_get_tiles() to authenticated;
@@ -1007,3 +1059,659 @@ begin
   return public.idw_check_research_completion();
 end $$;
 grant execute on function public.idw_resolve_offline_research() to authenticated;
+
+-- ══════════════════════════════════════════════════════════════
+-- ALLIANCE SYSTEM
+-- ══════════════════════════════════════════════════════════════
+
+-- Power level columns (written by client syncPowerLevel())
+alter table public.idw_player_state
+  add column if not exists power_level          integer not null default 0,
+  add column if not exists pl_account_level     integer not null default 0,
+  add column if not exists pl_resources         integer not null default 0,
+  add column if not exists pl_armory            integer not null default 0,
+  add column if not exists pl_node_upgrades     integer not null default 0,
+  add column if not exists pl_silo_upgrades     integer not null default 0,
+  add column if not exists pl_research          integer not null default 0,
+  add column if not exists pl_campaign_progress integer not null default 0,
+  add column if not exists pl_permanent_buffs   integer not null default 0;
+
+create table if not exists public.idw_alliances (
+  id                      uuid    primary key default gen_random_uuid(),
+  name                    text    not null,
+  tag                     text    not null,
+  description             text    not null default '',
+  announcement            text    not null default '',
+  announcement_updated_at timestamptz,
+  announcement_updated_by text,
+  join_type               text    not null default 'open' check (join_type in ('open','apply','invite')),
+  min_power               integer not null default 0,
+  language                text    not null default 'EN',
+  max_members             integer not null default 50,
+  created_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now()
+);
+-- (alter stmts for already-created DBs are in the migration scripts)
+
+create unique index if not exists idw_alliances_name_ci on public.idw_alliances (lower(name));
+create unique index if not exists idw_alliances_tag_ci  on public.idw_alliances (upper(tag));
+
+create table if not exists public.idw_alliance_members (
+  alliance_id uuid not null references public.idw_alliances(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  rank        text not null default 'recruit' check (rank in ('commander','officer','veteran','member','recruit')),
+  joined_at   timestamptz not null default now(),
+  primary key (alliance_id, user_id),
+  unique (user_id)  -- one alliance per player
+);
+
+create table if not exists public.idw_alliance_chat (
+  id          uuid primary key default gen_random_uuid(),
+  alliance_id uuid not null references public.idw_alliances(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  message     text not null check (char_length(message) between 1 and 500),
+  created_at  timestamptz not null default now()
+);
+
+alter table public.idw_alliances        enable row level security;
+alter table public.idw_alliance_members enable row level security;
+alter table public.idw_alliance_chat    enable row level security;
+
+drop policy if exists idw_alliances_select        on public.idw_alliances;
+drop policy if exists idw_alliance_members_select on public.idw_alliance_members;
+drop policy if exists idw_alliance_chat_select    on public.idw_alliance_chat;
+
+create policy idw_alliances_select        on public.idw_alliances        for select using (true);
+create policy idw_alliance_members_select on public.idw_alliance_members for select using (true);
+create policy idw_alliance_chat_select    on public.idw_alliance_chat    for select using (
+  exists (select 1 from public.idw_alliance_members where alliance_id = idw_alliance_chat.alliance_id and user_id = auth.uid())
+);
+
+-- Rank helpers
+create or replace function public.idw_rank_order(r text) returns int language sql immutable as $$
+  select case r when 'commander' then 1 when 'officer' then 2 when 'veteran' then 3 when 'member' then 4 when 'recruit' then 5 else 9 end;
+$$;
+create or replace function public.idw_rank_up(r text) returns text language sql immutable as $$
+  select case r when 'recruit' then 'member' when 'member' then 'veteran' when 'veteran' then 'officer' when 'officer' then 'commander' else null end;
+$$;
+create or replace function public.idw_rank_down(r text) returns text language sql immutable as $$
+  select case r when 'commander' then 'officer' when 'officer' then 'veteran' when 'veteran' then 'member' when 'member' then 'recruit' else null end;
+$$;
+
+-- Get current player's full alliance state (membership + members list + chat + territory + special tiles)
+create or replace function public.idw_get_alliance_state()
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p                  public.idw_player_state;
+  m                  public.idw_alliance_members;
+  a                  public.idw_alliances;
+  v_members          jsonb;
+  v_chat             jsonb;
+  v_territory_value  int     := 0;
+  v_prod_bonus       numeric := 0;
+  v_def_bonus        numeric := 0;
+  v_owned_special    jsonb;
+begin
+  p := public.idw_ensure_player();
+  select * into m from public.idw_alliance_members where user_id = p.user_id;
+  if m.alliance_id is null then
+    return jsonb_build_object('in_alliance', false);
+  end if;
+  select * into a from public.idw_alliances where id = m.alliance_id;
+
+  -- Territory: sum territory_value of all pvp tiles owned by any alliance member
+  select
+    coalesce(sum(pw.territory_value), 0)::int,
+    coalesce(sum(case when pw.territory_bonus_type = 'production' then pw.territory_bonus_value else 0 end), 0),
+    coalesce(sum(case when pw.territory_bonus_type = 'defense'    then pw.territory_bonus_value else 0 end), 0)
+  into v_territory_value, v_prod_bonus, v_def_bonus
+  from public.pvp_world pw
+  join public.idw_alliance_members am_t on am_t.user_id = pw.owner_id
+  where am_t.alliance_id = m.alliance_id;
+
+  -- Owned special territories (only tiles that are actually claimed by an alliance member)
+  select jsonb_agg(jsonb_build_object('tile_idx', pw.tile_idx::int, 'special_id', pw.special_id))
+  into v_owned_special
+  from public.pvp_world pw
+  join public.idw_alliance_members am_t on am_t.user_id = pw.owner_id
+  where am_t.alliance_id = m.alliance_id
+    and pw.special_id is not null
+    and pw.owner_id is not null;
+
+  -- Members: ordered by rank then power desc
+  select jsonb_agg(
+    jsonb_build_object(
+      'user_id',     am.user_id,
+      'username',    coalesce(au.raw_user_meta_data->>'username', split_part(au.email,'@',1)),
+      'rank',        am.rank,
+      'power',       coalesce(ps.power_level, 0),
+      'level',       coalesce(ps.player_level, 1),
+      'last_online', ps.last_seen
+    ) order by public.idw_rank_order(am.rank), coalesce(ps.power_level,0) desc
+  ) into v_members
+  from public.idw_alliance_members am
+  join auth.users au on au.id = am.user_id
+  left join public.idw_player_state ps on ps.user_id = am.user_id
+  where am.alliance_id = m.alliance_id;
+
+  -- Chat: last 50 messages oldest-first
+  select jsonb_agg(
+    jsonb_build_object(
+      'id',         c.id,
+      'user_id',    c.user_id,
+      'username',   coalesce(au.raw_user_meta_data->>'username', split_part(au.email,'@',1)),
+      'rank',       coalesce(am2.rank, 'member'),
+      'message',    c.message,
+      'created_at', c.created_at
+    ) order by c.created_at
+  ) into v_chat
+  from (select * from public.idw_alliance_chat
+        where alliance_id = m.alliance_id
+        order by created_at desc limit 50) c
+  join auth.users au on au.id = c.user_id
+  left join public.idw_alliance_members am2
+    on am2.user_id = c.user_id and am2.alliance_id = m.alliance_id;
+
+  return jsonb_build_object(
+    'in_alliance',                true,
+    'my_rank',                    m.rank,
+    'my_user_id',                 p.user_id::text,
+    'territory_value',            v_territory_value,
+    'territory_production_bonus', v_prod_bonus,
+    'territory_defense_bonus',    v_def_bonus,
+    'owned_special_tiles',        coalesce(v_owned_special, '[]'::jsonb),
+    'alliance', jsonb_build_object(
+      'id',                      a.id,
+      'name',                    a.name,
+      'tag',                     a.tag,
+      'description',             a.description,
+      'announcement',            a.announcement,
+      'announcement_updated_at', a.announcement_updated_at,
+      'announcement_updated_by', a.announcement_updated_by,
+      'join_type',               a.join_type,
+      'min_power',               a.min_power,
+      'language',                a.language,
+      'max_members',             a.max_members,
+      'member_count', (select count(*) from public.idw_alliance_members where alliance_id = a.id),
+      'total_power',  coalesce((
+        select sum(coalesce(ps2.power_level,0))
+        from public.idw_alliance_members am3
+        left join public.idw_player_state ps2 on ps2.user_id = am3.user_id
+        where am3.alliance_id = a.id
+      ), 0)
+    ),
+    'members', coalesce(v_members, '[]'::jsonb),
+    'chat',    coalesce(v_chat,    '[]'::jsonb)
+  );
+end $$;
+grant execute on function public.idw_get_alliance_state() to authenticated;
+
+-- List alliances for the browser
+create or replace function public.idw_list_alliances(
+  p_search        text    default '',
+  p_join_type     text    default 'all',
+  p_min_power     bigint  default 0,
+  p_max_power     bigint  default 0,
+  p_lang          text    default 'all',
+  p_sort          text    default 'power',
+  p_joinable_only boolean default false
+) returns jsonb language plpgsql security definer set search_path=public as $$
+declare result jsonb;
+begin
+  select jsonb_agg(row_data order by sort_val desc) into result from (
+    select
+      jsonb_build_object(
+        'id',           a.id,
+        'name',         a.name,
+        'tag',          a.tag,
+        'description',  a.description,
+        'join_type',    a.join_type,
+        'min_power',    a.min_power,
+        'language',     a.language,
+        'max_members',  a.max_members,
+        'member_count', md.cnt,
+        'total_power',  md.tot
+      ) row_data,
+      case when p_sort = 'members' then md.cnt::float8 else md.tot::float8 end sort_val
+    from public.idw_alliances a
+    join lateral (
+      select count(*)::int cnt, coalesce(sum(coalesce(ps.power_level,0)),0)::bigint tot
+      from public.idw_alliance_members am
+      left join public.idw_player_state ps on ps.user_id = am.user_id
+      where am.alliance_id = a.id
+    ) md on true
+    where
+      (p_search = '' or a.name ilike '%' || p_search || '%' or upper(a.tag) ilike '%' || upper(p_search) || '%')
+      and (p_join_type = 'all' or a.join_type = p_join_type)
+      and (p_min_power = 0 or md.tot >= p_min_power)
+      and (p_max_power = 0 or md.tot <= p_max_power)
+      and (p_lang = 'all' or a.language = p_lang)
+      and (not p_joinable_only or (a.join_type <> 'invite' and md.cnt < a.max_members))
+    limit 50
+  ) sub;
+  return coalesce(result, '[]'::jsonb);
+end $$;
+grant execute on function public.idw_list_alliances(text,text,bigint,bigint,text,text,boolean) to authenticated;
+
+-- Join an open alliance
+create or replace function public.idw_join_alliance(p_alliance_id uuid)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  a public.idw_alliances;
+  cnt int;
+begin
+  p := public.idw_ensure_player();
+  if exists (select 1 from public.idw_alliance_members where user_id = p.user_id) then
+    raise exception 'Already in an alliance';
+  end if;
+  select * into a from public.idw_alliances where id = p_alliance_id;
+  if a.id is null then raise exception 'Alliance not found'; end if;
+  if a.join_type <> 'open' then raise exception 'This alliance requires an application'; end if;
+  select count(*) into cnt from public.idw_alliance_members where alliance_id = p_alliance_id;
+  if cnt >= a.max_members then raise exception 'Alliance is full'; end if;
+  if coalesce(p.power_level,0) < a.min_power then raise exception 'Your power level is too low'; end if;
+  insert into public.idw_alliance_members (alliance_id, user_id, rank) values (p_alliance_id, p.user_id, 'recruit');
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_join_alliance(uuid) to authenticated;
+
+-- Apply to an apply-type alliance (adds as recruit pending review)
+create or replace function public.idw_apply_alliance(p_alliance_id uuid)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  a public.idw_alliances;
+  cnt int;
+begin
+  p := public.idw_ensure_player();
+  if exists (select 1 from public.idw_alliance_members where user_id = p.user_id) then
+    raise exception 'Already in an alliance';
+  end if;
+  select * into a from public.idw_alliances where id = p_alliance_id;
+  if a.id is null then raise exception 'Alliance not found'; end if;
+  if a.join_type = 'invite' then raise exception 'This alliance is invite-only'; end if;
+  select count(*) into cnt from public.idw_alliance_members where alliance_id = p_alliance_id;
+  if cnt >= a.max_members then raise exception 'Alliance is full'; end if;
+  if coalesce(p.power_level,0) < a.min_power then raise exception 'Your power level is too low'; end if;
+  insert into public.idw_alliance_members (alliance_id, user_id, rank) values (p_alliance_id, p.user_id, 'recruit');
+  return jsonb_build_object('ok', true);
+end $$;
+grant execute on function public.idw_apply_alliance(uuid) to authenticated;
+
+-- Leave alliance (commander can only leave if sole member, else must transfer first)
+create or replace function public.idw_leave_alliance()
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p   public.idw_player_state;
+  m   public.idw_alliance_members;
+  cnt int;
+begin
+  p := public.idw_ensure_player();
+  select * into m from public.idw_alliance_members where user_id = p.user_id;
+  if m.alliance_id is null then raise exception 'Not in an alliance'; end if;
+  if m.rank = 'commander' then
+    select count(*) into cnt from public.idw_alliance_members where alliance_id = m.alliance_id;
+    if cnt > 1 then raise exception 'Transfer leadership before leaving'; end if;
+    delete from public.idw_alliances where id = m.alliance_id;
+  else
+    delete from public.idw_alliance_members where user_id = p.user_id;
+  end if;
+  return jsonb_build_object('in_alliance', false);
+end $$;
+grant execute on function public.idw_leave_alliance() to authenticated;
+
+-- Send alliance chat message
+create or replace function public.idw_send_alliance_chat(p_message text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  m public.idw_alliance_members;
+begin
+  p := public.idw_ensure_player();
+  select * into m from public.idw_alliance_members where user_id = p.user_id;
+  if m.alliance_id is null then raise exception 'Not in an alliance'; end if;
+  if trim(coalesce(p_message,'')) = '' then raise exception 'Empty message'; end if;
+  insert into public.idw_alliance_chat (alliance_id, user_id, message)
+  values (m.alliance_id, p.user_id, trim(p_message));
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_send_alliance_chat(text) to authenticated;
+
+-- Promote a member (server validates actor's rank)
+create or replace function public.idw_promote_member(p_target_user_id uuid)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p      public.idw_player_state;
+  actor  public.idw_alliance_members;
+  target public.idw_alliance_members;
+  new_rank text;
+begin
+  p := public.idw_ensure_player();
+  select * into actor  from public.idw_alliance_members where user_id = p.user_id;
+  if actor.alliance_id is null then raise exception 'Not in an alliance'; end if;
+  select * into target from public.idw_alliance_members where user_id = p_target_user_id and alliance_id = actor.alliance_id;
+  if target.user_id is null then raise exception 'Member not in your alliance'; end if;
+  if public.idw_rank_order(actor.rank) >= public.idw_rank_order(target.rank) then
+    raise exception 'Insufficient rank to promote this member';
+  end if;
+  new_rank := public.idw_rank_up(target.rank);
+  if new_rank is null then raise exception 'Cannot promote further'; end if;
+  -- Promoting to commander transfers leadership
+  if new_rank = 'commander' then
+    if actor.rank <> 'commander' then raise exception 'Only the commander can transfer leadership'; end if;
+    update public.idw_alliance_members set rank = 'officer' where user_id = p.user_id;
+  end if;
+  update public.idw_alliance_members set rank = new_rank where user_id = p_target_user_id and alliance_id = actor.alliance_id;
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_promote_member(uuid) to authenticated;
+
+-- Demote a member
+create or replace function public.idw_demote_member(p_target_user_id uuid)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p      public.idw_player_state;
+  actor  public.idw_alliance_members;
+  target public.idw_alliance_members;
+  new_rank text;
+begin
+  p := public.idw_ensure_player();
+  select * into actor  from public.idw_alliance_members where user_id = p.user_id;
+  if actor.alliance_id is null then raise exception 'Not in an alliance'; end if;
+  select * into target from public.idw_alliance_members where user_id = p_target_user_id and alliance_id = actor.alliance_id;
+  if target.user_id is null then raise exception 'Member not in your alliance'; end if;
+  if target.rank = 'commander' then raise exception 'Cannot demote the commander'; end if;
+  if public.idw_rank_order(actor.rank) >= public.idw_rank_order(target.rank) then
+    raise exception 'Insufficient rank to demote this member';
+  end if;
+  new_rank := public.idw_rank_down(target.rank);
+  if new_rank is null then raise exception 'Cannot demote further'; end if;
+  update public.idw_alliance_members set rank = new_rank where user_id = p_target_user_id and alliance_id = actor.alliance_id;
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_demote_member(uuid) to authenticated;
+
+-- Kick a member
+create or replace function public.idw_kick_member(p_target_user_id uuid)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p      public.idw_player_state;
+  actor  public.idw_alliance_members;
+  target public.idw_alliance_members;
+begin
+  p := public.idw_ensure_player();
+  select * into actor from public.idw_alliance_members where user_id = p.user_id;
+  if actor.alliance_id is null then raise exception 'Not in an alliance'; end if;
+  if p_target_user_id = p.user_id then raise exception 'Cannot kick yourself'; end if;
+  select * into target from public.idw_alliance_members where user_id = p_target_user_id and alliance_id = actor.alliance_id;
+  if target.user_id is null then raise exception 'Member not in your alliance'; end if;
+  if target.rank = 'commander' then raise exception 'Cannot kick the commander'; end if;
+  if public.idw_rank_order(actor.rank) >= public.idw_rank_order(target.rank) then
+    raise exception 'Insufficient rank to kick this member';
+  end if;
+  delete from public.idw_alliance_members where user_id = p_target_user_id and alliance_id = actor.alliance_id;
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_kick_member(uuid) to authenticated;
+
+-- Update alliance settings (commander: all fields; officer: description + announcement only)
+create or replace function public.idw_update_alliance_settings(
+  p_name         text,
+  p_tag          text,
+  p_description  text default '',
+  p_announcement text default '',
+  p_join_type    text default 'open'
+) returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  m public.idw_alliance_members;
+begin
+  p := public.idw_ensure_player();
+  select * into m from public.idw_alliance_members where user_id = p.user_id;
+  if m.alliance_id is null then raise exception 'Not in an alliance'; end if;
+  if m.rank not in ('commander','officer') then raise exception 'Only officers and commanders can edit settings'; end if;
+  if m.rank = 'commander' then
+    if trim(coalesce(p_name,'')) = '' then raise exception 'Name is required'; end if;
+    if trim(coalesce(p_tag,'')) = '' then raise exception 'Tag is required'; end if;
+    update public.idw_alliances
+      set name = trim(p_name), tag = upper(trim(p_tag)), description = coalesce(trim(p_description),''),
+          announcement = coalesce(trim(p_announcement),''), join_type = p_join_type, updated_at = now()
+      where id = m.alliance_id;
+  else
+    -- Officers can only update description and announcement
+    update public.idw_alliances
+      set description = coalesce(trim(p_description),''), announcement = coalesce(trim(p_announcement),''), updated_at = now()
+      where id = m.alliance_id;
+  end if;
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_update_alliance_settings(text,text,text,text,text) to authenticated;
+
+-- Create a new alliance (caller becomes commander)
+create or replace function public.idw_create_alliance(
+  p_name        text,
+  p_tag         text,
+  p_description text default '',
+  p_join_type   text default 'open'
+) returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p      public.idw_player_state;
+  new_id uuid;
+begin
+  p := public.idw_ensure_player();
+  if exists (select 1 from public.idw_alliance_members where user_id = p.user_id) then
+    raise exception 'Already in an alliance';
+  end if;
+  if trim(coalesce(p_name,'')) = '' then raise exception 'Name is required'; end if;
+  if trim(coalesce(p_tag,'')) = '' then raise exception 'Tag is required'; end if;
+  if length(trim(p_tag)) > 5 then raise exception 'Tag must be 5 characters or fewer'; end if;
+  if p_join_type not in ('open','apply','invite') then raise exception 'Invalid join type'; end if;
+  insert into public.idw_alliances (name, tag, description, join_type)
+  values (trim(p_name), upper(trim(p_tag)), coalesce(trim(p_description),''), p_join_type)
+  returning id into new_id;
+  insert into public.idw_alliance_members (alliance_id, user_id, rank)
+  values (new_id, p.user_id, 'commander');
+  return public.idw_get_alliance_state();
+end $$;
+grant execute on function public.idw_create_alliance(text,text,text,text) to authenticated;
+
+-- ── Territory map seed (migration: expand_special_territory_map) ──────────────
+-- 32 named special territories + 25 basic high-TV tiles
+-- ON CONFLICT: updates metadata only, never overwrites owner_id
+INSERT INTO public.pvp_world (tile_idx, territory_value, territory_bonus_type, territory_bonus_value, special_id)
+VALUES
+  -- Production (10) — lower stats more common --
+  ( 540, 2, 'production', 0.03, 'verdant_meadow'),
+  (1822, 2, 'production', 0.03, 'verdant_grove'),
+  (1090, 3, 'production', 0.05, 'fertile_plains'),
+  (3572, 3, 'production', 0.05, 'ancient_grove'),
+  (2345, 3, 'production', 0.05, 'crystal_springs'),
+  (4200, 3, 'production', 0.08, 'crystal_vein'),
+  (6700, 4, 'production', 0.10, 'ancient_quarry'),
+  (7800, 4, 'production', 0.10, 'bountiful_vale'),
+  (8500, 5, 'production', 0.12, 'golden_harvest'),
+  (9500, 5, 'production', 0.15, 'life_spring'),
+  -- Turret Buffs (10) — no turret HP, no boss damage --
+  (1555, 3, null, 0, 'fortress_ruins'),
+  (6830, 3, null, 0, 'watchtower_ridge'),
+  (5050, 5, null, 0, 'arcane_battlefield'),
+  (3300, 5, null, 0, 'iron_citadel'),
+  (9260, 3, null, 0, 'iron_keep'),
+  (4800, 3, null, 0, 'swift_barracks'),
+  (2580, 7, null, 0, 'storm_citadel'),
+  (6065, 7, null, 0, 'celestial_forge'),
+  (7520, 3, null, 0, 'frozen_bastion'),
+  (8815, 5, null, 0, 'shadow_citadel'),
+  -- Mob HP Reduce (2) --
+  (5535, 3, null, 0, 'sunfire_pass'),
+  (3800, 5, null, 0, 'cursed_grounds'),
+  -- Stage Value (10) --
+  ( 450, 2, null, 0, 'stone_marker'),
+  (1200, 2, null, 0, 'border_post'),
+  (2100, 3, null, 0, 'frontier_camp'),
+  (3150, 3, null, 0, 'waypoint_alpha'),
+  (5100, 3, null, 0, 'command_ridge'),
+  (7200, 3, null, 0, 'strategic_pass'),
+  (4512, 5, null, 0, 'nexus_core'),
+  (6500, 5, null, 0, 'valor_outpost'),
+  (8200, 7, null, 0, 'dominion_spire'),
+  (8080,10, null, 0, 'deep_frontier_gate'),
+  -- Basic high-TV tiles (25) — no special buff, just territory value --
+  -- +3 TV (15) --
+  ( 150, 3, null, 0, null),
+  ( 700, 3, null, 0, null),
+  ( 900, 3, null, 0, null),
+  (1400, 3, null, 0, null),
+  (1650, 3, null, 0, null),
+  (2000, 3, null, 0, null),
+  (2700, 3, null, 0, null),
+  (3000, 3, null, 0, null),
+  (3450, 3, null, 0, null),
+  (4050, 3, null, 0, null),
+  (4350, 3, null, 0, null),
+  (4650, 3, null, 0, null),
+  (5300, 3, null, 0, null),
+  (5700, 3, null, 0, null),
+  (6100, 3, null, 0, null),
+  -- +5 TV (10) --
+  (6300, 5, null, 0, null),
+  (6600, 5, null, 0, null),
+  (7000, 5, null, 0, null),
+  (7400, 5, null, 0, null),
+  (7700, 5, null, 0, null),
+  (8300, 5, null, 0, null),
+  (8700, 5, null, 0, null),
+  (8900, 5, null, 0, null),
+  (9100, 5, null, 0, null),
+  (9700, 5, null, 0, null)
+ON CONFLICT (tile_idx) DO UPDATE SET
+  territory_value       = EXCLUDED.territory_value,
+  territory_bonus_type  = EXCLUDED.territory_bonus_type,
+  territory_bonus_value = EXCLUDED.territory_bonus_value,
+  special_id            = EXCLUDED.special_id;
+
+-- ── Territory redesign (migration: territory_type_system_v2) ─────────────────
+-- Separates TV (progression counter) from territory buffs.
+-- All Resource/Combat/Stage territories now tv:1. Only Value territories have tv>1.
+-- Stage bonus values updated to +5/+10/+15.
+
+-- Reset territory_value to 1 for all named special territories
+UPDATE public.pvp_world SET territory_value = 1
+WHERE tile_idx IN (
+  540,1822,1090,3572,2345,4200,6700,7800,8500,9500,   -- Resource
+  1555,6830,5050,3300,9260,4800,2580,6065,7520,8815,5535,3800,  -- Combat
+  450,1200,2100,3150,5100,7200,4512,6500,8200,8080     -- Stage
+);
+
+-- Update resource territory_bonus_value to match new bonusValues
+UPDATE public.pvp_world SET territory_bonus_value = 0.05  WHERE tile_idx IN (540,1822,1090,3572);
+UPDATE public.pvp_world SET territory_bonus_value = 0.10  WHERE tile_idx IN (2345,4200,6700,7800);
+UPDATE public.pvp_world SET territory_bonus_value = 0.15  WHERE tile_idx IN (8500,9500);
+
+-- Stage territories get no territory_bonus_type
+UPDATE public.pvp_world SET territory_bonus_type = NULL, territory_bonus_value = 0
+WHERE tile_idx IN (450,1200,2100,3150,5100,7200,4512,6500,8200,8080);
+
+-- Insert 3 new legendary value territories (+10 TV)
+INSERT INTO public.pvp_world (tile_idx, territory_value, territory_bonus_type, territory_bonus_value, special_id)
+VALUES
+  (5555, 10, null, 0, null),
+  (2750, 10, null, 0, null),
+  (9050, 10, null, 0, null)
+ON CONFLICT (tile_idx) DO UPDATE SET
+  territory_value       = EXCLUDED.territory_value,
+  territory_bonus_type  = EXCLUDED.territory_bonus_type,
+  territory_bonus_value = EXCLUDED.territory_bonus_value;
+
+-- ── Reposition x=0 territories + rarity-based colors (migration: territory_reposition_v1) ──
+-- Fixes: all special territories that landed at tx=0 (tile_idx % 100 = 0).
+-- Replaces all 25 basic TV tiles with properly-spread positions.
+
+-- Step 1: Clear special_id from old x=0 named special territory positions
+-- (tiles keep their owner if claimed, but become regular defense tiles)
+UPDATE public.pvp_world
+SET special_id = NULL, territory_bonus_type = NULL, territory_bonus_value = 0
+WHERE tile_idx IN (
+  -- Resource (old x=0 positions)
+  4200, 6700, 7800, 8500, 9500,
+  -- Combat (old x=0 positions)
+  3300, 4800, 3800,
+  -- Stage (old x=0 positions)
+  1200, 2100, 5100, 7200, 6500, 8200
+);
+
+-- Step 2: Insert named special territories at corrected positions
+-- rare=#5090f0, epic=#c050f0, legendary=#f0c040 (glowColor now rarity-based on client)
+INSERT INTO public.pvp_world (tile_idx, territory_value, territory_bonus_type, territory_bonus_value, special_id)
+VALUES
+  -- Resource territories (moved from x=0)
+  (4275, 1, 'production', 0.10, 'resource_t6'),
+  (6788, 1, 'production', 0.10, 'resource_t7'),
+  (7845, 1, 'production', 0.10, 'resource_t8'),
+  (8568, 1, 'production', 0.15, 'resource_t9'),
+  (9535, 1, 'production', 0.15, 'resource_t10'),
+  -- Combat territories (moved from x=0)
+  (3418, 1, NULL, 0, 'combat_t4'),
+  (4888, 1, NULL, 0, 'combat_t6'),
+  (3828, 1, NULL, 0, 'combat_t12'),
+  -- Stage territories (moved from x=0)
+  (1272, 1, NULL, 0, 'stage_t2'),
+  (2165, 1, NULL, 0, 'stage_t3'),
+  (5782, 1, NULL, 0, 'stage_t5'),
+  (7268, 1, NULL, 0, 'stage_t6'),
+  (6548, 1, NULL, 0, 'stage_t8'),
+  (8233, 1, NULL, 0, 'stage_t9')
+ON CONFLICT (tile_idx) DO UPDATE SET
+  territory_value       = EXCLUDED.territory_value,
+  territory_bonus_type  = EXCLUDED.territory_bonus_type,
+  territory_bonus_value = EXCLUDED.territory_bonus_value,
+  special_id            = EXCLUDED.special_id;
+
+-- Step 3: Reset old basic TV tiles to territory_value=1 (remove elevated TV)
+UPDATE public.pvp_world
+SET territory_value = 1
+WHERE tile_idx IN (
+  -- Old tv:3 tiles
+  150, 700, 900, 1400, 1650, 2000, 2700, 3000, 3450, 4050, 4350, 4650, 5300, 5700, 6100,
+  -- Old tv:5 tiles
+  6300, 6600, 7000, 7400, 7700, 8300, 8700, 8900, 9100, 9700
+)
+AND special_id IS NULL;
+
+-- Step 4: Insert new basic TV tiles at properly-spread positions
+-- tv:3 (rare) — 15 tiles spread across the map
+-- tv:5 (epic) — 10 tiles spread across the map
+INSERT INTO public.pvp_world (tile_idx, territory_value, territory_bonus_type, territory_bonus_value, special_id)
+VALUES
+  -- +3 TV (rare) --
+  ( 832, 3, NULL, 0, NULL),
+  (1508, 3, NULL, 0, NULL),
+  (1672, 3, NULL, 0, NULL),
+  (2818, 3, NULL, 0, NULL),
+  (3585, 3, NULL, 0, NULL),
+  (4455, 3, NULL, 0, NULL),
+  (5215, 3, NULL, 0, NULL),
+  (5295, 3, NULL, 0, NULL),
+  (5875, 3, NULL, 0, NULL),
+  (6338, 3, NULL, 0, NULL),
+  (7005, 3, NULL, 0, NULL),
+  (7088, 3, NULL, 0, NULL),
+  (7725, 3, NULL, 0, NULL),
+  (8362, 3, NULL, 0, NULL),
+  (9242, 3, NULL, 0, NULL),
+  -- +5 TV (epic) --
+  ( 348, 5, NULL, 0, NULL),
+  (2015, 5, NULL, 0, NULL),
+  (2688, 5, NULL, 0, NULL),
+  (4033, 5, NULL, 0, NULL),
+  (4768, 5, NULL, 0, NULL),
+  (6222, 5, NULL, 0, NULL),
+  (6582, 5, NULL, 0, NULL),
+  (7543, 5, NULL, 0, NULL),
+  (8592, 5, NULL, 0, NULL),
+  (9325, 5, NULL, 0, NULL)
+ON CONFLICT (tile_idx) DO UPDATE SET
+  territory_value       = EXCLUDED.territory_value,
+  territory_bonus_type  = EXCLUDED.territory_bonus_type,
+  territory_bonus_value = EXCLUDED.territory_bonus_value;

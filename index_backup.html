@@ -853,6 +853,124 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .result-btn.next{background:linear-gradient(135deg,#1a7a52,#3ecf8e);color:#001a0d;}
 @keyframes flyUp{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-120px) scale(1.4);}}
 .reward-floater{position:fixed;font-size:16px;font-weight:700;pointer-events:none;z-index:9999;animation:flyUp 1.2s ease forwards;}
+
+/* ══ ALLIANCE ══ */
+.al-browser{display:flex;gap:1rem;padding:1rem 1.25rem;flex:1;overflow:hidden;min-height:0;}
+.al-list-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.al-search{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;margin-bottom:0.6rem;flex-shrink:0;transition:border-color 0.15s;}
+.al-search:focus{border-color:var(--blue);}
+.al-list{display:flex;flex-direction:column;gap:0.5rem;overflow-y:auto;flex:1;}
+.al-card{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:0.8rem 1rem;transition:border-color 0.15s;}
+.al-card:hover{border-color:var(--border2);}
+.al-card-head{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap;}
+.al-card-name{font-size:14px;font-weight:700;color:#fff;flex:1;min-width:80px;}
+.al-card-tag{font-size:11px;font-weight:700;color:var(--blue);background:rgba(74,143,255,0.12);border:1px solid rgba(74,143,255,0.3);border-radius:5px;padding:2px 6px;white-space:nowrap;}
+.al-join-badge{font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;white-space:nowrap;}
+.al-join-open{background:rgba(62,207,142,0.12);color:var(--green);border:1px solid rgba(62,207,142,0.3);}
+.al-join-apply{background:rgba(240,192,64,0.12);color:var(--gold);border:1px solid rgba(240,192,64,0.3);}
+.al-join-invite{background:rgba(245,90,90,0.1);color:var(--red);border:1px solid rgba(245,90,90,0.3);}
+.al-card-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+.al-stat{font-size:11px;color:var(--text2);}
+.al-stat span{color:var(--text);font-weight:600;}
+.al-card-desc{font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;}
+.al-card-actions{display:flex;gap:6px;}
+.al-filters{width:210px;min-width:210px;background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:0.9rem;display:flex;flex-direction:column;gap:0.75rem;overflow-y:auto;align-self:flex-start;max-height:100%;}
+.al-filter-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;}
+.al-filter-input{width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;font-family:'Inter',sans-serif;outline:none;transition:border-color 0.15s;}
+.al-filter-input:focus{border-color:var(--blue);}
+.al-filter-row{display:flex;gap:6px;}
+.al-filter-row .al-filter-input{flex:1;min-width:0;}
+.al-filter-check{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none;}
+.al-filter-check input{accent-color:var(--blue);cursor:pointer;width:14px;height:14px;}
+.al-btn{border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:filter 0.15s;}
+.al-btn:hover{filter:brightness(1.1);}
+.al-btn-view{background:var(--bg4);color:var(--text);border:1px solid var(--border2);}
+.al-btn-join{background:linear-gradient(135deg,var(--green2),var(--green));color:#001a0d;}
+.al-btn-apply{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#1a1200;}
+.al-btn-danger{background:rgba(245,90,90,0.1);color:var(--red);border:1px solid rgba(245,90,90,0.3);}
+.al-filter-clear{background:var(--bg3);color:var(--text2);border:1px solid var(--border);width:100%;padding:8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,color 0.15s;}
+.al-filter-clear:hover{border-color:var(--border2);color:var(--text);}
+.al-home{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+.al-tab-bar{height:52px;min-height:52px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0;gap:0;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
+.al-tab-bar::-webkit-scrollbar{display:none;}
+.al-tab{flex:1;min-width:0;max-width:96px;padding:0 6px;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;text-align:center;transition:color 0.15s,border-color 0.15s;}
+.al-tab:hover{color:var(--text2);background:rgba(255,255,255,0.03);}
+.al-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+.al-panel{display:none;flex:1;overflow-y:auto;padding:1rem 1.25rem;flex-direction:column;gap:0.75rem;}
+.al-panel.active{display:flex;}
+.al-members-table{width:100%;border-collapse:collapse;}
+.al-members-table th{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+.al-members-table td{font-size:12px;color:var(--text2);padding:8px 10px;border-bottom:1px solid rgba(42,46,66,0.5);vertical-align:middle;}
+.al-members-table tr.al-commander-row td{background:rgba(240,192,64,0.04);}
+.al-members-table tr:hover td{background:rgba(255,255,255,0.02);}
+.al-rank-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;}
+.al-rank-commander{background:rgba(240,192,64,0.15);color:var(--gold);border:1px solid rgba(240,192,64,0.3);}
+.al-rank-officer{background:rgba(74,143,255,0.12);color:var(--blue);border:1px solid rgba(74,143,255,0.3);}
+.al-rank-veteran{background:rgba(136,112,192,0.15);color:var(--ore);border:1px solid rgba(136,112,192,0.3);}
+.al-rank-member{background:rgba(136,144,176,0.1);color:var(--text2);border:1px solid rgba(136,144,176,0.2);}
+.al-rank-recruit{background:rgba(42,46,66,0.5);color:var(--text3);border:1px solid var(--border);}
+.al-action-btn{background:var(--bg4);border:1px solid var(--border2);border-radius:5px;color:var(--text2);font-size:10px;font-weight:600;padding:3px 8px;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,color 0.15s;}
+.al-action-btn:hover{color:var(--text);border-color:var(--blue);}
+.al-action-btn.danger{color:var(--red);}
+.al-action-btn.danger:hover{border-color:var(--red);}
+.al-announcement{background:rgba(240,192,64,0.06);border:1px solid rgba(240,192,64,0.22);border-radius:10px;padding:0.9rem 1rem;flex-shrink:0;}
+.al-announcement-label{font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;}
+.al-announcement-text{font-size:13px;color:var(--text2);line-height:1.6;}
+.al-chat-wrap{display:flex;flex-direction:column;flex:1;min-height:0;background:var(--bg2);border:1px solid var(--border);border-radius:11px;overflow:hidden;}
+.al-chat-messages{flex:1;overflow-y:auto;padding:0.75rem 1rem;display:flex;flex-direction:column;gap:12px;min-height:180px;}
+.al-chat-messages::-webkit-scrollbar{width:4px;}
+.al-chat-messages::-webkit-scrollbar-track{background:transparent;}
+.al-chat-messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.al-announce-box{background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--gold);border-radius:8px;padding:0.75rem 1rem;}
+.al-announce-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;}
+.al-announce-title{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:0.04em;}
+.al-announce-meta{font-size:11px;color:var(--text3);}
+.al-announce-text{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+.al-announce-empty{font-size:12px;color:var(--text3);font-style:italic;}
+.al-announce-edit-btn{font-size:11px;padding:3px 10px;background:var(--bg4);border:1px solid var(--border2);border-radius:5px;color:var(--text2);cursor:pointer;transition:background 0.15s;}
+.al-announce-edit-btn:hover{background:var(--border2);color:#fff;}
+.al-announce-textarea{width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:8px 10px;resize:vertical;font-family:inherit;margin-top:0.5rem;box-sizing:border-box;}
+.al-announce-save-row{display:flex;gap:6px;margin-top:6px;}
+.al-terr-header{display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:0.75rem;}
+.al-terr-stat{text-align:center;}
+.al-terr-stat-val{font-size:22px;font-weight:700;color:#fff;}
+.al-terr-stat-label{font-size:11px;color:var(--text3);margin-top:2px;}
+.al-buff-card{display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0.85rem;border-radius:9px;border:1px solid var(--border);transition:opacity 0.2s,border-color 0.2s;}
+.al-buff-card.unlocked{background:var(--bg3);border-color:var(--green);opacity:1;}
+.al-buff-card.locked{background:var(--bg2);opacity:0.65;}
+.al-buff-card:hover{opacity:1;}
+.al-buff-icon{font-size:22px;flex-shrink:0;line-height:1;padding-top:2px;}
+.al-buff-name{font-size:13px;font-weight:600;color:#fff;margin-bottom:2px;}
+.al-buff-desc{font-size:12px;color:var(--text2);}
+.al-buff-req{font-size:11px;margin-top:4px;}
+.al-buff-active{color:var(--green);font-weight:600;}
+.al-buff-locked{color:var(--text3);}
+.al-terr-prog{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.75rem;}
+.al-terr-layout{display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;}
+.al-terr-main{flex:1;min-width:200px;display:flex;flex-direction:column;gap:0.5rem;}
+.al-terr-sidebar{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:0.5rem;}
+.al-special-buff-card{background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:0.6rem 0.8rem;display:flex;flex-direction:column;gap:4px;}
+.al-special-buff-header{display:flex;align-items:center;gap:8px;}
+.al-special-buff-icon{font-size:18px;flex-shrink:0;line-height:1;}
+.al-special-buff-name{font-size:12px;font-weight:600;color:#fff;}
+.al-special-buff-tag{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
+.al-special-buff-desc{font-size:11px;color:var(--text2);padding-left:26px;}
+.al-total-bonus-box{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:0.65rem 0.85rem;}
+.al-total-bonus-title{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.05em;}
+.al-total-bonus-sub{font-size:10px;color:var(--text3);margin-bottom:7px;}
+.al-total-bonus-row{display:flex;flex-wrap:wrap;gap:6px 10px;}
+.al-total-bonus-item{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;}
+.al-spec-empty{font-size:11px;color:var(--text3);text-align:center;padding:1.2rem 0.5rem;line-height:1.7;}
+.al-chat-msg-head{display:flex;align-items:center;gap:6px;margin-bottom:2px;}
+.al-chat-username{font-size:12px;font-weight:600;color:var(--text);}
+.al-chat-time{font-size:10px;color:var(--text3);margin-left:auto;}
+.al-chat-text{font-size:12px;color:var(--text2);line-height:1.5;}
+.al-chat-input-row{display:flex;gap:8px;padding:0.6rem;border-top:1px solid var(--border);flex-shrink:0;}
+.al-chat-input{flex:1;padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;font-family:'Inter',sans-serif;outline:none;transition:border-color 0.15s;}
+.al-chat-input:focus{border-color:var(--blue);}
+.al-chat-send{background:linear-gradient(135deg,var(--blue2),var(--blue));border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:600;padding:0 16px;cursor:pointer;font-family:'Inter',sans-serif;transition:filter 0.15s;}
+.al-chat-send:hover{filter:brightness(1.1);}
+.al-placeholder{text-align:center;color:var(--text3);padding:3rem 1rem;font-size:13px;line-height:2;}
 </style>
 </head>
 <body>
@@ -938,6 +1056,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
       <div class="nav-sep"></div>
       <button class="nav-btn" id="nav-campaign" onclick="switchSection('campaign')">⚔️<span class="nav-label">Camp</span></button>
       <button class="nav-btn" id="nav-pvp" onclick="switchSection('pvp')">🌍<span class="nav-label">PVP</span></button>
+      <button class="nav-btn" id="nav-alliance" onclick="switchSection('alliance')">🤝<span class="nav-label">Alliance</span></button>
     </nav>
 
     <div class="main-content">
@@ -1114,6 +1233,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
               <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);"></div> Unclaimed</div>
               <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#3ecf8e;"></div> Yours</div>
               <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:#f0c040;"></div> Enemy</div>
+              <div class="pvp-legend-item"><div class="pvp-legend-dot" style="background:linear-gradient(135deg,#f0c040,#c050f0,#3ecf8e);border-radius:2px;"></div> Special</div>
             </div>
             <div class="pvp-stats" id="pvp-stats">– / 10,000 claimed</div>
             <button class="pvp-refresh-btn" onclick="pvpGoHome()">🏠 Home</button>
@@ -1138,6 +1258,9 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
             <button class="pvp-tooltip-btn" id="pvp-tt-btn" onclick="pvpAttackTile()">⚔️ Attack</button>
           </div>
         </div>
+      </div>
+      <div id="section-alliance" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div id="al-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;"></div>
       </div>
     </div>
   </div>
@@ -1528,6 +1651,7 @@ RESOURCE_DEFS.forEach(r => {
 });
 
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
+let gameFullyLoaded = false;
 
 let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
@@ -1625,7 +1749,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Auth state listener — only fires after user explicitly logs in
   sb.auth.onAuthStateChange(async(event,session)=>{
     if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
-    else if(event==='SIGNED_OUT'){currentUser=null;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
+    else if(event==='SIGNED_OUT'){currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
   });
 
   // Always show login screen on page load
@@ -1639,6 +1763,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // ═══════════════════════════════════════════════
 async function startGame(user) {
   currentUser=user;
+  gameFullyLoaded=false;
   const meta=user.user_metadata||{};
   document.getElementById('username-display').textContent=meta.username||user.email.split('@')[0];
   document.getElementById('login-msg').textContent='';
@@ -1647,9 +1772,15 @@ async function startGame(user) {
   showLoadingScreen();
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
-  try{await loadFromDB();await new Promise(r=>setTimeout(r,450));}
+  try{
+    await loadFromDB();
+    // Pre-load alliance state so territory buffs apply from game start
+    serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
+    await new Promise(r=>setTimeout(r,450));
+  }
   catch(e){console.warn('startGame failed:',e);}
   finally{
+    gameFullyLoaded=true;
     // Full panel build on login
     buildResourcesPanel();
     buildResearchPanel();
@@ -1713,21 +1844,10 @@ async function loadFromDB() {
 
 
 async function saveToDB() {
-  if(!currentUser) return;
-  try {
-    // Send current game state to server for persistence
-    const gameState = {
-      resources: resources,
-      playerXP: playerXP,
-      playerLevel: playerLevel,
-      armoryTowers: armoryTowers,
-      // Add other important state as needed
-    };
-    await serverRpc('idw_save_state', { p_state: gameState });
-  } catch(e) {
-    console.warn('save failed, falling back to touch', e);
-    try { await serverRpc('idw_touch'); } catch(e2) { console.warn('touch also failed', e2); }
-  }
+  if(!currentUser || !gameFullyLoaded) return;
+  // All game state is now saved via individual server RPCs.
+  // saveToDB only updates last_seen so offline-time banners stay accurate.
+  try { await serverRpc('idw_touch'); } catch(e) { console.warn('touch failed', e); }
 }
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveToDB,5000);}
 
@@ -2488,10 +2608,8 @@ async function applyEnchantment(enchant) {
     if (result && result.state) {
       applyServerPayload(result.state);
     } else {
-      // Fallback: apply locally and schedule save
       console.log('Server RPC not available, applying locally');
       applyEnchantmentLocally(enchant);
-      scheduleSave();
     }
 
     // Update UI
@@ -2502,9 +2620,7 @@ async function applyEnchantment(enchant) {
 
   } catch (error) {
     console.warn('Enchantment server RPC failed, applying locally:', error);
-    // Fallback to local application
     applyEnchantmentLocally(enchant);
-    scheduleSave();
     buildEnchantInventory();
     renderArmoryGrid(); // Update armory display with new stats
     updateSelectedTowerDisplay(); // Update the selected tower info panel
@@ -3079,16 +3195,16 @@ async function startUpgrade(resId,tierIdx,event){
   catch(e){ /* toast shown by serverRpc */ }
 }
 
-function cancelUpgrade(resId,tierIdx){
+async function cancelUpgrade(resId,tierIdx){
   const r=RESOURCE_DEFS.find(x=>x.id===resId);
   const ns=nodeState[r.id][tierIdx];
   if(!ns.upgrading) return;
-  const refund=Math.floor(ns.upgradeCostPaid*0.5);
-  resources[r.costCurrency]=(resources[r.costCurrency]||0)+refund;
-  ns.upgrading=false; ns.upgradeStartMs=0; ns.upgradeDurationMs=0; ns.upgradeCostPaid=0;
-  renderNodeModal(); updateNodeCards(); updateResourcePills();
-  showToast(`Upgrade cancelled — refunded ${r.costCurrencyIcon} ${refund.toLocaleString()} ${r.costCurrencyLabel}`);
-  scheduleSave();
+  try {
+    await serverRpc('idw_cancel_node_upgrade', {p_res_id: resId, p_tier_idx: tierIdx});
+    await refreshFromServer();
+    renderNodeModal(); updateNodeCards(); updateResourcePills();
+    showToast(`Upgrade cancelled — 50% refunded`);
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
 // ═══════════════════════════════════════════════
@@ -4000,56 +4116,33 @@ function openItemModal(item) {
 }
 function closeItemModal() { document.getElementById('item-modal').classList.remove('open'); siloModalResId=null; siloModalTierIdx=null; }
 
-function disenchantTower(slotIdx) {
+async function disenchantTower(slotIdx) {
   const entry = armoryTowers[slotIdx];
   if (!entry) return;
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
-  const refund = towerDisenchantValue(td);
-  Object.entries(refund).forEach(([k,v]) => { resources[k] = (resources[k]||0) + v; });
-  armoryTowers[slotIdx] = null;
-  armoryTowers = armoryTowers.filter(Boolean);
-  closeItemModal();
-  renderArmoryGrid();
-  updateArmorySlotCount();
-  updateResourcePills();
-  showToast(`💔 ${td.name} disenchanted`);
-  scheduleSave();
+  try {
+    await serverRpc('idw_disenchant_tower', {p_slot_idx: slotIdx});
+    await refreshFromServer();
+    closeItemModal();
+    renderArmoryGrid();
+    updateArmorySlotCount();
+    updateResourcePills();
+    showToast(`💔 ${td.name} disenchanted`);
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
 async function upgradeTowerInArmory(slotIdx) {
   const entry = armoryTowers[slotIdx];
   if (!entry) return;
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
-  const upgCost = towerUpgradeCost(td, entry.level);
-  const canAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
-  if (!canAfford) { showToast('Not enough resources!'); return; }
-
-  // Deduct cost and increment level locally
-  Object.entries(upgCost).forEach(([k,v]) => { resources[k] -= v; });
-  entry.level++;
-  const newLevel = entry.level;
-
-  // Re-render modal immediately with new level + update grid behind it
-  openArmorySlotModal(slotIdx);
-  renderArmoryGrid();
-  updateResourcePills();
-  showToast(`${td.icon} ${td.name} upgraded to Lv ${newLevel}!`);
-
-  // Save to server in background — don't await so modal stays responsive
-  (async () => {
-    try {
-      const { error } = await sb.from('idw_player_state')
-        .update({
-          armory: armoryTowers,
-          resources: resources,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', currentUser.id);
-      if (error) throw new Error(error.message);
-    } catch(e) {
-      console.warn('armory save failed:', e.message);
-    }
-  })();
+  try {
+    await serverRpc('idw_upgrade_tower_in_armory', {p_slot_idx: slotIdx});
+    await refreshFromServer();
+    openArmorySlotModal(slotIdx);
+    renderArmoryGrid();
+    updateResourcePills();
+    showToast(`${td.icon} ${td.name} upgraded to Lv ${armoryTowers[slotIdx]?.level}!`);
+  } catch(e) { /* toast shown by serverRpc */ }
 }
 
 // ═══════════════════════════════════════════════
@@ -4873,6 +4966,7 @@ function battleDeploySlots() {
   if (researchState['bat1']?.done) slots += 1;
   if (researchState['bat3']?.done) slots += 1;
   if (researchState['bat5']?.done) slots += 2;
+  slots += getAllianceBuffs().extra_slot;
   return slots;
 }
 
@@ -4979,6 +5073,7 @@ function openBattleSetup(stageId) {
   battleSelectedTowers = [];
   const statsSection = document.getElementById('setup-stats-section');
   if (statsSection) statsSection.style.visibility = 'hidden';
+
   const screen = document.getElementById('battle-screen');
   const setup  = document.getElementById('battle-setup');
   const game   = document.getElementById('battle-game');
@@ -5024,6 +5119,31 @@ function openBattleSetup(stageId) {
     `<div class="setup-elite-mod">${m.label}</div>`
   ).join('');
 
+  // Build reward section for campaign stages
+  let rewardSectionHtml = '';
+  if (!isPvp) {
+    const baseRew = CAMPAIGN_REWARDS[baseStageId] || {};
+    const mult = isEliteBattle ? 3 : 1;
+    const alreadyCleared = isEliteBattle ? isEliteCleared(baseStageId) : campCompletedStages.has(baseStageId);
+    const rewardEntries = Object.entries(baseRew).map(([k, v]) => {
+      const val = Math.round(v * mult);
+      if (k === 'xp') return `<span style="color:var(--gold)">⭐ ${val} XP</span>`;
+      const def = RESOURCE_DEFS.find(r => r.id === k);
+      return def ? `${def.icon} ${val.toLocaleString()} ${def.name}` : '';
+    }).filter(Boolean);
+    if (rewardEntries.length > 0) {
+      rewardSectionHtml = `
+        <div style="margin-top:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;">${isEliteBattle ? '⚡ Elite first clear reward' : '🏆 First clear reward'}</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.8;">
+            ${alreadyCleared
+              ? '<span style="color:var(--text3);font-size:11px;">Already cleared</span>'
+              : rewardEntries.join('&nbsp;&nbsp;')}
+          </div>
+        </div>`;
+    }
+  }
+
   document.getElementById('setup-stage-info').innerHTML = `
     <canvas id="setup-mini-map" class="setup-mini-map" width="880" height="360" style="margin-bottom:4px;border:1px solid #2a2e42;"></canvas>
     <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:12px;padding:0 2px;">
@@ -5059,7 +5179,7 @@ function openBattleSetup(stageId) {
         <div style="display:flex;flex-direction:column;gap:4px;">${modsHtml}</div>
       </div>
     ` : ''}
-    ${isPvp ? `<div style="margin-top:8px;font-size:12px;color:#3ecf8e;">🟢 Reward: Claim territory</div>` : ''}
+    ${isPvp ? `<div style="margin-top:8px;font-size:12px;color:#3ecf8e;">🟢 Reward: Claim territory</div>` : rewardSectionHtml}
   `;
   drawSetupMiniMap('setup-mini-map', mapDef);
   renderSetupArmory();
@@ -5191,6 +5311,15 @@ function closeBattleScreen(goToNextStage) {
 
   // PVP battles return to the PVP map
   if (battleSetupStageId?.startsWith('pvp-')) {
+    if (pvpPendingTile) {
+      const battleStarted = document.getElementById('battle-game')?.style.display !== 'none';
+      if (battleStarted) {
+        // Exited mid-battle — treat as loss, apply 30s cooldown
+        pvpBattleEnded(pvpPendingTile, false);
+      }
+      // If cancelled from setup screen, tile was never locked — just clear pending
+      pvpPendingTile = null;
+    }
     switchSection('pvp');
     return;
   }
@@ -5239,6 +5368,26 @@ async function startBattle() {
 
   let serverBattle;
   if (isPvpBattle) {
+    // Lock the tile as under attack now that the battle is actually starting
+    if (pvpPendingTile) {
+      try {
+        // Check if another player locked this tile while we were on the setup screen
+        const { data: liveTile } = await sb.from('pvp_world')
+          .select('attacking_until, owner_id')
+          .eq('tile_idx', pvpPendingTile.idx)
+          .maybeSingle();
+        if (liveTile?.attacking_until && new Date(liveTile.attacking_until) > new Date()) {
+          showToast('⚔️ This territory is already under attack by another player!');
+          pvpPendingTile = null;
+          closeBattleScreen();
+          return;
+        }
+        const attackingUntil = new Date(Date.now() + 10*60*1000).toISOString();
+        await sb.from('pvp_world').upsert({tile_idx:pvpPendingTile.idx, owner_id:pvpTiles[pvpPendingTile.idx]?.owner||null, attacking_until:attackingUntil});
+        if (!pvpTiles[pvpPendingTile.idx]) pvpTiles[pvpPendingTile.idx] = {owner:null, color:null};
+        pvpTiles[pvpPendingTile.idx].attackingUntil = Date.now() + 10*60*1000;
+      } catch(e) { console.warn('attack lock failed:', e.message); }
+    }
     // PVP battles don't go through idw_start_battle — use a simple local setup
     serverBattle = { battleId: null, consumedTowers: battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean) };
     currentBattleId = null;
@@ -5416,16 +5565,18 @@ function makeTower(td, level, x, y, entry) {
   const range      = (entry?.range      !== undefined) ? entry.range      : td.baseStats.range;
   const projectiles= (entry?.projectiles!== undefined) ? entry.projectiles: td.baseStats.projectiles;
   const rb = getResearchBonuses();
+  const ab = getAllianceBuffs();
+  const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower');
   return {
     id: Math.random(),
     towerId: td.id,
     td, level,
     x, y,
     r: TOWER_RADIUS_PX,
-    dmg:      Math.round(dmg * (1 + rb.tower_dmg)),
-    atkSpeed: atkSpeed / (1 + rb.tower_spd),
+    dmg:      Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg)),
+    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd),
     range:    range * tileW * (1 + rb.tower_range),
-    projectiles,
+    projectiles: projectiles + (isAoeTower ? 0 : ab.extra_projectile),
     projectileSpeed: 280,
     piercing: 0,
     special: td.id,
@@ -5765,12 +5916,14 @@ function toggleSpeed() {
 let enemyIdCounter = 0;
 function spawnEnemy(template) {
   const wp = bs.waypoints;
+  const mobHpMult = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
+  const spawnHp = Math.max(1, Math.round(template.hp * mobHpMult));
   return {
     id: ++enemyIdCounter,
     type: template.type,
     waveNum: template.waveNum || bs.wave,
     x: wp[0].x, y: wp[0].y,
-    hp: template.hp, maxHp: template.hp,
+    hp: spawnHp, maxHp: spawnHp,
     speed: template.speed,
     reward: template.reward,
     size: template.size,
@@ -5779,6 +5932,8 @@ function spawnEnemy(template) {
     wpIdx: 1,
     dist: 0,
     slowTimer: 0,
+    alSlowTimer: 0,
+    alSlowPct: 0,
     isDead: false,
     isReached: false,
   };
@@ -5809,6 +5964,8 @@ function spawnChildEnemy(parent, typeKey, count) {
       wpIdx: parent.wpIdx,
       dist: parent.dist,
       slowTimer: 0,
+      alSlowTimer: 0,
+      alSlowPct: 0,
       isDead: false,
       isReached: false,
     });
@@ -5908,8 +6065,10 @@ function updateSpawn(dt) {
 function updateEnemies(dt) {
   bs.enemies.forEach(e => {
     if (e.isDead || e.isReached) return;
-    const speed = e.slowTimer > 0 ? e.speed * 0.5 : e.speed;
-    if (e.slowTimer > 0) e.slowTimer -= dt * 1000;
+    let _speedMult = 1.0;
+    if (e.slowTimer   > 0) { _speedMult *= 0.50;                       e.slowTimer   -= dt * 1000; }
+    if (e.alSlowTimer > 0) { _speedMult *= (1 - (e.alSlowPct || 0.25)); e.alSlowTimer -= dt * 1000; }
+    const speed = e.speed * _speedMult;
 
     const target = bs.waypoints[e.wpIdx];
     if (!target) { e.isReached = true; bs.lives = Math.max(0, bs.lives-1); return; }
@@ -6027,7 +6186,22 @@ function updateProjectiles(dt) {
       } else {
         // Normal hit
         if (target) {
-          target.hp -= p.dmg;
+          const _abHit = getAllianceBuffs();
+          let hitDmg = p.dmg;
+          // Alliance crit: 10% chance for +bonus damage
+          if (_abHit.crit_bonus > 0 && Math.random() < 0.10) {
+            hitDmg = Math.round(hitDmg * (1 + _abHit.crit_bonus));
+          }
+          // Alliance boss damage bonus
+          if (_abHit.boss_dmg > 0 && target.type === 'boss') {
+            hitDmg = Math.round(hitDmg * (1 + _abHit.boss_dmg));
+          }
+          target.hp -= hitDmg;
+          // Alliance slow (stacks multiplicatively with ice_tower)
+          if (_abHit.slow > 0) {
+            target.alSlowTimer = Math.max(target.alSlowTimer || 0, 1500);
+            target.alSlowPct   = _abHit.slow;
+          }
           if (p.special === 'ice_tower') target.slowTimer = 2000;
           if (target.hp <= 0) killEnemy(target, null);
           // Pierce: continue as new projectile toward next enemy
@@ -6811,6 +6985,60 @@ function makeLighterLEDColor(baseColor, isMine) {
 // ═══════════════════════════════════════════════
 // WORLD PVP MAP
 // ═══════════════════════════════════════════════
+// ── Special Named Territories ──
+// Keyed by tile_idx (= ty*100 + tx) for O(1) lookup. Positions are deterministic.
+const SPECIAL_TERRITORIES = {};
+[
+  // ── Resource Territories (10) — +1 TV each ──────────────────────────────────────────────
+  // Rare (+5%)
+  { tileIdx: 540,  id:'resource_t1',  name:'Resource Territory', rarity:'rare',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.05, bonusDesc:'+5% ALL resource production',  glowColor:'#5090f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.05 },
+  { tileIdx:1822,  id:'resource_t2',  name:'Resource Territory', rarity:'rare',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.05, bonusDesc:'+5% ALL resource production',  glowColor:'#5090f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.05 },
+  { tileIdx:1090,  id:'resource_t3',  name:'Resource Territory', rarity:'rare',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.05, bonusDesc:'+5% ALL resource production',  glowColor:'#5090f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.05 },
+  { tileIdx:3572,  id:'resource_t4',  name:'Resource Territory', rarity:'rare',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.05, bonusDesc:'+5% ALL resource production',  glowColor:'#5090f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.05 },
+  // Epic (+10%)
+  { tileIdx:2345,  id:'resource_t5',  name:'Resource Territory', rarity:'epic',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.10, bonusDesc:'+10% ALL resource production', glowColor:'#c050f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.10 },
+  { tileIdx:4275,  id:'resource_t6',  name:'Resource Territory', rarity:'epic',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.10, bonusDesc:'+10% ALL resource production', glowColor:'#c050f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.10 },
+  { tileIdx:6788,  id:'resource_t7',  name:'Resource Territory', rarity:'epic',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.10, bonusDesc:'+10% ALL resource production', glowColor:'#c050f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.10 },
+  { tileIdx:7845,  id:'resource_t8',  name:'Resource Territory', rarity:'epic',      category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.10, bonusDesc:'+10% ALL resource production', glowColor:'#c050f0', icon:'🌿', tvBonusType:'production', tvBonusValue:0.10 },
+  // Legendary (+15%)
+  { tileIdx:8568,  id:'resource_t9',  name:'Resource Territory', rarity:'legendary', category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.15, bonusDesc:'+15% ALL resource production', glowColor:'#f0c040', icon:'🌿', tvBonusType:'production', tvBonusValue:0.15 },
+  { tileIdx:9535,  id:'resource_t10', name:'Resource Territory', rarity:'legendary', category:'resource', tv:1, bonusStat:'all_resource_prod', bonusValue:0.15, bonusDesc:'+15% ALL resource production', glowColor:'#f0c040', icon:'🌿', tvBonusType:'production', tvBonusValue:0.15 },
+  // ── Combat Territories (12) — +1 TV each ────────────────────────────────────────────────
+  // Tower DMG
+  { tileIdx:1555,  id:'combat_t1',    name:'Combat Territory',   rarity:'rare',      category:'combat',   tv:1, bonusStat:'tower_dmg',        bonusValue:0.05, bonusDesc:'+5% turret damage',              glowColor:'#5090f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:6830,  id:'combat_t2',    name:'Combat Territory',   rarity:'rare',      category:'combat',   tv:1, bonusStat:'tower_dmg',        bonusValue:0.05, bonusDesc:'+5% turret damage',              glowColor:'#5090f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:5050,  id:'combat_t3',    name:'Combat Territory',   rarity:'epic',      category:'combat',   tv:1, bonusStat:'tower_dmg',        bonusValue:0.10, bonusDesc:'+10% turret damage',             glowColor:'#c050f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:3418,  id:'combat_t4',    name:'Combat Territory',   rarity:'epic',      category:'combat',   tv:1, bonusStat:'tower_dmg',        bonusValue:0.10, bonusDesc:'+10% turret damage',             glowColor:'#c050f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  // Tower SPD
+  { tileIdx:9260,  id:'combat_t5',    name:'Combat Territory',   rarity:'rare',      category:'combat',   tv:1, bonusStat:'tower_spd',        bonusValue:0.05, bonusDesc:'+5% turret attack speed',        glowColor:'#5090f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:4888,  id:'combat_t6',    name:'Combat Territory',   rarity:'rare',      category:'combat',   tv:1, bonusStat:'tower_spd',        bonusValue:0.05, bonusDesc:'+5% turret attack speed',        glowColor:'#5090f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:2580,  id:'combat_t7',    name:'Combat Territory',   rarity:'legendary', category:'combat',   tv:1, bonusStat:'tower_spd',        bonusValue:0.10, bonusDesc:'+10% turret attack speed',       glowColor:'#f0c040', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  // Special combat effects
+  { tileIdx:6065,  id:'combat_t8',    name:'Combat Territory',   rarity:'legendary', category:'combat',   tv:1, bonusStat:'extra_projectile', bonusValue:1,    bonusDesc:'+1 projectile (non-AOE turrets)', glowColor:'#f0c040', icon:'⚔️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:7520,  id:'combat_t9',    name:'Combat Territory',   rarity:'rare',      category:'combat',   tv:1, bonusStat:'slow',             bonusValue:0.10, bonusDesc:'Non-AOE slow enemies by 10%',    glowColor:'#5090f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:8815,  id:'combat_t10',   name:'Combat Territory',   rarity:'epic',      category:'combat',   tv:1, bonusStat:'crit_bonus',       bonusValue:0.50, bonusDesc:'10% crit chance for +50% damage',glowColor:'#c050f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:5535,  id:'combat_t11',   name:'Combat Territory',   rarity:'rare',      category:'combat',   tv:1, bonusStat:'mob_hp_reduce',    bonusValue:0.05, bonusDesc:'-5% enemy max HP',               glowColor:'#5090f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:3828,  id:'combat_t12',   name:'Combat Territory',   rarity:'epic',      category:'combat',   tv:1, bonusStat:'mob_hp_reduce',    bonusValue:0.10, bonusDesc:'-10% enemy max HP',              glowColor:'#c050f0', icon:'⚔️', tvBonusType:null, tvBonusValue:0 },
+  // ── Stage Territories (10) — +1 TV each ─────────────────────────────────────────────────
+  // Rare (+5 stages)
+  { tileIdx: 450,  id:'stage_t1',     name:'Defense Territory',    rarity:'rare',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:5,    bonusDesc:'+5 Stage progression',           glowColor:'#5090f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:1272,  id:'stage_t2',     name:'Defense Territory',    rarity:'rare',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:5,    bonusDesc:'+5 Stage progression',           glowColor:'#5090f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:2165,  id:'stage_t3',     name:'Defense Territory',    rarity:'rare',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:5,    bonusDesc:'+5 Stage progression',           glowColor:'#5090f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:3150,  id:'stage_t4',     name:'Defense Territory',    rarity:'rare',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:5,    bonusDesc:'+5 Stage progression',           glowColor:'#5090f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  // Epic (+10 stages)
+  { tileIdx:5782,  id:'stage_t5',     name:'Defense Territory',    rarity:'epic',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:10,   bonusDesc:'+10 Stage progression',          glowColor:'#c050f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:7268,  id:'stage_t6',     name:'Defense Territory',    rarity:'epic',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:10,   bonusDesc:'+10 Stage progression',          glowColor:'#c050f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:4512,  id:'stage_t7',     name:'Defense Territory',    rarity:'epic',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:10,   bonusDesc:'+10 Stage progression',          glowColor:'#c050f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:6548,  id:'stage_t8',     name:'Defense Territory',    rarity:'epic',      category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:10,   bonusDesc:'+10 Stage progression',          glowColor:'#c050f0', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  // Legendary (+15 stages)
+  { tileIdx:8233,  id:'stage_t9',     name:'Defense Territory',    rarity:'legendary', category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:15,   bonusDesc:'+15 Stage progression',          glowColor:'#f0c040', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+  { tileIdx:8080,  id:'stage_t10',    name:'Defense Territory',    rarity:'legendary', category:'stage',    tv:1, bonusStat:'stage_value',      bonusValue:15,   bonusDesc:'+15 Stage progression',          glowColor:'#f0c040', icon:'🛡️', isCount:true, tvBonusType:null, tvBonusValue:0 },
+].forEach(t => { SPECIAL_TERRITORIES[t.tileIdx] = t; });
+// Value Territories (handled separately — high TV, no special buff)
+// tv:3 (rare) → tile indices 832,1508,1672,2818,3585,4455,5215,5295,5875,6338,7005,7088,7725,8362,9242
+// tv:5 (epic) → tile indices 348,2015,2688,4033,4768,6222,6582,7543,8592,9325
+// tv:10 (legendary) → tile indices 5555,2750,9050
+
 const PVP_GRID      = 100;   // 100×100 total tiles
 const PVP_VISIBLE   = 11;    // 11×11 tiles visible at once (fixed camera)
 const PVP_PAGE_SIZE = 11;    // tiles per page when navigating
@@ -6915,11 +7143,12 @@ async function pvpRefresh(init=false) {
         const newColor=isMineServer?'#3ecf8e':pvpUserColor(newOwner);
         const existing=pvpTiles[row.tile_idx];
         const tileLevel=row.level||1;
+        const tileData={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel,tv:row.territory_value||1,bonusType:row.territory_bonus_type||null,bonusValue:row.territory_bonus_value||0,specialId:row.special_id||null};
         if(existing&&existing.owner!==newOwner){
-          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel};
+          pvpTiles[row.tile_idx]=tileData;
           pvpAnimateTile(row.tile_idx,existing.color||'#1a1d2e',newColor,1200);
         } else {
-          pvpTiles[row.tile_idx]={owner:newOwner,color:newColor,isMine:isMineServer,attackingUntil:row.attacking_until?new Date(row.attacking_until).getTime():null,level:tileLevel};
+          pvpTiles[row.tile_idx]=tileData;
         }
       });
     }
@@ -7377,12 +7606,18 @@ function pvpDraw() {
 
         // Stage level info for owned territories - moved to center
         if(ts>=18){
-          ctx.fillStyle='rgba(255,255,255,0.9)';
-          ctx.font=`bold ${Math.max(9,Math.round(ts*0.19))}px Inter`;
+          const ownedSpecDef = SPECIAL_TERRITORIES[idx];
           ctx.textAlign='center';
           ctx.textBaseline='middle';
-          const stageText = `1-${diff}`;
-          ctx.fillText(stageText, cx2, cy2);
+          if (ownedSpecDef) {
+            ctx.globalAlpha = 1.0;
+            ctx.font = `${Math.round(ts * 0.26)}px serif`;
+            ctx.fillText(ownedSpecDef.icon, cx2, cy2);
+          } else {
+            ctx.fillStyle='rgba(255,255,255,0.9)';
+            ctx.font=`bold ${Math.max(9,Math.round(ts*0.19))}px Inter`;
+            ctx.fillText(`1-${diff}`, cx2, cy2);
+          }
         }
 
         // Golden star for home base - positioned at bottom right
@@ -7407,13 +7642,99 @@ function pvpDraw() {
           ctx.fillText('⭐', starX, starY);
         }
       } else if(!isOwned && ts>=18){
-        // Unclaimed PVP tile — show stage number muted
-        ctx.fillStyle='rgba(255,255,255,0.22)';
-        ctx.font=`${Math.max(9,Math.round(ts*0.21))}px Inter`;
-        ctx.textAlign='center';
-        ctx.textBaseline='middle';
-        const stageText = `1-${diff}`;
-        ctx.fillText(stageText, cx2, cy2);
+        // Unclaimed PVP tile — show stage number muted or TV indicator
+        const specDefU = SPECIAL_TERRITORIES[idx];
+        if (!specDefU) {
+          const tileTvVal = pvpTiles[idx]?.tv || 1;
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          if (tileTvVal > 1) {
+            // no label — TV amount shown in tooltip only
+          } else {
+            ctx.fillStyle='rgba(255,255,255,0.22)';
+            ctx.font=`${Math.max(9,Math.round(ts*0.21))}px Inter`;
+            ctx.fillText(`1-${diff}`, cx2, cy2);
+          }
+        }
+      }
+
+      // Special territory glow ring (all tiles — owned and unclaimed)
+      const specDef = SPECIAL_TERRITORIES[idx];
+      if (specDef && ts >= 12) {
+        const specR   = ts * 0.32 + (specDef.rarity === 'legendary' ? 7 : specDef.rarity === 'epic' ? 5 : 3.5);
+        const glowPx  = specDef.rarity === 'legendary' ? 13 : specDef.rarity === 'epic' ? 9 : 5;
+        const borderW = specDef.rarity === 'legendary' ? 2  : specDef.rarity === 'epic' ? 1.5 : 1;
+        const baseAlpha = isOwned ? (specDef.rarity === 'legendary' ? 0.90 : 0.70) : (specDef.rarity === 'legendary' ? 0.45 : 0.35);
+        ctx.save();
+        ctx.globalAlpha = baseAlpha;
+        ctx.shadowColor = specDef.glowColor;
+        ctx.shadowBlur  = glowPx;
+        ctx.strokeStyle = specDef.glowColor;
+        ctx.lineWidth   = borderW;
+        ctx.beginPath();
+        ctx.arc(cx2, cy2, specR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        // Unclaimed: show icon + faint glow fill
+        if (!isOwned && ts >= 16) {
+          ctx.save();
+          ctx.globalAlpha = 0.18;
+          ctx.fillStyle = specDef.glowColor;
+          ctx.shadowColor = specDef.glowColor;
+          ctx.shadowBlur = glowPx * 0.5;
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, ts * 0.28, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          if (ts >= 20) {
+            ctx.save();
+            ctx.globalAlpha = 1.0;
+            ctx.font = `${Math.round(ts * 0.26)}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(specDef.icon, cx2, cy2);
+            ctx.restore();
+          }
+        }
+      }
+
+      // Value territory glow ring (high-TV tiles not in SPECIAL_TERRITORIES)
+      const vTv = !specDef ? (pvpTiles[idx]?.tv || 1) : 1;
+      if (!specDef && vTv > 1 && ts >= 12) {
+        const vRarity = vTv >= 10 ? 'legendary' : vTv >= 5 ? 'epic' : 'rare';
+        const vGlowColor = vTv >= 10 ? '#f0c040' : vTv >= 5 ? '#a060e0' : '#5090f0';
+        const vGlowPx  = vRarity === 'legendary' ? 13 : vRarity === 'epic' ? 9 : 5;
+        const vBorderW = vRarity === 'legendary' ? 2  : vRarity === 'epic' ? 1.5 : 1;
+        const vSpecR   = ts * 0.32 + (vRarity === 'legendary' ? 7 : vRarity === 'epic' ? 5 : 3.5);
+        const vAlpha   = isOwned ? (vRarity === 'legendary' ? 0.90 : 0.70) : (vRarity === 'legendary' ? 0.45 : 0.35);
+        ctx.save();
+        ctx.globalAlpha = vAlpha;
+        ctx.shadowColor = vGlowColor;
+        ctx.shadowBlur  = vGlowPx;
+        ctx.strokeStyle = vGlowColor;
+        ctx.lineWidth   = vBorderW;
+        ctx.beginPath();
+        ctx.arc(cx2, cy2, vSpecR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        if (!isOwned && ts >= 16) {
+          ctx.save();
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = vGlowColor;
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, ts * 0.28, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          if (ts >= 20) {
+            ctx.save();
+            ctx.globalAlpha = 1.0;
+            ctx.font = `${Math.round(ts * 0.26)}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('⭐', cx2, cy2);
+            ctx.restore();
+          }
+        }
       }
 
       // Under-attack icon
@@ -7459,6 +7780,29 @@ function pvpDraw() {
   ctx.strokeStyle='rgba(240,192,64,0.7)';
   ctx.lineWidth=1;
   ctx.strokeRect(mmX+pvpViewX*mmTile, mmY+pvpViewY*mmTile, mmCols*mmTile, mmRows*mmTile);
+  // Special territories on minimap (show even when unclaimed)
+  Object.keys(SPECIAL_TERRITORIES).forEach(tileIdxStr => {
+    const ti=parseInt(tileIdxStr), spec=SPECIAL_TERRITORIES[ti];
+    const ttx=ti%PVP_GRID, tty=Math.floor(ti/PVP_GRID);
+    const tile=pvpTiles[ti];
+    if(tile?.owner) return; // shown below by claimed tiles loop
+    ctx.globalAlpha=0.55;
+    ctx.fillStyle=spec.glowColor;
+    ctx.fillRect(mmX+ttx*mmTile, mmY+tty*mmTile, Math.max(1,mmTile), Math.max(1,mmTile));
+    ctx.globalAlpha=1;
+  });
+  // Value territories on minimap (high-TV tiles not in SPECIAL_TERRITORIES)
+  Object.entries(pvpTiles).forEach(([idxStr, t]) => {
+    if (t.owner) return;
+    const ti=parseInt(idxStr);
+    if (SPECIAL_TERRITORIES[ti] || !(t.tv > 1)) return;
+    const ttx=ti%PVP_GRID, tty=Math.floor(ti/PVP_GRID);
+    const vColor = t.tv >= 10 ? '#f0c040' : t.tv >= 5 ? '#a060e0' : '#5090f0';
+    ctx.globalAlpha=0.45;
+    ctx.fillStyle=vColor;
+    ctx.fillRect(mmX+ttx*mmTile, mmY+tty*mmTile, Math.max(1,mmTile), Math.max(1,mmTile));
+    ctx.globalAlpha=1;
+  });
   // claimed tiles on minimap
   Object.entries(pvpTiles).forEach(([idxStr,t])=>{
     if(!t.owner) return;
@@ -7582,12 +7926,44 @@ function pvpClickTile(tx,ty,e) {
   const sub=document.getElementById('pvp-tt-sub');
   const btn=document.getElementById('pvp-tt-btn');
 
-  title.textContent=`Tile (${tx}, ${ty}) · Stage 1-${diff}`;
+  // Build category display info
+  const specInfo = SPECIAL_TERRITORIES[idx];
+  const tileData = pvpTiles[idx];
+  const tileTV   = specInfo ? specInfo.tv : (tileData?.tv || 1);
+  const catDefs  = {
+    resource: { label:'Resource Territory', icon:'🌿' },
+    combat:   { label:'Combat Territory',   icon:'⚔️'  },
+    stage:    { label:'Defense Territory',  icon:'🛡️'  },
+  };
+  let catLabel, catIcon, catColor, rarityTag;
+  if (specInfo) {
+    const cd = catDefs[specInfo.category] || { label:'Territory', icon:'⬜' };
+    catLabel = cd.label;  catIcon = cd.icon;  catColor = specInfo.glowColor;
+    const rc = { rare:'#52d9ff', epic:'#c050f0', legendary:'#f0c040' }[specInfo.rarity] || '#aaa';
+    const rl = specInfo.rarity.charAt(0).toUpperCase() + specInfo.rarity.slice(1);
+    rarityTag = `&nbsp;<span style="font-size:10px;color:${rc};background:${rc}18;padding:1px 5px;border-radius:3px;font-weight:600;">${rl}</span>`;
+  } else if (tileTV > 1) {
+    catLabel = 'Value Territory';  catIcon = '⭐';
+    catColor = tileTV >= 10 ? '#f0c040' : tileTV >= 5 ? '#c050f0' : '#5090f0';
+    const rl = tileTV >= 10 ? 'Legendary' : tileTV >= 5 ? 'Epic' : 'Rare';
+    const rc = tileTV >= 10 ? '#f0c040' : tileTV >= 5 ? '#c050f0' : '#5090f0';
+    rarityTag = `&nbsp;<span style="font-size:10px;color:${rc};background:${rc}18;padding:1px 5px;border-radius:3px;font-weight:600;">${rl}</span>`;
+  } else {
+    catLabel = 'Defense Territory';  catIcon = '🛡️';  catColor = '#6a7090';  rarityTag = '';
+  }
+
+  title.innerHTML = `${catIcon} <span style="color:${catColor};font-weight:700;">${catLabel}</span>${rarityTag}`;
+
+  // Coordinate + type info (always shown first)
+  const tvSuffix = catLabel !== 'Value Territory' ? ` · <span style="color:${catColor};font-weight:600;">+${tileTV} TV</span>` : '';
+  const coordLine = `<div style="color:#a0a8c0;margin-bottom:2px;">(${tx}, ${ty}) · Stage 1-${diff}</div>`
+                  + `<div style="color:#a0a8c0;margin-bottom:4px;">${catLabel}${tvSuffix}</div>`;
+
   const mineBtns=document.getElementById('pvp-tt-mine-btns');
   const homeBtn=document.getElementById('pvp-tt-home-btn');
   if(isMine){
     const isHome=pvpHomeTile&&pvpHomeTile.tx===tx&&pvpHomeTile.ty===ty;
-    sub.innerHTML=`<span style="color:#3ecf8e">✓ Your territory · Stage 1-${diff}</span>${isHome?'&nbsp;<span style="color:#f0c040">⭐ Home</span>':''}`;
+    sub.innerHTML=coordLine+`<span style="color:#3ecf8e">✓ Your territory</span>${isHome?'&nbsp;<span style="color:#f0c040">⭐ Home</span>':''}`;
     if(mineBtns) mineBtns.style.display='flex';
     if(homeBtn){ homeBtn.disabled=isHome; homeBtn.textContent=isHome?'⭐ Home Base':'🏠 Set as Home'; }
     btn.style.display='none';
@@ -7596,20 +7972,40 @@ function pvpClickTile(tx,ty,e) {
     btn.style.display='';
     if(isUnderAttack){
       const s=Math.ceil((tile.attackingUntil-now)/1000);
-      sub.innerHTML=`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
+      sub.innerHTML=coordLine+`<span style="color:#f0a040">⚔️ Under attack! (${s}s)</span>`;
     } else if(isOwned){
-      sub.innerHTML=`<span style="color:#f55a5a">Enemy territory · Stage 1-${diff}</span>`;
+      sub.innerHTML=coordLine+`<span style="color:#f55a5a">Enemy Controlled</span>`;
     } else {
-      sub.innerHTML=`Unclaimed · Stage 1-${diff}`;
+      sub.innerHTML=coordLine+`<span style="color:#6a7090;">Unclaimed</span>`;
     }
-    // Check territorial expansion rules
     const canAttack = canAttackTile(tx, ty, isUnderAttack, onCooldown);
-
-    btn.textContent = canAttack.canAttack
-      ? `⚔️ Attack (Stage 1-${diff})`
-      : canAttack.reason;
+    btn.textContent = canAttack.canAttack ? `⚔️ Attack (Stage 1-${diff})` : canAttack.reason;
     btn.disabled = !canAttack.canAttack;
     btn.onclick = canAttack.canAttack ? pvpAttackTile : null;
+  }
+  // Bonus details panel
+  if (specInfo?.bonusStat) {
+    const bonusStatus = isMine
+      ? `<span style="color:#3ecf8e;font-weight:600;">✓ Active for your alliance</span>`
+      : isOwned
+        ? `<span style="color:#f55a5a;">Controlled by enemy</span>`
+        : `<span style="color:#6a7090;">Capture to activate</span>`;
+    sub.innerHTML += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);line-height:1.6;">
+      <div style="font-size:12px;font-weight:600;color:${specInfo.glowColor};">${specInfo.bonusDesc}</div>
+      <div style="font-size:10px;color:#6a7090;margin-top:2px;">Alliance-wide buff when captured.</div>
+      <div style="font-size:10px;margin-top:3px;">${bonusStatus}</div>
+    </div>`;
+  } else if (tileTV > 1) {
+    const tvStatus = isMine
+      ? `<span style="color:#3ecf8e;font-weight:600;">✓ TV counted toward your alliance</span>`
+      : isOwned
+        ? `<span style="color:#f55a5a;">Controlled by enemy</span>`
+        : `<span style="color:#6a7090;">Capture for territory value</span>`;
+    sub.innerHTML += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);line-height:1.6;">
+      <div style="font-size:11px;color:${catColor};font-weight:600;">+${tileTV} Territory Value</div>
+      <div style="font-size:10px;color:#6a7090;margin-top:2px;">TV unlocks alliance milestones. No direct combat effect.</div>
+      <div style="font-size:10px;margin-top:3px;">${tvStatus}</div>
+    </div>`;
   }
 
   // Position tooltip near the clicked tile
@@ -7696,12 +8092,6 @@ async function pvpAttackTile(){
   const{tx,ty,idx}=pvpSelectedTile;
   const diff=pvpTileDifficulty(tx,ty);
   pvpHideTooltip();
-  try{
-    const attackingUntil=new Date(Date.now()+10*60*1000).toISOString();
-    await sb.from('pvp_world').upsert({tile_idx:idx,owner_id:pvpTiles[idx]?.owner||null,attacking_until:attackingUntil});
-    if(!pvpTiles[idx]) pvpTiles[idx]={owner:null,color:null};
-    pvpTiles[idx].attackingUntil=Date.now()+10*60*1000;
-  }catch(e){console.warn('attack lock failed:',e.message);}
   pvpPendingTile={tx,ty,idx};
   openBattleSetup(`pvp-${diff}`,true);
 }
@@ -7709,11 +8099,11 @@ async function pvpAttackTile(){
 async function pvpBattleEnded(tile,won){
   if(!tile||!currentUser) return;
   try{
-    const cooldownUntil=new Date(Date.now()+10*1000).toISOString();
+    const cooldownUntil=new Date(Date.now()+30*1000).toISOString();
     if(won){
       await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:currentUser.id,attacking_until:cooldownUntil,claimed_at:new Date().toISOString()});
       const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
-      pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+10000};
+      pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+30000};
       pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
       if(!pvpHomeTile) pvpHomeTile={tx:tile.tx, ty:tile.ty};
       showToast(`🟢 Tile (${tile.tx},${tile.ty}) conquered!`);
@@ -7722,12 +8112,12 @@ async function pvpBattleEnded(tile,won){
     } else {
       const prevOwner=pvpTiles[tile.idx]?.owner||null;
       await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:prevOwner,attacking_until:cooldownUntil});
-      if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+10000;
+      if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+30000;
       showToast('💀 Attack failed!');
       pvpAttackCooldownUntil=Date.now()+60*1000;
     }
     pvpDraw();
-    setTimeout(()=>pvpRefresh(),11000);
+    setTimeout(()=>pvpRefresh(),31000);
   }catch(e){console.warn('pvpBattleEnded failed:',e.message);}
 }
 
@@ -8051,8 +8441,702 @@ async function startSiloUpgrade(resId, tierIdx) {
   } catch(e) { /* toast shown by serverRpc */ }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ALLIANCE TERRITORY BUFFS
+// ═══════════════════════════════════════════════════════════════
+
+const ALLIANCE_TERRITORY_MILESTONES = [
+  { territories:  1, icon:'🌲', name:'Forester Network',    desc:'+5% ALL resource production',            type:'all_resource_prod',  pct:0.05  },
+  { territories:  5, icon:'⛏️',  name:'Resource Expansion',  desc:'+10% all resource production',           type:'all_resource_prod',  pct:0.10  },
+  { territories: 15, icon:'⚔️', name:'War Forges',           desc:'+15% turret damage',                     type:'tower_dmg',          pct:0.15  },
+  { territories: 25, icon:'⚡', name:'Battle Tempo',         desc:'+15% turret attack speed',               type:'tower_spd',          pct:0.15  },
+  { territories: 40, icon:'🧊', name:'Freezing Arrowheads', desc:'Non-AOE turrets slow targets by 25%',    type:'slow',               pct:0.25  },
+  { territories: 60, icon:'🏹', name:'Multi-Barrage',        desc:'Non-AOE turrets fire +1 projectile',     type:'extra_projectile',   count:1   },
+  { territories: 80, icon:'🛡️', name:'War Bonds',            desc:'+20% turret HP',                         type:'troop_hp',           pct:0.20  },
+  { territories:100, icon:'🗡️', name:'Grand Campaign',       desc:'+1 maximum equipped turret in battle',   type:'extra_slot',         count:1   },
+  { territories:120, icon:'💥', name:'Critical Warfare',     desc:'Projectile hits have 10% chance for +50% bonus damage', type:'crit_bonus', pct:0.50 },
+  { territories:150, icon:'👁️', name:'Giant Slayer',         desc:'Boss enemies take +15% damage',          type:'boss_dmg',           pct:0.15  },
+];
+
+function getAllianceBuffs() {
+  const tc       = (allianceState?.in_alliance) ? (allianceState.territory_value            || 0) : 0;
+  const prodBon  = (allianceState?.in_alliance) ? (allianceState.territory_production_bonus || 0) : 0;
+  const defBon   = (allianceState?.in_alliance) ? (allianceState.territory_defense_bonus    || 0) : 0;
+  const ab = { tower_dmg:0, tower_spd:0, extra_slot:0, extra_projectile:0, slow:0, crit_bonus:0, boss_dmg:0, troop_hp:0, mob_hp_reduce:0, all_resource_prod:0, stage_value:0, territory_prod_bonus: prodBon, territory_def_bonus: defBon };
+  if (!allianceState?.in_alliance) return ab;
+  // Milestone buffs (territory value thresholds)
+  for (const m of ALLIANCE_TERRITORY_MILESTONES) {
+    if (tc < m.territories) break;
+    if (m.type === 'tower_dmg')          ab.tower_dmg          += m.pct;
+    else if (m.type === 'tower_spd')     ab.tower_spd          += m.pct;
+    else if (m.type === 'extra_slot')    ab.extra_slot         += m.count;
+    else if (m.type === 'extra_projectile') ab.extra_projectile += m.count;
+    else if (m.type === 'slow')          ab.slow               += m.pct;
+    else if (m.type === 'crit_bonus')    ab.crit_bonus         += m.pct;
+    else if (m.type === 'boss_dmg')      ab.boss_dmg           += m.pct;
+    else if (m.type === 'troop_hp')      ab.troop_hp           += m.pct;
+    else if (m.type === 'all_resource_prod') ab.all_resource_prod += m.pct;
+  }
+  // Special territory buffs (owned named territories)
+  const ownedSpecial = allianceState?.owned_special_tiles || [];
+  for (const entry of ownedSpecial) {
+    const spec = SPECIAL_TERRITORIES[entry.tile_idx];
+    if (!spec) continue;
+    const k = spec.bonusStat;
+    if      (k === 'all_resource_prod')  ab.all_resource_prod  += spec.bonusValue;
+    else if (k === 'tower_dmg')          ab.tower_dmg          += spec.bonusValue;
+    else if (k === 'tower_spd')          ab.tower_spd          += spec.bonusValue;
+    else if (k === 'troop_hp')           ab.troop_hp           += spec.bonusValue;
+    else if (k === 'slow')               ab.slow               += spec.bonusValue;
+    else if (k === 'crit_bonus')         ab.crit_bonus         += spec.bonusValue;
+    else if (k === 'boss_dmg')           ab.boss_dmg           += spec.bonusValue;
+    else if (k === 'extra_projectile')   ab.extra_projectile   += spec.bonusValue;
+    else if (k === 'extra_slot')         ab.extra_slot         += spec.bonusValue;
+    else if (k === 'stage_value')        ab.stage_value        += spec.bonusValue;
+    else if (k === 'mob_hp_reduce')      ab.mob_hp_reduce      += spec.bonusValue;
+  }
+  return ab;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ALLIANCE
+// ═══════════════════════════════════════════════════════════════
+
+let allianceState = null;     // cached result of idw_get_alliance_state()
+let allianceActiveTab = 'members';
+let allianceBrowserFilters = { joinType:'all', minPower:'', maxPower:'', lang:'all', sort:'power', joinableOnly:false, search:'' };
+let _alRefreshTimer = null;
+
+// ── helpers ──
+
+function alFmtPower(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return Math.round(n/1e3)+'K';
+  return (n||0).toLocaleString();
+}
+
+function alFmtTimeAgo(ts) {
+  if (!ts) return 'Unknown';
+  const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (s < 60)    return 'Just now';
+  if (s < 3600)  return Math.floor(s/60)+'m ago';
+  if (s < 86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+function alJoinBadge(jt) {
+  if (jt==='open')   return '<span class="al-join-badge al-join-open">Open</span>';
+  if (jt==='apply')  return '<span class="al-join-badge al-join-apply">Apply</span>';
+  return                    '<span class="al-join-badge al-join-invite">Invite Only</span>';
+}
+
+function alRankBadge(rank) {
+  const icon  = {commander:'👑',officer:'⚔️',veteran:'🛡️',member:'👤',recruit:'🔰'};
+  const label = {commander:'Commander',officer:'Officer',veteran:'Veteran',member:'Member',recruit:'Recruit'};
+  return `<span class="al-rank-badge al-rank-${rank}">${icon[rank]||''} ${label[rank]||rank}</span>`;
+}
+
+function alCanManage(myRank) {
+  return myRank === 'commander' || myRank === 'officer';
+}
+
+function alCanManageMember(myRank, targetRank) {
+  const order = {commander:1,officer:2,veteran:3,member:4,recruit:5};
+  return (order[myRank]||9) < (order[targetRank]||9);
+}
+
+// ── init ──
+
+async function initAlliance() {
+  const el = document.getElementById('al-content');
+  if (!el) return;
+  el.innerHTML = '<div class="al-placeholder" style="margin:auto;">Loading…</div>';
+  try {
+    const data = await serverRpc('idw_get_alliance_state');
+    allianceState = data;
+    if (data.in_alliance) renderAllianceHome(el, data);
+    else renderAllianceBrowser(el);
+  } catch(e) {
+    el.innerHTML = '<div class="al-placeholder" style="margin:auto;color:#f44;">Failed to load alliance data. Please try again.</div>';
+  }
+}
+
+// ── browser view ──
+
+function alRefreshList() {
+  clearTimeout(_alRefreshTimer);
+  _alRefreshTimer = setTimeout(async () => {
+    const listEl = document.getElementById('al-list-inner');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="al-placeholder">Loading…</div>';
+    try {
+      const f = allianceBrowserFilters;
+      const list = await serverRpc('idw_list_alliances', {
+        p_search:        f.search || '',
+        p_join_type:     f.joinType || 'all',
+        p_min_power:     parseInt(f.minPower) || 0,
+        p_max_power:     parseInt(f.maxPower) || 0,
+        p_lang:          f.lang || 'all',
+        p_sort:          f.sort || 'power',
+        p_joinable_only: !!f.joinableOnly,
+      });
+      if (!list || list.length === 0) {
+        listEl.innerHTML = '<div class="al-placeholder">No alliances found. Be the first to create one!</div>';
+        return;
+      }
+      listEl.innerHTML = list.map(a => `
+        <div class="al-card">
+          <div class="al-card-head">
+            <div class="al-card-name">${a.name}</div>
+            <div class="al-card-tag">[${a.tag}]</div>
+            ${alJoinBadge(a.join_type)}
+          </div>
+          <div class="al-card-stats">
+            <div class="al-stat">👥 <span>${a.member_count}/${a.max_members}</span></div>
+            <div class="al-stat">⚡ <span>${alFmtPower(a.total_power)}</span></div>
+            <div class="al-stat">🔒 <span>${a.min_power > 0 ? alFmtPower(a.min_power)+' req' : 'No req'}</span></div>
+            <div class="al-stat">🌐 <span>${a.language}</span></div>
+          </div>
+          <div class="al-card-desc">${a.description||''}</div>
+          <div class="al-card-actions">
+            ${a.join_type==='open'  ? `<button class="al-btn al-btn-join"  onclick="alJoin('${a.id}')">Join</button>`   : ''}
+            ${a.join_type==='apply' ? `<button class="al-btn al-btn-apply" onclick="alApply('${a.id}')">Apply</button>` : ''}
+          </div>
+        </div>`).join('');
+    } catch(e) {
+      listEl.innerHTML = '<div class="al-placeholder" style="color:#f44;">Failed to load alliances.</div>';
+    }
+  }, 300);
+}
+
+function renderAllianceBrowser(el) {
+  const f = allianceBrowserFilters;
+  el.innerHTML = `
+    <div class="al-browser">
+      <div class="al-list-wrap">
+        <input class="al-search" placeholder="Search alliance name…" value="${f.search.replace(/"/g,'&quot;')}"
+          oninput="allianceBrowserFilters.search=this.value;alRefreshList()">
+        <div class="al-list" id="al-list-inner"><div class="al-placeholder">Loading…</div></div>
+      </div>
+      <div class="al-filters">
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">Filters</div>
+        <div>
+          <div class="al-filter-label">Join Type</div>
+          <select class="al-filter-input" onchange="allianceBrowserFilters.joinType=this.value;alRefreshList()">
+            <option value="all"    ${f.joinType==='all'?'selected':''}>All</option>
+            <option value="open"   ${f.joinType==='open'?'selected':''}>Open</option>
+            <option value="apply"  ${f.joinType==='apply'?'selected':''}>Apply</option>
+            <option value="invite" ${f.joinType==='invite'?'selected':''}>Invite Only</option>
+          </select>
+        </div>
+        <div>
+          <div class="al-filter-label">Min Power</div>
+          <input class="al-filter-input" type="number" placeholder="e.g. 500000" value="${f.minPower}"
+            onchange="allianceBrowserFilters.minPower=this.value;alRefreshList()">
+        </div>
+        <div>
+          <div class="al-filter-label">Max Power</div>
+          <input class="al-filter-input" type="number" placeholder="e.g. 5000000" value="${f.maxPower}"
+            onchange="allianceBrowserFilters.maxPower=this.value;alRefreshList()">
+        </div>
+        <div>
+          <div class="al-filter-label">Language</div>
+          <select class="al-filter-input" onchange="allianceBrowserFilters.lang=this.value;alRefreshList()">
+            <option value="all" ${f.lang==='all'?'selected':''}>All</option>
+            <option value="EN"  ${f.lang==='EN'?'selected':''}>English</option>
+            <option value="ES"  ${f.lang==='ES'?'selected':''}>Spanish</option>
+            <option value="FR"  ${f.lang==='FR'?'selected':''}>French</option>
+          </select>
+        </div>
+        <div>
+          <div class="al-filter-label">Sort By</div>
+          <select class="al-filter-input" onchange="allianceBrowserFilters.sort=this.value;alRefreshList()">
+            <option value="power"   ${f.sort==='power'?'selected':''}>Power</option>
+            <option value="members" ${f.sort==='members'?'selected':''}>Members</option>
+          </select>
+        </div>
+        <label class="al-filter-check">
+          <input type="checkbox" ${f.joinableOnly?'checked':''} onchange="allianceBrowserFilters.joinableOnly=this.checked;alRefreshList()">
+          Only show joinable
+        </label>
+        <button class="al-filter-clear" onclick="allianceBrowserFilters={joinType:'all',minPower:'',maxPower:'',lang:'all',sort:'power',joinableOnly:false,search:''};alRefreshList()">Clear Filters</button>
+        <div style="border-top:1px solid var(--border);padding-top:0.6rem;">
+          <button class="al-btn al-btn-join" style="width:100%;padding:9px;" onclick="alShowCreate()">+ Create Alliance</button>
+        </div>
+      </div>
+    </div>`;
+  alRefreshList();
+}
+
+// ── home view ──
+
+function renderAllianceHome(el, state) {
+  allianceState = state;
+  const a = state.alliance;
+  const myRank = state.my_rank;
+  const canManage = alCanManage(myRank);
+  const tabs = ['members','chat','territory','research'];
+  if (canManage) tabs.push('settings');
+  const tabBar = tabs.map(t => {
+    const label = {members:'👥 Members',chat:'💬 Chat',territory:'🗺️ Territory',research:'🔬 Research',settings:'⚙️ Settings'}[t];
+    return `<button class="al-tab${t===allianceActiveTab?' active':''}" data-tab="${t}" onclick="switchAllianceTab('${t}')">${label}</button>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="al-home">
+      <div class="al-tab-bar">
+        ${tabBar}
+        <div style="flex:1;"></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;color:var(--text2);white-space:nowrap;">
+          <span style="font-weight:700;color:var(--blue);">[${a.tag}]</span>
+          <span style="color:#fff;">${a.name}</span>
+          <span style="color:var(--border2);">|</span>
+          <span>👥 ${a.member_count}/${a.max_members}</span>
+          <span style="color:var(--border2);">|</span>
+          <span>⚡ ${alFmtPower(a.total_power)}</span>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        ${alMembersPanel(state)}
+        ${alChatPanel(state)}
+        ${alTerritoryPanel()}
+        ${alResearchPanel()}
+        ${canManage ? alSettingsPanel(state) : ''}
+      </div>
+    </div>`;
+  switchAllianceTab(allianceActiveTab);
+}
+
+function alMembersPanel(state) {
+  const myRank = state.my_rank;
+  const myUserId = state.my_user_id;
+  const canManage = alCanManage(myRank);
+  const members = state.members || [];
+
+  if (members.length === 0) {
+    return `<div class="al-panel" id="al-panel-members"><div class="al-placeholder">No members found.</div></div>`;
+  }
+
+  const rows = members.map(m => {
+    const canAct = canManage && m.user_id !== myUserId && alCanManageMember(myRank, m.rank);
+    return `
+    <tr>
+      <td>${alRankBadge(m.rank)}</td>
+      <td style="color:#fff;font-weight:${m.rank==='commander'?700:400};">${m.username}</td>
+      <td>${alFmtPower(m.power||0)}</td>
+      <td>Lv ${m.level||1}</td>
+      <td>${alFmtTimeAgo(m.last_online)}</td>
+      ${canManage ? `<td>${canAct
+        ? `<div style="display:flex;gap:4px;">
+            <button class="al-action-btn" onclick="alPromote('${m.user_id}','${m.username}')">Promote</button>
+            <button class="al-action-btn" onclick="alDemote('${m.user_id}','${m.username}')">Demote</button>
+            <button class="al-action-btn danger" onclick="alKick('${m.user_id}','${m.username}')">Kick</button>
+           </div>`
+        : ''}</td>` : ''}
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="al-panel" id="al-panel-members">
+      <div style="overflow-x:auto;">
+        <table class="al-members-table">
+          <thead><tr>
+            <th>Rank</th><th>Username</th><th>Power</th><th>Level</th><th>Last Online</th>
+            ${canManage?'<th>Actions</th>':''}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function alChatPanel(state) {
+  const a            = state.alliance;
+  const isCommander  = state.my_rank === 'commander';
+  const announcement = a.announcement || '';
+  const updatedAt    = a.announcement_updated_at ? alFmtTimeAgo(a.announcement_updated_at) : null;
+  const updatedBy    = a.announcement_updated_by || null;
+
+  const chat = (state.chat || []).slice().sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  const msgs = chat.map(m => `
+    <div>
+      <div class="al-chat-msg-head">
+        <span class="al-chat-username">${m.username}</span>
+        ${alRankBadge(m.rank)}
+        <span class="al-chat-time">${alFmtTimeAgo(m.created_at)}</span>
+      </div>
+      <div class="al-chat-text">${m.message}</div>
+    </div>`).join('');
+
+  return `
+    <div class="al-panel" id="al-panel-chat" style="overflow:hidden;gap:0.75rem;">
+
+      <!-- Announcement box -->
+      <div class="al-announce-box" id="al-announce-box">
+        <div class="al-announce-header">
+          <span class="al-announce-title">📢 ALLIANCE ANNOUNCEMENT</span>
+          <span class="al-announce-meta">${updatedAt && updatedBy ? `Last edited ${updatedAt} by ${updatedBy}` : ''}</span>
+          ${isCommander ? `<button class="al-announce-edit-btn" onclick="alStartEditAnnouncement()">✏️ Edit</button>` : ''}
+        </div>
+        <div id="al-announce-view">
+          ${announcement
+            ? `<div class="al-announce-text">${announcement}</div>`
+            : `<div class="al-announce-empty">No announcement set.</div>`}
+        </div>
+        <div id="al-announce-edit" style="display:none;">
+          <textarea class="al-announce-textarea" id="al-announce-input" rows="3" maxlength="500">${announcement.replace(/</g,'&lt;')}</textarea>
+          <div class="al-announce-save-row">
+            <button class="al-btn al-btn-join" style="padding:6px 16px;font-size:12px;" onclick="alSaveAnnouncement()">Save</button>
+            <button class="al-btn" style="padding:6px 16px;font-size:12px;" onclick="alCancelEditAnnouncement()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <div class="al-chat-wrap">
+        <div class="al-chat-messages" id="al-chat-messages">${msgs||'<div class="al-placeholder">No messages yet. Say hello!</div>'}</div>
+        <div class="al-chat-input-row">
+          <input class="al-chat-input" id="al-chat-input" placeholder="Type a message…" onkeydown="if(event.key==='Enter')alSendChat()">
+          <button class="al-chat-send" onclick="alSendChat()">Send</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function alTerritoryPanel() {
+  const tc      = allianceState?.territory_value            || 0;
+  const prodBon = allianceState?.territory_production_bonus || 0;
+  const defBon  = allianceState?.territory_defense_bonus    || 0;
+  const unlockedCount = ALLIANCE_TERRITORY_MILESTONES.filter(m => tc >= m.territories).length;
+  const nextMilestone = ALLIANCE_TERRITORY_MILESTONES.find(m => tc < m.territories);
+  const progressPct = nextMilestone
+    ? Math.min(100, (tc / nextMilestone.territories) * 100).toFixed(1)
+    : 100;
+
+  const buffCards = ALLIANCE_TERRITORY_MILESTONES.map(m => {
+    const unlocked = tc >= m.territories;
+    const remaining = Math.max(0, m.territories - tc);
+    return `
+      <div class="al-buff-card ${unlocked ? 'unlocked' : 'locked'}">
+        <div class="al-buff-icon">${m.icon}</div>
+        <div class="al-buff-info" style="flex:1;min-width:0;">
+          <div class="al-buff-name">${m.name}
+            <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">${m.territories} TV</span>
+          </div>
+          <div class="al-buff-desc">${m.desc}</div>
+          <div class="al-buff-req">
+            ${unlocked
+              ? `<span class="al-buff-active">✅ Unlocked &amp; Active</span>`
+              : `<span class="al-buff-locked">🔒 Need ${m.territories} TV (${remaining} more)</span>`}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // ── Territory Unique Buffs sidebar ──
+  const ownedSpecial = (allianceState?.owned_special_tiles || [])
+    .map(e => SPECIAL_TERRITORIES[e.tile_idx]).filter(Boolean);
+  const rarityColors   = { rare:'#52d9ff', epic:'#c050f0', legendary:'#f0c040' };
+
+  const specialCards = ownedSpecial.map(spec => {
+    const rc = rarityColors[spec.rarity] || '#aaa';
+    const rl = spec.rarity.charAt(0).toUpperCase() + spec.rarity.slice(1);
+    return `<div class="al-special-buff-card" style="border-left:3px solid ${spec.glowColor};">
+      <div class="al-special-buff-header">
+        <span class="al-special-buff-icon">${spec.icon}</span>
+        <div style="flex:1;min-width:0;">
+          <div class="al-special-buff-name">${spec.name}</div>
+          <div style="display:flex;gap:4px;align-items:center;margin-top:2px;">
+            <span class="al-special-buff-tag" style="color:${rc};background:${rc}1a;">${rl}</span>
+          </div>
+        </div>
+        <span style="font-size:12px;font-weight:700;color:${spec.glowColor};white-space:nowrap;padding-left:4px;">+${spec.tv} TV</span>
+      </div>
+      <div class="al-special-buff-desc">${spec.bonusDesc}</div>
+      <div style="padding-left:26px;font-size:10px;color:var(--green);font-weight:600;margin-top:1px;">Active ●</div>
+    </div>`;
+  }).join('');
+
+  // Stacked total from special territories
+  const totals = {};
+  for (const spec of ownedSpecial) { totals[spec.bonusStat] = (totals[spec.bonusStat] || 0) + spec.bonusValue; }
+  const statIcons  = { all_resource_prod:'🌿', tower_dmg:'⚔️', tower_spd:'⚡', slow:'🧊', crit_bonus:'💥', mob_hp_reduce:'🔥', extra_projectile:'🏹', extra_slot:'🗡️', stage_value:'🔮' };
+  const isPct = k => ['all_resource_prod','tower_dmg','tower_spd','slow','crit_bonus','mob_hp_reduce'].includes(k);
+  const totalItems = Object.entries(totals).map(([k, v]) => {
+    const icon = statIcons[k] || '•';
+    const display = k === 'mob_hp_reduce' ? `-${Math.round(v*100)}%` : isPct(k) ? `+${Math.round(v*100)}%` : `+${v}`;
+    return `<div class="al-total-bonus-item"><span>${icon}</span><span style="color:#fff;">${display}</span></div>`;
+  }).join('');
+
+  const sidebarHtml = `
+    <div class="al-terr-sidebar">
+      <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:3px;letter-spacing:0.03em;">Territory Unique Buffs</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Buffs from special territories your alliance owns.</div>
+      ${ownedSpecial.length > 0 ? specialCards : `<div class="al-spec-empty">No special territories held.<br>Capture named territories on the world map for unique buffs.</div>`}
+      ${totalItems ? `
+      <div class="al-total-bonus-box" style="margin-top:4px;">
+        <div class="al-total-bonus-title">Total Bonus (Stacked)</div>
+        <div class="al-total-bonus-sub">All buffs are applied to every member of the alliance.</div>
+        <div class="al-total-bonus-row">${totalItems}</div>
+        <div style="margin-top:8px;background:var(--bg4);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--text2);">
+          <span style="color:var(--blue)">ℹ</span> <strong style="color:#fff;">These buffs affect all players</strong>
+          <ul style="margin:4px 0 0 14px;padding:0;line-height:1.7;color:var(--text3);">
+            <li>Production boosts affect idle, offline, and active gathering.</li>
+            <li>Combat boosts affect all turret stats in PvE and PvP.</li>
+          </ul>
+        </div>
+      </div>` : ''}
+    </div>`;
+
+  return `
+    <div class="al-panel" id="al-panel-territory">
+      <div class="al-terr-header">
+        <div class="al-terr-stat">
+          <div class="al-terr-stat-val">${tc}</div>
+          <div class="al-terr-stat-label">Territory Value</div>
+        </div>
+        <div class="al-terr-stat">
+          <div class="al-terr-stat-val">${unlockedCount}</div>
+          <div class="al-terr-stat-label">Buffs Active</div>
+        </div>
+        <div class="al-terr-stat">
+          <div class="al-terr-stat-val">${nextMilestone ? nextMilestone.territories : '✓'}</div>
+          <div class="al-terr-stat-label">Next Milestone</div>
+        </div>
+      </div>
+      <div class="al-terr-layout">
+        <div class="al-terr-main">
+          ${(prodBon > 0 || defBon > 0) ? `
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            ${prodBon > 0 ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--green);border-radius:7px;padding:0.4rem 0.75rem;font-size:12px;">
+              ⛏️ <span style="color:var(--green);font-weight:600;">+${(prodBon*100).toFixed(0)}%</span> <span style="color:var(--text2);">production from territories</span>
+            </div>` : ''}
+            ${defBon > 0 ? `<div style="background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--blue);border-radius:7px;padding:0.4rem 0.75rem;font-size:12px;">
+              🛡️ <span style="color:var(--blue);font-weight:600;">+${(defBon*100).toFixed(0)}%</span> <span style="color:var(--text2);">defense from territories</span>
+            </div>` : ''}
+          </div>` : ''}
+          ${nextMilestone ? `
+          <div class="al-terr-prog">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:6px;">
+              <span>Next: <span style="color:#fff;font-weight:600;">${nextMilestone.icon} ${nextMilestone.name}</span></span>
+              <span>${tc} / ${nextMilestone.territories}</span>
+            </div>
+            <div style="height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,var(--blue),#6ab4ff);border-radius:4px;transition:width 0.4s;"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:5px;">
+              Capture PvP tiles to earn territory value. High-value tiles (+3, +5, +10) count more.
+            </div>
+          </div>` : `
+          <div style="text-align:center;padding:0.75rem;font-size:13px;color:var(--green);font-weight:600;">
+            🏆 All territory milestones unlocked!
+          </div>`}
+          <div style="display:flex;flex-direction:column;gap:0.5rem;">
+            ${buffCards}
+          </div>
+        </div>
+        ${sidebarHtml}
+      </div>
+    </div>`;
+}
+
+function alResearchPanel() {
+  return `<div class="al-panel" id="al-panel-research"><div class="al-placeholder">🔬 Alliance Research<br><span style="font-size:11px;">Coming soon — pool resources to unlock alliance-wide upgrades</span></div></div>`;
+}
+
+function alSettingsPanel(state) {
+  const a = state.alliance;
+  const isCommander = state.my_rank === 'commander';
+  return `
+    <div class="al-panel" id="al-panel-settings">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:1rem;max-width:440px;">
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:1rem;">⚙️ Alliance Settings</div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+          ${isCommander ? `
+          <div><div class="al-filter-label">Alliance Name</div>
+            <input class="al-filter-input" id="al-settings-name" value="${a.name.replace(/"/g,'&quot;')}" style="font-size:13px;padding:9px 12px;"></div>
+          <div><div class="al-filter-label">Tag (max 5 chars)</div>
+            <input class="al-filter-input" id="al-settings-tag" value="${a.tag.replace(/"/g,'&quot;')}" maxlength="5" style="font-size:13px;padding:9px 12px;max-width:120px;"></div>
+          <div><div class="al-filter-label">Join Type</div>
+            <select class="al-filter-input" id="al-settings-jointype" style="font-size:13px;padding:9px 12px;">
+              <option value="open"   ${a.join_type==='open'?'selected':''}>Open</option>
+              <option value="apply"  ${a.join_type==='apply'?'selected':''}>Apply</option>
+              <option value="invite" ${a.join_type==='invite'?'selected':''}>Invite Only</option>
+            </select></div>` : ''}
+          <div><div class="al-filter-label">Description</div>
+            <textarea class="al-filter-input" id="al-settings-desc" rows="3" style="resize:vertical;font-size:13px;padding:9px 12px;">${a.description||''}</textarea></div>
+          <div><div class="al-filter-label">Announcement</div>
+            <textarea class="al-filter-input" id="al-settings-announce" rows="2" style="resize:vertical;font-size:13px;padding:9px 12px;">${a.announcement||''}</textarea></div>
+          <button class="al-btn al-btn-join" style="align-self:flex-start;padding:9px 22px;font-size:13px;" onclick="alSaveSettings()">Save Changes</button>
+          <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
+            <button class="al-btn al-btn-danger" style="padding:9px 22px;font-size:13px;" onclick="alLeave()">🚪 Leave Alliance</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function switchAllianceTab(tab) {
+  allianceActiveTab = tab;
+  ['members','chat','territory','research','settings'].forEach(t => {
+    const p = document.getElementById('al-panel-'+t);
+    if (p) p.classList.toggle('active', t===tab);
+  });
+  document.querySelectorAll('.al-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab===tab);
+  });
+  if (tab==='chat') setTimeout(()=>{ const el=document.getElementById('al-chat-messages'); if(el) el.scrollTop=el.scrollHeight; }, 30);
+}
+
+// ── actions ──
+
+async function alSendChat() {
+  const input = document.getElementById('al-chat-input');
+  const msg = (input?.value||'').trim();
+  if (!msg) return;
+  input.value = '';
+  try {
+    const state = await serverRpc('idw_send_alliance_chat', { p_message: msg });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    switchAllianceTab('chat');
+    requestAnimationFrame(() => document.getElementById('al-chat-input')?.focus());
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alJoin(allianceId) {
+  try {
+    const state = await serverRpc('idw_join_alliance', { p_alliance_id: allianceId });
+    allianceActiveTab = 'members';
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast('✅ Joined alliance!');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alApply(allianceId) {
+  try {
+    await serverRpc('idw_apply_alliance', { p_alliance_id: allianceId });
+    showToast('📨 Application sent!');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alLeave() {
+  if (!confirm('Are you sure you want to leave this alliance?')) return;
+  try {
+    await serverRpc('idw_leave_alliance');
+    allianceState = null;
+    renderAllianceBrowser(document.getElementById('al-content'));
+    showToast('👋 Left the alliance');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alPromote(userId, username) {
+  try {
+    const state = await serverRpc('idw_promote_member', { p_target_user_id: userId });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`🔺 Promoted ${username}`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alDemote(userId, username) {
+  try {
+    const state = await serverRpc('idw_demote_member', { p_target_user_id: userId });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`🔻 Demoted ${username}`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alKick(userId, username) {
+  if (!confirm(`Kick ${username} from the alliance?`)) return;
+  try {
+    const state = await serverRpc('idw_kick_member', { p_target_user_id: userId });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`👢 Kicked ${username}`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+async function alSaveSettings() {
+  const state = allianceState;
+  if (!state) return;
+  const isCommander = state.my_rank === 'commander';
+  const name     = isCommander ? (document.getElementById('al-settings-name')?.value||'').trim()   : state.alliance.name;
+  const tag      = isCommander ? (document.getElementById('al-settings-tag')?.value||'').trim()    : state.alliance.tag;
+  const jtype    = isCommander ? (document.getElementById('al-settings-jointype')?.value||'open')  : state.alliance.join_type;
+  const desc     = (document.getElementById('al-settings-desc')?.value||'').trim();
+  const announce = (document.getElementById('al-settings-announce')?.value||'').trim();
+  try {
+    const newState = await serverRpc('idw_update_alliance_settings', {
+      p_name: name, p_tag: tag, p_description: desc, p_announcement: announce, p_join_type: jtype
+    });
+    renderAllianceHome(document.getElementById('al-content'), newState);
+    switchAllianceTab('settings');
+    showToast('✅ Settings saved!');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+function alStartEditAnnouncement() {
+  document.getElementById('al-announce-view').style.display = 'none';
+  document.getElementById('al-announce-edit').style.display = '';
+  document.getElementById('al-announce-input')?.focus();
+}
+
+function alCancelEditAnnouncement() {
+  document.getElementById('al-announce-edit').style.display = 'none';
+  document.getElementById('al-announce-view').style.display = '';
+}
+
+async function alSaveAnnouncement() {
+  const text = (document.getElementById('al-announce-input')?.value || '').trim();
+  try {
+    const state = await serverRpc('idw_set_announcement', { p_text: text });
+    renderAllianceHome(document.getElementById('al-content'), state);
+    switchAllianceTab('chat');
+    showToast('📢 Announcement updated!');
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
+function alShowCreate() {
+  const el = document.getElementById('al-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="max-width:440px;margin:2rem auto;padding:1.5rem;background:var(--bg2);border:1px solid var(--border);border-radius:12px;">
+      <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:1.25rem;">⚔️ Create Alliance</div>
+      <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        <div><div class="al-filter-label">Alliance Name</div>
+          <input class="al-filter-input" id="al-create-name" placeholder="e.g. Wolf Pack" style="font-size:13px;padding:9px 12px;"></div>
+        <div><div class="al-filter-label">Tag (max 5 chars)</div>
+          <input class="al-filter-input" id="al-create-tag" placeholder="e.g. WOLF" maxlength="5" style="font-size:13px;padding:9px 12px;max-width:120px;"></div>
+        <div><div class="al-filter-label">Description</div>
+          <textarea class="al-filter-input" id="al-create-desc" rows="3" placeholder="Describe your alliance…" style="resize:vertical;font-size:13px;padding:9px 12px;"></textarea></div>
+        <div><div class="al-filter-label">Join Type</div>
+          <select class="al-filter-input" id="al-create-jointype" style="font-size:13px;padding:9px 12px;">
+            <option value="open">Open</option>
+            <option value="apply">Apply</option>
+            <option value="invite">Invite Only</option>
+          </select></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="al-btn al-btn-join" onclick="alSubmitCreate()" style="padding:9px 22px;font-size:13px;">Create</button>
+          <button class="al-btn" onclick="initAlliance()" style="padding:9px 22px;font-size:13px;">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function alSubmitCreate() {
+  const name  = (document.getElementById('al-create-name')?.value||'').trim();
+  const tag   = (document.getElementById('al-create-tag')?.value||'').trim();
+  const desc  = (document.getElementById('al-create-desc')?.value||'').trim();
+  const jtype = document.getElementById('al-create-jointype')?.value || 'open';
+  if (!name || !tag) { showToast('⚠️ Name and tag are required'); return; }
+  try {
+    const state = await serverRpc('idw_create_alliance', { p_name: name, p_tag: tag, p_description: desc, p_join_type: jtype });
+    allianceActiveTab = 'members';
+    renderAllianceHome(document.getElementById('al-content'), state);
+    showToast(`✅ Alliance "${name}" created!`);
+  } catch(e) { /* toast shown by serverRpc */ }
+}
+
 function switchSection(name){
-  ['base','campaign','pvp'].forEach(s=>{
+  ['base','campaign','pvp','alliance'].forEach(s=>{
     const el=document.getElementById('section-'+s);
     if(el) el.style.display=s===name?'flex':'none';
     const btn=document.getElementById('nav-'+s);
@@ -8089,6 +9173,7 @@ function switchSection(name){
     pvpHideTooltip();
     clearTimeout(pvpRefreshTimer);
   }
+  if(name === 'alliance') initAlliance();
 }
 function switchResTab(name){
   ['production','silo'].forEach(t=>{
