@@ -785,6 +785,8 @@ begin
       tower := jsonb_set(tower, '{dmg}', to_jsonb((tower->>'dmg')::numeric * (1 + effect_value)));
       tower := jsonb_set(tower, '{atkSpeed}', to_jsonb((tower->>'atkSpeed')::numeric * (1 - effect_value))); -- cooldown: lower = faster
       tower := jsonb_set(tower, '{range}', to_jsonb((tower->>'range')::numeric * (1 + effect_value)));
+    when 'aoe' then
+      null; -- AoE radius is not a tracked stat; enchant is stored for display only
     else
       raise exception 'Unknown enchantment effect type: %', effect_type;
   end case;
@@ -854,6 +856,196 @@ grant execute on function public.idw_submit_battle_result(uuid,boolean,int,int,i
 grant execute on function public.idw_apply_enchantment(int,jsonb) to authenticated;
 grant execute on function public.idw_save_state(jsonb) to authenticated;
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- MISSING ARMORY FUNCTIONS
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- Disenchant a tower: remove it from armory, refund 50% of base cost
+create or replace function public.idw_disenchant_tower(p_slot_idx int)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p         public.idw_player_state;
+  tower     jsonb;
+  base_cost jsonb;
+  refund    jsonb;
+  new_armory jsonb;
+begin
+  p := public.idw_ensure_player();
+
+  if p_slot_idx < 0 or p_slot_idx >= jsonb_array_length(p.armory) then
+    raise exception 'Invalid slot index';
+  end if;
+
+  tower     := p.armory->p_slot_idx;
+  base_cost := public.idw_tower_cost(tower->>'towerId');
+  if base_cost is null then raise exception 'Unknown tower type'; end if;
+
+  -- 50% refund of base cost (floor each value)
+  select coalesce(jsonb_object_agg(kv.key, floor(kv.value::numeric * 0.5)::integer), '{}'::jsonb)
+  into refund from jsonb_each(base_cost) as kv;
+
+  -- Remove slot: concatenate elements before and after the slot
+  select jsonb_agg(elem)
+  into new_armory
+  from (
+    select value as elem from jsonb_array_elements(p.armory) with ordinality as t(value, ord)
+    where (ord - 1) <> p_slot_idx
+  ) sub;
+
+  update public.idw_player_state
+  set armory    = coalesce(new_armory, '[]'::jsonb),
+      resources = public.idw_apply_resource_delta(resources, refund),
+      updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_disenchant_tower(int) to authenticated;
+
+-- Upgrade a tower in the armory: deduct cost, increment level, recalc enchanted stats
+create or replace function public.idw_upgrade_tower_in_armory(p_slot_idx int)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p          public.idw_player_state;
+  tower      jsonb;
+  base_cost  jsonb;
+  upg_cost   jsonb;
+  cur_level  int;
+  new_level  int;
+  new_armory jsonb;
+  -- for stat recalc
+  v_base_dmg  numeric; v_base_atk  numeric; v_base_rng  numeric; v_base_proj numeric;
+  v_dmg       numeric; v_atk       numeric; v_rng       numeric; v_proj      numeric;
+  v_eff_type  text;    v_eff_val   numeric;
+  i           int;
+begin
+  p := public.idw_ensure_player();
+
+  if p_slot_idx < 0 or p_slot_idx >= jsonb_array_length(p.armory) then
+    raise exception 'Invalid slot index';
+  end if;
+
+  tower     := p.armory->p_slot_idx;
+  base_cost := public.idw_tower_cost(tower->>'towerId');
+  if base_cost is null then raise exception 'Unknown tower type'; end if;
+
+  cur_level := coalesce((tower->>'level')::int, 1);
+  new_level := cur_level + 1;
+
+  -- Upgrade cost: round(base_cost[k] * 0.5 * 1.4^(cur_level-1)) — matches client towerUpgradeCost
+  select coalesce(
+    jsonb_object_agg(kv.key, round(kv.value::numeric * 0.5 * power(1.4, cur_level - 1))::integer),
+    '{}'::jsonb
+  )
+  into upg_cost from jsonb_each(base_cost) as kv;
+
+  if not public.idw_can_pay(p.resources, upg_cost) then
+    raise exception 'Not enough resources';
+  end if;
+
+  -- Increment level
+  tower := jsonb_set(tower, '{level}', to_jsonb(new_level));
+
+  -- If tower has explicit stats (has been enchanted), recalculate from new level
+  -- Matches client recalcTowerStatsFromEnchants exactly
+  if tower ? 'dmg' then
+    case tower->>'towerId'
+      when 'archer'    then v_base_dmg:=25;     v_base_atk:=1.2; v_base_rng:=2.5;  v_base_proj:=1;
+      when 'catapult'  then v_base_dmg:=40;     v_base_atk:=5.0; v_base_rng:=2.2;  v_base_proj:=1;
+      when 'crossbow'  then v_base_dmg:=20;     v_base_atk:=1.8; v_base_rng:=2.5;  v_base_proj:=3;
+      when 'ice_tower' then v_base_dmg:=15;     v_base_atk:=1.5; v_base_rng:=2.0;  v_base_proj:=1;
+      when 'sniper'    then v_base_dmg:=150;    v_base_atk:=4.0; v_base_rng:=4.5;  v_base_proj:=1;
+      when 'inferno'   then v_base_dmg:=40;     v_base_atk:=0.8; v_base_rng:=1.8;  v_base_proj:=1;
+      when 'god_tower' then v_base_dmg:=99999;  v_base_atk:=1.0; v_base_rng:=50.0; v_base_proj:=1;
+      else                  v_base_dmg:=25;     v_base_atk:=1.2; v_base_rng:=2.5;  v_base_proj:=1;
+    end case;
+
+    -- Base stats at new level (matches recalcTowerStatsFromEnchants)
+    v_dmg  := v_base_dmg  * (1.0 + (new_level - 1) * 0.15);
+    v_atk  := v_base_atk  * (1.0 + (new_level - 1) * 0.15);
+    v_rng  := v_base_rng  * (1.0 + (new_level - 1) * 0.15);
+    v_proj := v_base_proj;
+
+    -- Re-apply each enchantment on top
+    for i in 0..jsonb_array_length(coalesce(tower->'enchantments', '[]'::jsonb)) - 1 loop
+      v_eff_type := tower->'enchantments'->i->'effect'->>'type';
+      v_eff_val  := (tower->'enchantments'->i->'effect'->>'value')::numeric;
+      case v_eff_type
+        when 'damage'      then v_dmg  := v_dmg  * (1 + v_eff_val);
+        when 'atkSpeed'    then v_atk  := v_atk  * (1 - v_eff_val);
+        when 'range'       then v_rng  := v_rng  * (1 + v_eff_val);
+        when 'projectiles' then v_proj := v_proj + v_eff_val;
+        when 'allStats'    then v_dmg  := v_dmg  * (1 + v_eff_val);
+                                v_atk  := v_atk  * (1 - v_eff_val);
+                                v_rng  := v_rng  * (1 + v_eff_val);
+        else null;
+      end case;
+    end loop;
+
+    tower := jsonb_set(tower, '{dmg}',         to_jsonb(v_dmg));
+    tower := jsonb_set(tower, '{atkSpeed}',    to_jsonb(v_atk));
+    tower := jsonb_set(tower, '{range}',       to_jsonb(v_rng));
+    tower := jsonb_set(tower, '{projectiles}', to_jsonb(v_proj));
+  end if;
+
+  new_armory := jsonb_set(p.armory, array[p_slot_idx::text], tower);
+
+  update public.idw_player_state
+  set armory    = new_armory,
+      resources = public.idw_apply_resource_delta(resources, public.idw_negative(upg_cost)),
+      updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_upgrade_tower_in_armory(int) to authenticated;
+
+-- Cancel an in-progress node upgrade: refund 50% of paid cost, reset node state
+create or replace function public.idw_cancel_node_upgrade(p_res_id text, p_tier_idx int)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p        public.idw_player_state;
+  ns       jsonb;
+  paid     int;
+  currency text;
+  refund   jsonb;
+  n        jsonb;
+begin
+  if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4 then
+    raise exception 'Invalid node';
+  end if;
+
+  p  := public.idw_tick_upgrades(public.idw_ensure_player());
+  ns := p.nodes->p_res_id->p_tier_idx;
+
+  if not coalesce((ns->>'upgrading')::boolean, false) then
+    raise exception 'Node is not upgrading';
+  end if;
+
+  paid     := coalesce((ns->>'upgradeCostPaid')::int, 0);
+  currency := public.idw_res_cost_currency(p_res_id);
+  -- 50% refund, minimum 1 if any was paid
+  refund   := case when paid > 0
+                then jsonb_build_object(currency, greatest(1, paid / 2))
+                else '{}'::jsonb end;
+
+  -- Reset node upgrading state
+  ns := jsonb_set(ns, '{upgrading}',       'false'::jsonb,    true);
+  ns := jsonb_set(ns, '{upgradeStartMs}',  '0'::jsonb,        true);
+  ns := jsonb_set(ns, '{upgradeDurationMs}','0'::jsonb,       true);
+  ns := jsonb_set(ns, '{upgradeCostPaid}', '0'::jsonb,        true);
+  n  := jsonb_set(p.nodes, array[p_res_id, p_tier_idx::text], ns, true);
+
+  update public.idw_player_state
+  set nodes     = n,
+      resources = public.idw_apply_resource_delta(resources, refund),
+      updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_cancel_node_upgrade(text,int) to authenticated;
+
 -- ── PVP world map ──────────────────────────────────────────────────────────
 
 -- Add level column to pvp_world (safe to run multiple times)
@@ -917,6 +1109,57 @@ begin
   return public.idw_get_state();
 end $$;
 grant execute on function public.pvp_upgrade_base(integer) to authenticated;
+
+-- RPC: record a PvP battle result — replaces direct client writes to pvp_world
+create or replace function public.pvp_battle_ended(p_tile_idx integer, p_won boolean)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p              public.idw_player_state;
+  cooldown_until timestamptz := now() + interval '30 seconds';
+begin
+  p := public.idw_ensure_player();
+
+  if p_won then
+    -- Claim the tile for the player; preserve territory metadata via ON CONFLICT
+    insert into public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
+    values (p_tile_idx, p.user_id, cooldown_until, now())
+    on conflict (tile_idx) do update
+      set owner_id       = p.user_id,
+          attacking_until = cooldown_until,
+          claimed_at      = now();
+  else
+    -- Loss: only stamp the cooldown, keep existing owner (or no-op if tile unclaimed)
+    update public.pvp_world
+      set attacking_until = cooldown_until
+    where tile_idx = p_tile_idx;
+  end if;
+
+  return jsonb_build_object('ok', true);
+end $$;
+grant execute on function public.pvp_battle_ended(integer, boolean) to authenticated;
+
+-- RPC: capture multiple tiles at once (chain mechanic) — replaces direct client writes
+create or replace function public.pvp_chain_capture(p_tile_idxs integer[])
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p              public.idw_player_state;
+  cooldown_until timestamptz := now() + interval '10 seconds';
+  tidx           integer;
+begin
+  p := public.idw_ensure_player();
+
+  foreach tidx in array p_tile_idxs loop
+    insert into public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
+    values (tidx, p.user_id, cooldown_until, now())
+    on conflict (tile_idx) do update
+      set owner_id        = p.user_id,
+          attacking_until = cooldown_until,
+          claimed_at      = now();
+  end loop;
+
+  return jsonb_build_object('ok', true, 'captured', array_length(p_tile_idxs, 1));
+end $$;
+grant execute on function public.pvp_chain_capture(integer[]) to authenticated;
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- RESEARCH SYSTEM FUNCTIONS
