@@ -1639,11 +1639,24 @@ function fmtCompact(n) {
   return Math.floor(n).toLocaleString();
 }
 
+// Alliance production bonus — mirrors idw_collect_resource server formula exactly:
+// TV>=1: +5%, TV>=5: +10%, plus sum of per-tile production bonuses
+function getAllianceProdBonus() {
+  if (!allianceState?.in_alliance) return 0;
+  const tc = allianceState.territory_value || 0;
+  let bonus = 0;
+  if (tc >= 1) bonus += 0.05;
+  if (tc >= 5) bonus += 0.10;
+  bonus += (allianceState.territory_production_bonus || 0);
+  return bonus;
+}
+
 function nodeProdPerHour(r, ti, ul) {
   const base = Math.round(r.tiers[ti].baseProd * (1 + (ul - 1) * 0.50));
   const levelMult = 1 + bonusProd(playerLevel);
   const resMult = (typeof researchProdBonus === 'function') ? (1 + researchProdBonus(r.id)) : 1;
-  return Math.round(base * levelMult * resMult);
+  const allianceMult = 1 + getAllianceProdBonus();
+  return Math.round(base * levelMult * resMult * allianceMult);
 }
 function nodeStorageCap(r, ti, ul) {
   return Math.round(r.tiers[ti].cap * (1 + (ul - 1) * 0.90));
@@ -2253,11 +2266,39 @@ function openBuffsModal(){
   const pct = Math.min((playerXP/needed)*100,100).toFixed(1);
   const rb = getResearchBonuses();
   const pl = calculatePowerLevel();
+  const ab = getAllianceBuffs();
+  const alProd = getAllianceProdBonus();
   function fmtBonus(v){ const n=parseFloat(v.toFixed(1)); return `<span class="buff-val${n===0?' zero':''}">${n===0?'—':'+'+n.toFixed(1)+'%'}</span>`; }
   const prodRows = RESOURCE_DEFS.map(r => {
-    const total = (bonusProd(playerLevel) + researchProdBonus(r.id)) * 100;
+    const total = (bonusProd(playerLevel) + researchProdBonus(r.id) + alProd) * 100;
     return `<div class="buff-row"><span class="buff-label">${r.icon} ${r.name}</span>${fmtBonus(total)}</div>`;
   }).join('');
+
+  // Alliance buffs section
+  const inAlliance = allianceState?.in_alliance;
+  const alName = allianceState?.alliance?.name || 'Alliance';
+  const alTV   = allianceState?.territory_value || 0;
+  function fmtAlBuff(v, unit='%') {
+    if (!v || v === 0) return `<span class="buff-val zero">—</span>`;
+    return `<span class="buff-val">${unit === '%' ? '+' + (v * 100).toFixed(0) + '%' : '+' + v}</span>`;
+  }
+  const allianceSection = inAlliance ? `
+    <div class="buffs-section">
+      <div class="buffs-section-title">🏰 Alliance Buffs — ${alName} (${alTV} TV)</div>
+      <div class="buff-row"><span class="buff-label">🌾 Resource Production</span>${fmtBonus(alProd * 100)}</div>
+      ${ab.tower_dmg   ? `<div class="buff-row"><span class="buff-label">⚔️ Tower Damage</span>${fmtAlBuff(ab.tower_dmg)}</div>` : ''}
+      ${ab.tower_spd   ? `<div class="buff-row"><span class="buff-label">⚡ Attack Speed</span>${fmtAlBuff(ab.tower_spd)}</div>` : ''}
+      ${ab.slow        ? `<div class="buff-row"><span class="buff-label">🧊 Enemy Slow</span>${fmtAlBuff(ab.slow)}</div>` : ''}
+      ${ab.crit_bonus  ? `<div class="buff-row"><span class="buff-label">🎯 Crit Bonus Dmg</span>${fmtAlBuff(ab.crit_bonus)}</div>` : ''}
+      ${ab.boss_dmg    ? `<div class="buff-row"><span class="buff-label">💀 Boss Damage</span>${fmtAlBuff(ab.boss_dmg)}</div>` : ''}
+      ${ab.mob_hp_reduce ? `<div class="buff-row"><span class="buff-label">🛡️ Enemy HP Reduce</span>${fmtAlBuff(ab.mob_hp_reduce)}</div>` : ''}
+      ${ab.extra_projectile ? `<div class="buff-row"><span class="buff-label">🏹 Extra Projectiles</span>${fmtAlBuff(ab.extra_projectile, 'flat')}</div>` : ''}
+      ${ab.extra_slot  ? `<div class="buff-row"><span class="buff-label">🗼 Extra Tower Slots</span>${fmtAlBuff(ab.extra_slot, 'flat')}</div>` : ''}
+    </div>` : `
+    <div class="buffs-section">
+      <div class="buffs-section-title">🏰 Alliance Buffs</div>
+      <div class="buff-row" style="color:var(--text3);font-size:12px;">Join an alliance to unlock territory bonuses.</div>
+    </div>`;
   document.getElementById('buffs-modal-content').innerHTML=`
     <div class="bmodal-header">
       <div>
@@ -2288,6 +2329,7 @@ function openBuffsModal(){
       <div class="buffs-section-title">🌾 Resource Production</div>
       ${prodRows}
     </div>
+    ${allianceSection}
     <div class="buffs-section">
       <div class="buffs-section-title">🗼 Tower Bonuses</div>
       <div class="buff-row"><span class="buff-label">Tower Damage</span>${fmtBonus(rb.tower_dmg*100)}</div>
