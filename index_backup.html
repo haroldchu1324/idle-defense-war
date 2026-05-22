@@ -8136,7 +8136,7 @@ async function pvpBattleEnded(tile,won){
   try{
     const cooldownUntil=new Date(Date.now()+30*1000).toISOString();
     if(won){
-      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:currentUser.id,attacking_until:cooldownUntil,claimed_at:new Date().toISOString()});
+      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: true});
       const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
       pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+30000};
       pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
@@ -8145,8 +8145,7 @@ async function pvpBattleEnded(tile,won){
       pvpUpdateStats();
       await pvpCheckAndApplyChain(tile.tx, tile.ty);
     } else {
-      const prevOwner=pvpTiles[tile.idx]?.owner||null;
-      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:prevOwner,attacking_until:cooldownUntil});
+      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: false});
       if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+30000;
       showToast('💀 Attack failed!');
       pvpAttackCooldownUntil=Date.now()+60*1000;
@@ -8261,17 +8260,10 @@ async function pvpCheckAndApplyChain(triggerTx, triggerTy) {
       if(closingLevel < maxGroupLevel) continue;
 
       // All conditions met — capture the group
-      const cooldownUntil = new Date(Date.now()+10*1000).toISOString();
-      const upserts = group.map(gi=>({
-        tile_idx: gi,
-        owner_id: currentUser.id,
-        attacking_until: cooldownUntil,
-        claimed_at: new Date().toISOString()
-      }));
       try {
-        await sb.from('pvp_world').upsert(upserts);
+        await serverRpc('pvp_chain_capture', {p_tile_idxs: group});
       } catch(e) {
-        console.warn('pvpCheckAndApplyChain upsert failed:', e.message);
+        console.warn('pvpCheckAndApplyChain failed:', e.message);
         continue;
       }
 

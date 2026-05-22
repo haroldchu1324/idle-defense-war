@@ -34,8 +34,8 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 #auth-layer.visible{opacity:1;}
 #auth-layer.hidden{display:none;}
 .auth-wrap{width:100%;max-width:420px;}
-#screen-login,#screen-signup,#screen-confirm{display:none;}
-#screen-login.visible,#screen-signup.visible,#screen-confirm.visible{display:block;}
+#screen-login,#screen-signup,#screen-confirm,#screen-forgot{display:none;}
+#screen-login.visible,#screen-signup.visible,#screen-confirm.visible,#screen-forgot.visible{display:block;}
 .auth-logo{text-align:center;margin-bottom:2rem;}
 .auth-logo-icon{font-size:40px;display:block;margin-bottom:0.5rem;}
 .auth-logo-title{font-family:'Cinzel',serif;font-size:22px;color:#fff;letter-spacing:0.08em;}
@@ -55,7 +55,19 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .auth-switch a:hover{text-decoration:underline;}
 .auth-msg{font-size:13px;text-align:center;margin-top:1rem;min-height:20px;}
 .auth-msg.error{color:var(--red);}
+.auth-msg.success{color:var(--green);}
+.auth-forgot-link{text-align:right;margin-top:-0.5rem;margin-bottom:0.75rem;font-size:12px;}
+.auth-forgot-link a{color:var(--text3);cursor:pointer;text-decoration:none;}
+.auth-forgot-link a:hover{color:var(--blue);text-decoration:underline;}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:1rem 0;color:var(--text3);font-size:12px;}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.auth-guest-btn{width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:14px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,color 0.15s,background 0.15s;}
+.auth-guest-btn:hover{border-color:var(--text3);color:var(--text);background:var(--bg3);}
+.auth-guest-btn:active{transform:scale(0.98);}
 .auth-confirm-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:3rem 2rem;text-align:center;}
+.guest-banner{display:none;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:8px;padding:6px 12px;font-size:12px;color:#f0c040;text-align:center;margin-bottom:4px;}
+.guest-banner a{color:#f0c040;font-weight:600;cursor:pointer;text-decoration:underline;}
+.guest-banner a:hover{color:#fff;}
 .confirm-icon{font-size:48px;margin-bottom:1rem;display:block;}
 .confirm-title{font-size:20px;font-weight:600;color:#fff;margin-bottom:0.75rem;}
 .confirm-sub{font-size:14px;color:var(--text2);line-height:1.7;}
@@ -987,9 +999,12 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <div class="auth-title">Welcome back, Commander</div>
         <div class="auth-field"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLogin()" oninput="this.style.color=''"></div>
         <div class="auth-field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div class="auth-forgot-link"><a onclick="showAuthScreen('screen-forgot')">Forgot password?</a></div>
         <button class="auth-submit" id="login-btn" onclick="doLogin()">Sign In</button>
         <div class="auth-msg" id="login-msg"></div>
-        <div class="auth-switch">No account? <a onclick="showAuthScreen('screen-signup')">Sign up</a></div>
+        <div class="auth-divider">or</div>
+        <button class="auth-guest-btn" onclick="doGuestPlay()">👤 Play as Guest</button>
+        <div class="auth-switch" style="margin-top:1rem;">No account? <a onclick="showAuthScreen('screen-signup')">Sign up</a></div>
       </div>
     </div>
     <div id="screen-signup">
@@ -1008,6 +1023,16 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <span class="confirm-icon">📬</span>
         <div class="confirm-title">Check your email</div>
         <div class="confirm-sub">We sent a confirmation link.<br>Click it, then return here to sign in.</div>
+      </div>
+    </div>
+    <div id="screen-forgot">
+      <div class="auth-card">
+        <div class="auth-title">Reset your password</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:1.25rem;line-height:1.6;">Enter your account email and we'll send you a link to reset your password.</div>
+        <div class="auth-field"><label>Email</label><input type="email" id="forgot-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
+        <button class="auth-submit" id="forgot-btn" onclick="doForgotPassword()">Send Reset Link</button>
+        <div class="auth-msg" id="forgot-msg"></div>
+        <div class="auth-switch"><a onclick="showAuthScreen('screen-login')">← Back to sign in</a></div>
       </div>
     </div>
   </div>
@@ -1045,6 +1070,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
     </div>
 
     <div class="top-user">
+      <div id="guest-banner" class="guest-banner">👤 Guest — <a onclick="showAuthLayer('screen-signup')">Sign up to save progress</a></div>
       <span class="username-tag" id="username-display"></span>
       <button class="logout-btn" onclick="doLogout()">Sign out</button>
     </div>
@@ -1672,7 +1698,7 @@ sessionChannel.onmessage = (e) => {
 // AUTH
 // ═══════════════════════════════════════════════
 function showAuthScreen(id) {
-  ['screen-login','screen-signup','screen-confirm'].forEach(s => {
+  ['screen-login','screen-signup','screen-confirm','screen-forgot'].forEach(s => {
     const el = document.getElementById(s);
     el.style.display = s === id ? 'block' : 'none';
     el.classList.toggle('visible', s === id);
@@ -1736,6 +1762,27 @@ async function doSignup() {
   if(error){msg.textContent=error.message;msg.className='auth-msg error';}
   else{showAuthScreen('screen-confirm');}
 }
+async function doForgotPassword() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const btn   = document.getElementById('forgot-btn');
+  const msg   = document.getElementById('forgot-msg');
+  if (!email) { msg.textContent = 'Please enter your email.'; msg.className = 'auth-msg error'; return; }
+  btn.disabled = true; msg.textContent = 'Sending…'; msg.className = 'auth-msg';
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  btn.disabled = false;
+  if (error) { msg.textContent = error.message; msg.className = 'auth-msg error'; }
+  else { msg.textContent = '✓ Reset link sent — check your email.'; msg.className = 'auth-msg success'; }
+}
+
+async function doGuestPlay() {
+  const msg = document.getElementById('login-msg');
+  msg.textContent = 'Starting guest session…'; msg.className = 'auth-msg';
+  const { data, error } = await sb.auth.signInAnonymously();
+  if (error) { msg.textContent = error.message; msg.className = 'auth-msg error'; return; }
+  msg.textContent = '';
+  try { await startGame(data.user); } catch(e) { console.error('startGame (guest) failed:', e); }
+}
+
 async function doLogout() {
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
@@ -1765,7 +1812,9 @@ async function startGame(user) {
   currentUser=user;
   gameFullyLoaded=false;
   const meta=user.user_metadata||{};
-  document.getElementById('username-display').textContent=meta.username||user.email.split('@')[0];
+  const isGuest = !user.email;
+  document.getElementById('username-display').textContent = isGuest ? 'Guest' : (meta.username || user.email.split('@')[0]);
+  document.getElementById('guest-banner').style.display = isGuest ? 'block' : 'none';
   document.getElementById('login-msg').textContent='';
   // Zero out resources before loading so stale JS defaults never show
   resources={wood:0,stone:0,fiber:0,leather:0,ore:0};
