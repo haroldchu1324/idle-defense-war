@@ -1522,12 +1522,12 @@ function applyServerPayload(payload) {
   // Trust server level as base, then process remaining XP through level-up loop
   playerLevel = rawLevel;
   playerXP = rawXP;
-  // Drain any overflow XP into level-ups (capped at MAX_PLAYER_LEVEL)
-  while (playerXP >= xpForLevel(playerLevel) && playerLevel < MAX_PLAYER_LEVEL) {
+  // Drain any overflow XP into level-ups (guests capped at GUEST_MAX_LEVEL)
+  while (playerXP >= xpForLevel(playerLevel) && (!isGuestUser || playerLevel < GUEST_MAX_LEVEL)) {
     playerXP -= xpForLevel(playerLevel);
     playerLevel++;
   }
-  if (playerLevel >= MAX_PLAYER_LEVEL) playerXP = Math.min(playerXP, xpForLevel(MAX_PLAYER_LEVEL) - 1);
+  if (isGuestUser && playerLevel >= GUEST_MAX_LEVEL) playerXP = Math.min(playerXP, xpForLevel(GUEST_MAX_LEVEL) - 1);
   updatePlayerLevelUI();
   if (s.nodes) {
     const syncMs = Date.now();
@@ -1596,7 +1596,7 @@ const LEVEL_UNLOCK = [0, 10, 20, 40, 60];
 const XP_PER_UNLOCK = 50;
 const XP_PER_UPGRADE = 15;
 const MAX_NODE_LEVEL = 15;
-const MAX_PLAYER_LEVEL = 10;
+const GUEST_MAX_LEVEL = 9;
 
 function xpForLevel(n) { return Math.floor(100 * Math.pow(1.35, n - 1)); }
 
@@ -2250,13 +2250,13 @@ function tickAll(){ tickResources(); }
 function addXP(amount, x, y) {
   // Update locally for immediate visual feedback
   playerXP += amount;
-  while(playerXP >= xpForLevel(playerLevel) && playerLevel < MAX_PLAYER_LEVEL){
+  while(playerXP >= xpForLevel(playerLevel) && (!isGuestUser || playerLevel < GUEST_MAX_LEVEL)){
     playerXP -= xpForLevel(playerLevel);
     playerLevel++;
     showToast(`🎉 Level up! Now Level ${playerLevel}`);
     updateNodeCards();
   }
-  if(playerLevel >= MAX_PLAYER_LEVEL) playerXP = Math.min(playerXP, xpForLevel(MAX_PLAYER_LEVEL) - 1);
+  if(isGuestUser && playerLevel >= GUEST_MAX_LEVEL) playerXP = Math.min(playerXP, xpForLevel(GUEST_MAX_LEVEL) - 1);
   updatePlayerLevelUI();
   if(x !== undefined) spawnXPFloater(`+${amount} XP`, x, y);
   // Persist to server — debounced so rapid XP gains batch together
