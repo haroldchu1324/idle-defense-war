@@ -9,7 +9,7 @@ create table if not exists public.idw_player_state (
   user_id uuid primary key references auth.users(id) on delete cascade,
   resources jsonb not null default '{"wood":500,"stone":500,"fiber":500,"leather":500,"ore":500}'::jsonb,
   player_xp integer not null default 0 check (player_xp >= 0),
-  player_level integer not null default 1 check (player_level >= 1),
+  player_level integer not null default 1 check (player_level >= 1 and player_level <= 10),
   nodes jsonb not null default '{}'::jsonb,
   research jsonb not null default '{}'::jsonb,
   active_research_id text,
@@ -828,7 +828,7 @@ begin
 
   if p_state ? 'playerLevel' then
     update public.idw_player_state
-    set player_level = greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), updated_at = now()
+    set player_level = least(greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), 10), updated_at = now()
     where user_id = p.user_id;
   end if;
 
