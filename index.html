@@ -1474,7 +1474,7 @@ function applyServerPayload(payload) {
     activeResearchId = null;
     RESEARCH_DEFS.forEach(rd => { if (researchState[rd.id]?.researching) activeResearchId = rd.id; });
   }
-  if (s.armoryTowers) armoryTowers = s.armoryTowers;
+  if (s.armoryTowers) armoryTowers = s.armoryTowers.map(recalcTowerStatsFromEnchants);
   // Always update campCompleted even if empty array
   if (s.campCompleted !== undefined) {
     const serverCompleted = Array.isArray(s.campCompleted) ? s.campCompleted : [];
@@ -2283,11 +2283,11 @@ const ENCHANT_TYPES = [
 ];
 
 const RARITY_WEIGHTS = {
-  common: 70,
-  uncommon: 20,
-  rare: 7,
-  epic: 2.5,
-  legendary: 0.5
+  common: 60,
+  uncommon: 25,
+  rare: 10,
+  epic: 4,
+  legendary: 1
 };
 
 let selectedTowerForEnchant = null;
@@ -2422,18 +2422,15 @@ function generateEnchantStrip() {
   const basePattern = [];
   const patternLength = 30; // Shorter base pattern
 
-  // Calculate how many of each rarity in base pattern
-  const rarityCount = {
-    common: Math.floor(patternLength * 0.70),      // 70% = 21 items
-    uncommon: Math.floor(patternLength * 0.20),    // 20% = 6 items
-    rare: Math.floor(patternLength * 0.07),        // 7% = 2 items
-    epic: Math.floor(patternLength * 0.025),       // 2.5% = 1 item (rounded up)
-    legendary: Math.floor(patternLength * 0.005)   // 0.5% = 0 item
-  };
-
-  // Ensure we have at least 1 legendary and fill to exact pattern length
-  if (rarityCount.legendary === 0) rarityCount.legendary = 1;
-  rarityCount.common = patternLength - rarityCount.uncommon - rarityCount.rare - rarityCount.epic - rarityCount.legendary;
+  // Derive slot counts from RARITY_WEIGHTS so they always stay in sync
+  const totalWeight = Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
+  const rarityCount = {};
+  ['uncommon', 'rare', 'epic', 'legendary'].forEach(rarity => {
+    const needed = ENCHANT_TYPES.filter(e => e.rarity === rarity).length;
+    rarityCount[rarity] = Math.max(needed, Math.floor(patternLength * RARITY_WEIGHTS[rarity] / totalWeight));
+  });
+  // Common fills the remainder so total always equals patternLength exactly
+  rarityCount.common = Math.max(1, patternLength - rarityCount.uncommon - rarityCount.rare - rarityCount.epic - rarityCount.legendary);
 
   console.log('Base pattern rarity distribution:', rarityCount);
 
@@ -2544,10 +2541,21 @@ function spinEnchantStrip() {
   const wonEnchant = getRandomEnchant();
 
   // Step 2: Find all strip indices where this enchantment appears
-  const matchingIndices = strip.enchantments.reduce((acc, e, i) => {
+  let matchingIndices = strip.enchantments.reduce((acc, e, i) => {
     if (e.id === wonEnchant.id) acc.push(i);
     return acc;
   }, []);
+  // Fallback: match by rarity if exact enchant not found
+  if (matchingIndices.length === 0) {
+    matchingIndices = strip.enchantments.reduce((acc, e, i) => {
+      if (e.rarity === wonEnchant.rarity) acc.push(i);
+      return acc;
+    }, []);
+  }
+  // Last resort: any index
+  if (matchingIndices.length === 0) {
+    matchingIndices = strip.enchantments.map((_, i) => i);
+  }
 
   // Step 3: Pick a target index in the latter half for a satisfying spin distance
   const minIdx = Math.floor(strip.enchantments.length * 0.55);
@@ -2604,13 +2612,8 @@ async function applyEnchantment(enchant) {
       }
     });
 
-    // Update local state with server response
-    if (result && result.state) {
-      applyServerPayload(result.state);
-    } else {
-      console.log('Server RPC not available, applying locally');
-      applyEnchantmentLocally(enchant);
-    }
+    // Server saved to DB; apply locally so client formula is always used for display
+    applyEnchantmentLocally(enchant);
 
     // Update UI
     buildEnchantInventory();
@@ -2625,6 +2628,33 @@ async function applyEnchantment(enchant) {
     renderArmoryGrid(); // Update armory display with new stats
     updateSelectedTowerDisplay(); // Update the selected tower info panel
   }
+}
+
+function recalcTowerStatsFromEnchants(tower) {
+  if (!tower.enchantments || tower.enchantments.length === 0) return tower;
+  const towerDef = TOWER_DEFS.find(td => td.id === tower.towerId);
+  if (!towerDef) return tower;
+  const t = Object.assign({}, tower);
+  t.dmg = towerDef.baseStats.dmg * (1 + (t.level - 1) * 0.15);
+  t.atkSpeed = towerDef.baseStats.atkSpeed * (1 + (t.level - 1) * 0.15);
+  t.range = towerDef.baseStats.range * (1 + (t.level - 1) * 0.15);
+  t.projectiles = towerDef.baseStats.projectiles || 1;
+  for (const enchant of t.enchantments) {
+    const e = enchant.effect;
+    switch (e.type) {
+      case 'damage':      t.dmg *= (1 + e.value); break;
+      case 'atkSpeed':    t.atkSpeed *= (1 - e.value); break;
+      case 'range':       t.range *= (1 + e.value); break;
+      case 'projectiles': t.projectiles += e.value; break;
+      case 'level':       t.level = (t.level || 1) + e.value; break;
+      case 'allStats':
+        t.dmg *= (1 + e.value);
+        t.atkSpeed *= (1 - e.value);
+        t.range *= (1 + e.value);
+        break;
+    }
+  }
+  return t;
 }
 
 function applyEnchantmentLocally(enchant) {
@@ -8106,7 +8136,7 @@ async function pvpBattleEnded(tile,won){
   try{
     const cooldownUntil=new Date(Date.now()+30*1000).toISOString();
     if(won){
-      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:currentUser.id,attacking_until:cooldownUntil,claimed_at:new Date().toISOString()});
+      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: true});
       const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
       pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+30000};
       pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
@@ -8115,8 +8145,7 @@ async function pvpBattleEnded(tile,won){
       pvpUpdateStats();
       await pvpCheckAndApplyChain(tile.tx, tile.ty);
     } else {
-      const prevOwner=pvpTiles[tile.idx]?.owner||null;
-      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:prevOwner,attacking_until:cooldownUntil});
+      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: false});
       if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+30000;
       showToast('💀 Attack failed!');
       pvpAttackCooldownUntil=Date.now()+60*1000;
@@ -8231,17 +8260,10 @@ async function pvpCheckAndApplyChain(triggerTx, triggerTy) {
       if(closingLevel < maxGroupLevel) continue;
 
       // All conditions met — capture the group
-      const cooldownUntil = new Date(Date.now()+10*1000).toISOString();
-      const upserts = group.map(gi=>({
-        tile_idx: gi,
-        owner_id: currentUser.id,
-        attacking_until: cooldownUntil,
-        claimed_at: new Date().toISOString()
-      }));
       try {
-        await sb.from('pvp_world').upsert(upserts);
+        await serverRpc('pvp_chain_capture', {p_tile_idxs: group});
       } catch(e) {
-        console.warn('pvpCheckAndApplyChain upsert failed:', e.message);
+        console.warn('pvpCheckAndApplyChain failed:', e.message);
         continue;
       }
 

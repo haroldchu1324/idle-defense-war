@@ -25,7 +25,9 @@
       "Bash(claude *)",
       "Bash(/web-setup *)",
       "Bash(git pull *)",
-      "Bash(start *)"
+      "Bash(start *)",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__list_projects",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__get_logs"
     ]
   }
 }
