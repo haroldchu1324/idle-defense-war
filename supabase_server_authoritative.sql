@@ -1347,7 +1347,7 @@ create table if not exists public.idw_alliances (
   join_type               text    not null default 'open' check (join_type in ('open','apply','invite')),
   min_power               integer not null default 0,
   language                text    not null default 'EN',
-  max_members             integer not null default 50,
+  max_members             integer not null default 20,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now()
 );

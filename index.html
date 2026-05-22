@@ -925,6 +925,9 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .al-panel.active{display:flex;}
 .al-members-table{width:100%;border-collapse:collapse;}
 .al-members-table th{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+.al-sort-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;cursor:pointer;white-space:nowrap;transition:background 0.15s,color 0.15s,border-color 0.15s;}
+.al-sort-btn:hover{background:rgba(94,139,255,0.12);border-color:rgba(94,139,255,0.35);color:var(--accent);}
+.al-sort-btn.active{background:rgba(94,139,255,0.18);border-color:rgba(94,139,255,0.5);color:var(--accent);}
 .al-members-table td{font-size:12px;color:var(--text2);padding:8px 10px;border-bottom:1px solid rgba(42,46,66,0.5);vertical-align:middle;}
 .al-members-table tr.al-commander-row td{background:rgba(240,192,64,0.04);}
 .al-members-table tr:hover td{background:rgba(255,255,255,0.02);}
@@ -8664,6 +8667,19 @@ let allianceState = null;     // cached result of idw_get_alliance_state()
 let allianceActiveTab = 'members';
 let allianceBrowserFilters = { joinType:'all', minPower:'', maxPower:'', lang:'all', sort:'power', joinableOnly:false, search:'' };
 let _alRefreshTimer = null;
+let alMemberSort = 'power';   // 'power' | 'level' | 'last_online'
+let alMemberSortDir = 'desc';
+
+function alSetMemberSort(col) {
+  if (alMemberSort === col) {
+    alMemberSortDir = alMemberSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    alMemberSort = col;
+    alMemberSortDir = 'desc';
+  }
+  const el = document.getElementById('al-content');
+  if (el && allianceState) renderAllianceHome(el, allianceState);
+}
 
 // ── helpers ──
 
@@ -8875,10 +8891,25 @@ function alMembersPanel(state) {
     return `<div class="al-panel" id="al-panel-members"><div class="al-placeholder">No members found.</div></div>`;
   }
 
-  const rows = members.map(m => {
+  // Sort members by selected column
+  const sorted = [...members].sort((a, b) => {
+    let av, bv;
+    if (alMemberSort === 'power')       { av = a.power||0;               bv = b.power||0; }
+    else if (alMemberSort === 'level')  { av = a.level||1;               bv = b.level||1; }
+    else                                { av = new Date(a.last_online||0); bv = new Date(b.last_online||0); }
+    return alMemberSortDir === 'desc' ? bv - av : av - bv;
+  });
+
+  function sortBtn(col, label) {
+    const active = alMemberSort === col;
+    const arrow = active ? (alMemberSortDir === 'desc' ? ' ↓' : ' ↑') : '';
+    return `<button class="al-sort-btn${active?' active':''}" onclick="alSetMemberSort('${col}')">${label}${arrow}</button>`;
+  }
+
+  const rows = sorted.map(m => {
     const canAct = canManage && m.user_id !== myUserId && alCanManageMember(myRank, m.rank);
     return `
-    <tr>
+    <tr${m.rank==='commander'?' class="al-commander-row"':''}>
       <td>${alRankBadge(m.rank)}</td>
       <td style="color:#fff;font-weight:${m.rank==='commander'?700:400};">${m.username}</td>
       <td>${alFmtPower(m.power||0)}</td>
@@ -8899,7 +8930,10 @@ function alMembersPanel(state) {
       <div style="overflow-x:auto;">
         <table class="al-members-table">
           <thead><tr>
-            <th>Rank</th><th>Username</th><th>Power</th><th>Level</th><th>Last Online</th>
+            <th>Rank</th><th>Username</th>
+            <th>${sortBtn('power','Power')}</th>
+            <th>${sortBtn('level','Level')}</th>
+            <th>${sortBtn('last_online','Last Online')}</th>
             ${canManage?'<th>Actions</th>':''}
           </tr></thead>
           <tbody>${rows}</tbody>
