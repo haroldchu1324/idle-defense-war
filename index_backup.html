@@ -2294,6 +2294,7 @@ function openBuffsModal(){
       ${ab.mob_hp_reduce ? `<div class="buff-row"><span class="buff-label">🛡️ Enemy HP Reduce</span>${fmtAlBuff(ab.mob_hp_reduce)}</div>` : ''}
       ${ab.extra_projectile ? `<div class="buff-row"><span class="buff-label">🏹 Extra Projectiles</span>${fmtAlBuff(ab.extra_projectile, 'flat')}</div>` : ''}
       ${ab.extra_slot  ? `<div class="buff-row"><span class="buff-label">🗼 Extra Tower Slots</span>${fmtAlBuff(ab.extra_slot, 'flat')}</div>` : ''}
+      ${ab.stage_value ? `<div class="buff-row"><span class="buff-label">🛡️ Territory Stage Bonus</span><span class="buff-val">+${ab.stage_value} stages</span></div>` : ''}
     </div>` : `
     <div class="buffs-section">
       <div class="buffs-section-title">🏰 Alliance Buffs</div>
@@ -7310,6 +7311,13 @@ function pvpAnimateTile(idx, fromColor, toColor, duration=1200) {
 
 function pvpTileIdx(tx,ty){ return ty*PVP_GRID+tx; }
 
+// Convert numeric pvp difficulty to "world-stage" label (e.g. 11 → "2-1", 5 → "1-5")
+function pvpDiffToStageLabel(d) {
+  const world = Math.ceil(d / 10);
+  const stage = ((d - 1) % 10) + 1;
+  return `${world}-${stage}`;
+}
+
 function pvpTileDifficulty(tx,ty){
   // Returns tile's stage level (1=stage 1-1, 2=stage 1-2 … 10=stage 1-10).
   // Upgraded by owner via pvpApplyBaseUpgrade().
@@ -8166,8 +8174,15 @@ function pvpClickTile(tx,ty,e) {
   title.innerHTML = `${catIcon} <span style="color:${catColor};font-weight:700;">${catLabel}</span>${rarityTag}`;
 
   // Coordinate + type info (always shown first)
+  // Stage territory bonus: if this tile is a stage special territory and is owned,
+  // attackers face a harder battle (base level + stage bonus)
+  const stageBonus = (specInfo?.bonusStat === 'stage_value' && isOwned) ? (specInfo.bonusValue || 0) : 0;
+  const effectiveDiff = diff + stageBonus;
+  const stageLine = stageBonus > 0
+    ? `Stage 1-${diff} <span style="color:#f0c040;font-size:10px;">(+${stageBonus} → ${pvpDiffToStageLabel(effectiveDiff)})</span>`
+    : `Stage 1-${diff}`;
   const tvSuffix = catLabel !== 'Value Territory' ? ` · <span style="color:${catColor};font-weight:600;">+${tileTV} TV</span>` : '';
-  const coordLine = `<div style="color:#a0a8c0;margin-bottom:2px;">(${tx}, ${ty}) · Stage 1-${diff}</div>`
+  const coordLine = `<div style="color:#a0a8c0;margin-bottom:2px;">(${tx}, ${ty}) · ${stageLine}</div>`
                   + `<div style="color:#a0a8c0;margin-bottom:4px;">${catLabel}${tvSuffix}</div>`;
 
   const mineBtns=document.getElementById('pvp-tt-mine-btns');
@@ -8190,7 +8205,9 @@ function pvpClickTile(tx,ty,e) {
       sub.innerHTML=coordLine+`<span style="color:#6a7090;">Unclaimed</span>`;
     }
     const canAttack = canAttackTile(tx, ty, isUnderAttack, onCooldown);
-    btn.textContent = canAttack.canAttack ? `⚔️ Attack (Stage 1-${diff})` : canAttack.reason;
+    btn.textContent = canAttack.canAttack
+      ? `⚔️ Attack (Stage ${pvpDiffToStageLabel(effectiveDiff)}${stageBonus > 0 ? ` +${stageBonus}` : ''})`
+      : canAttack.reason;
     btn.disabled = !canAttack.canAttack;
     btn.onclick = canAttack.canAttack ? pvpAttackTile : null;
   }
@@ -8302,9 +8319,14 @@ async function pvpAttackTile(){
   if(!pvpSelectedTile) return;
   const{tx,ty,idx}=pvpSelectedTile;
   const diff=pvpTileDifficulty(tx,ty);
+  // Stage territory defense bonus: owned stage territories boost effective difficulty for attackers
+  const spec=SPECIAL_TERRITORIES[idx];
+  const tile=pvpTiles[idx];
+  const stageBonus=(spec?.bonusStat==='stage_value'&&tile?.owner)?(spec.bonusValue||0):0;
+  const effectiveDiff=diff+stageBonus;
   pvpHideTooltip();
   pvpPendingTile={tx,ty,idx};
-  openBattleSetup(`pvp-${diff}`,true);
+  openBattleSetup(`pvp-${effectiveDiff}`,true);
 }
 
 async function pvpBattleEnded(tile,won){
@@ -8655,7 +8677,7 @@ const ALLIANCE_TERRITORY_MILESTONES = [
   { territories: 25, icon:'⚡', name:'Battle Tempo',         desc:'+15% turret attack speed',               type:'tower_spd',          pct:0.15  },
   { territories: 40, icon:'🧊', name:'Freezing Arrowheads', desc:'Non-AOE turrets slow targets by 25%',    type:'slow',               pct:0.25  },
   { territories: 60, icon:'🏹', name:'Multi-Barrage',        desc:'Non-AOE turrets fire +1 projectile',     type:'extra_projectile',   count:1   },
-  { territories: 80, icon:'🛡️', name:'War Bonds',            desc:'+20% turret HP',                         type:'troop_hp',           pct:0.20  },
+  { territories: 80, icon:'🛡️', name:'War Bonds',            desc:'-20% enemy HP',                          type:'mob_hp_reduce',      pct:0.20  },
   { territories:100, icon:'🗡️', name:'Grand Campaign',       desc:'+1 maximum equipped turret in battle',   type:'extra_slot',         count:1   },
   { territories:120, icon:'💥', name:'Critical Warfare',     desc:'Projectile hits have 10% chance for +50% bonus damage', type:'crit_bonus', pct:0.50 },
   { territories:150, icon:'👁️', name:'Giant Slayer',         desc:'Boss enemies take +15% damage',          type:'boss_dmg',           pct:0.15  },
@@ -8677,7 +8699,7 @@ function getAllianceBuffs() {
     else if (m.type === 'slow')          ab.slow               += m.pct;
     else if (m.type === 'crit_bonus')    ab.crit_bonus         += m.pct;
     else if (m.type === 'boss_dmg')      ab.boss_dmg           += m.pct;
-    else if (m.type === 'troop_hp')      ab.troop_hp           += m.pct;
+    else if (m.type === 'mob_hp_reduce') ab.mob_hp_reduce      += m.pct;
     else if (m.type === 'all_resource_prod') ab.all_resource_prod += m.pct;
   }
   // Special territory buffs (owned named territories)
