@@ -65,7 +65,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .auth-guest-btn:hover{border-color:var(--text3);color:var(--text);background:var(--bg3);}
 .auth-guest-btn:active{transform:scale(0.98);}
 .auth-confirm-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:3rem 2rem;text-align:center;}
-.guest-banner{display:none;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:8px;padding:6px 12px;font-size:12px;color:#f0c040;text-align:center;margin-bottom:4px;}
+.guest-banner{display:none;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:8px;padding:4px 12px;font-size:12px;color:#f0c040;text-align:center;margin-left:auto;align-items:center;white-space:nowrap;flex-shrink:0;}
 .guest-banner a{color:#f0c040;font-weight:600;cursor:pointer;text-decoration:underline;}
 .guest-banner a:hover{color:#fff;}
 .pvp-guest-lock{display:none;position:absolute;inset:0;z-index:50;background:rgba(10,12,20,0.92);flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem;}
@@ -1110,7 +1110,6 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
     </div>
 
     <div class="top-user">
-      <div id="guest-banner" class="guest-banner">👤 Playing as Guest — <a onclick="openLinkAccountModal()">Link account to save progress</a></div>
       <span class="username-tag" id="username-display"></span>
       <button class="logout-btn" onclick="doLogout()">Sign out</button>
     </div>
@@ -1133,6 +1132,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
           <button class="ctab" onclick="switchBaseTab('inventory')">🎒 Inventory</button>
           <button class="ctab" onclick="switchBaseTab('crafting')">⚒️ Crafting</button>
           <button class="ctab" onclick="switchBaseTab('settings')">⚙️ Settings</button>
+          <div id="guest-banner" class="guest-banner">👤 Playing as Guest — <a onclick="openLinkAccountModal()">Link account to save progress</a></div>
         </div>
         <div class="panel active" id="base-panel-resources">
           <div id="offline-banner-slot"></div>
@@ -1986,7 +1986,7 @@ async function startGame(user) {
   isGuestUser = !user.email;
   const meta=user.user_metadata||{};
   document.getElementById('username-display').textContent = meta.username || (user.email ? user.email.split('@')[0] : 'Guest');
-  document.getElementById('guest-banner').style.display = isGuestUser ? 'block' : 'none';
+  document.getElementById('guest-banner').style.display = isGuestUser ? 'flex' : 'none';
   document.getElementById('login-msg').textContent='';
   // Zero out resources before loading so stale JS defaults never show
   resources={wood:0,stone:0,fiber:0,leather:0,ore:0};

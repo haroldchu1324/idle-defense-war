@@ -68,6 +68,17 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .guest-banner{display:none;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:8px;padding:4px 12px;font-size:12px;color:#f0c040;text-align:center;margin-left:auto;align-items:center;white-space:nowrap;flex-shrink:0;}
 .guest-banner a{color:#f0c040;font-weight:600;cursor:pointer;text-decoration:underline;}
 .guest-banner a:hover{color:#fff;}
+.auth-layout{display:flex;align-items:center;justify-content:center;gap:2rem;width:100%;max-width:860px;}
+.guest-saved-panel{display:none;flex-direction:column;align-items:center;flex-shrink:0;}
+.guest-saved-panel.visible{display:flex;}
+.guest-saved-card{background:var(--bg2);border:1px solid rgba(240,192,64,0.4);border-radius:16px;padding:2rem;text-align:center;min-width:190px;}
+.guest-saved-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;}
+.guest-saved-icon{font-size:36px;margin-bottom:0.75rem;}
+.guest-saved-name{font-size:15px;font-weight:600;color:#fff;margin-bottom:0.3rem;word-break:break-all;}
+.guest-saved-level{font-size:13px;color:var(--gold);margin-bottom:1.25rem;}
+.guest-saved-btn{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(240,192,64,0.4);background:transparent;color:#f0c040;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
+.guest-saved-btn:hover{background:rgba(240,192,64,0.12);border-color:rgba(240,192,64,0.7);}
+.guest-saved-btn:disabled{opacity:0.5;cursor:not-allowed;}
 .pvp-guest-lock{display:none;position:absolute;inset:0;z-index:50;background:rgba(10,12,20,0.92);flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem;}
 .pvp-guest-lock.active{display:flex;}
 .pvp-lock-icon{font-size:52px;}
@@ -1004,6 +1015,16 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 <body>
 
 <div id="auth-layer">
+  <div class="auth-layout">
+  <div id="guest-saved-panel" class="guest-saved-panel">
+    <div class="guest-saved-card">
+      <div class="guest-saved-label">Saved Guest</div>
+      <div class="guest-saved-icon">👤</div>
+      <div class="guest-saved-name" id="guest-saved-name">Guest</div>
+      <div class="guest-saved-level" id="guest-saved-level">Level 1</div>
+      <button class="guest-saved-btn" id="guest-resume-btn" onclick="doResumeGuest()">Continue</button>
+    </div>
+  </div>
   <div class="auth-wrap">
     <div class="auth-logo">
       <span class="auth-logo-icon">🏰</span>
@@ -1062,6 +1083,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <div class="auth-switch"><a onclick="doResetPasswordCancel()">← Back to sign in</a></div>
       </div>
     </div>
+  </div>
   </div>
 </div>
 
@@ -1873,6 +1895,27 @@ async function doResetPasswordCancel() {
   showAuthScreen('screen-login');
 }
 
+function showGuestSavedCard(info) {
+  document.getElementById('guest-saved-name').textContent = info.username;
+  document.getElementById('guest-saved-level').textContent = 'Level ' + (info.level || 1);
+  document.getElementById('guest-saved-panel').classList.add('visible');
+}
+
+async function doResumeGuest() {
+  const cached = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+  if (!cached.refreshToken) return;
+  const btn = document.getElementById('guest-resume-btn');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  const { data, error } = await sb.auth.setSession({ access_token: cached.accessToken, refresh_token: cached.refreshToken });
+  if (error || !data.user) {
+    localStorage.removeItem('idw_guest_cache');
+    document.getElementById('guest-saved-panel').classList.remove('visible');
+    btn.disabled = false; btn.textContent = 'Continue';
+    return;
+  }
+  await startGame(data.user);
+}
+
 async function doGuestPlay() {
   const msg = document.getElementById('login-msg');
   msg.textContent = 'Starting guest session…'; msg.className = 'auth-msg';
@@ -1930,8 +1973,9 @@ async function doLinkAccount() {
 async function doLogout() {
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
-  sessionChannel.postMessage('logout'); currentUser=null;
-  isGuestUser = false;
+  sessionChannel.postMessage('logout');
+  if (isGuestUser) localStorage.removeItem('idw_guest_cache');
+  currentUser=null; isGuestUser = false;
   await sb.auth.signOut();
 }
 // Flag set synchronously on page load so the SIGNED_IN handler doesn't
@@ -1942,7 +1986,22 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Skip auto sign-out when arriving from a password recovery link — we need
   // the recovery session to remain active so updateUser({ password }) works
   if (!isPasswordRecoveryMode) {
-    await sb.auth.signOut();
+    const { data: { session: _sess } } = await sb.auth.getSession();
+    if (_sess && !_sess.user.email) {
+      // Guest session: save tokens before signing out so we can restore later
+      const _meta = _sess.user.user_metadata || {};
+      const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+      localStorage.setItem('idw_guest_cache', JSON.stringify({
+        userId: _sess.user.id,
+        username: _meta.username || 'Guest',
+        level: _prev.level || 1,
+        accessToken: _sess.access_token,
+        refreshToken: _sess.refresh_token
+      }));
+      await sb.auth.signOut({ scope: 'local' });
+    } else {
+      await sb.auth.signOut();
+    }
   }
 
   // Auth state listener
@@ -1974,6 +2033,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     showAuthLayer('screen-login');
     const e = localStorage.getItem('bf_saved_email');
     if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
+    const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+    if (_gc.username && _gc.refreshToken) showGuestSavedCard(_gc);
   }
 });
 
@@ -2002,6 +2063,16 @@ async function startGame(user) {
   catch(e){console.warn('startGame failed:',e);}
   finally{
     gameFullyLoaded=true;
+    if (isGuestUser) {
+      const { data: { session: _gs } } = await sb.auth.getSession();
+      localStorage.setItem('idw_guest_cache', JSON.stringify({
+        userId: user.id,
+        username: meta.username || 'Guest',
+        level: playerLevel,
+        accessToken: _gs?.access_token || '',
+        refreshToken: _gs?.refresh_token || ''
+      }));
+    }
     // Full panel build on login
     buildResourcesPanel();
     buildResearchPanel();
