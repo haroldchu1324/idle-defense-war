@@ -1774,7 +1774,7 @@ RESOURCE_DEFS.forEach(r => {
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 let gameFullyLoaded = false;
 let isGuestUser = false;
-let sessionId = null, sessionRealtime = null;
+let sessionId = null, sessionRealtime = null, kickedCountdown = null;
 
 let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
@@ -2055,7 +2055,19 @@ async function doLinkAccount() {
   }, 2000);
 }
 
+// Called when another session kicks this one. Does NOT call sb.auth.signOut()
+// so same-browser tabs don't lose their shared JWT and show a blank page.
+async function doKickedLogout() {
+  if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  stopLoop(); clearTimeout(saveTimer);
+  saveToDB().catch(()=>{}); // best-effort save before closing
+  currentUser=null; isGuestUser=false; gameFullyLoaded=false;
+  stopLoop(); clearTimeout(saveTimer); resetState(); hideGame();
+}
+
 async function doLogout() {
+  if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
   if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
@@ -2101,6 +2113,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       await startGame(session.user);
     } else if (event === 'SIGNED_OUT') {
       isPasswordRecoveryMode = false;
+      if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
       if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
       currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();hideGame();
     }
@@ -2135,16 +2148,17 @@ async function startGame(user) {
 
   // ── Single-session enforcement ──────────────────────────────────────────
   // Subscribe to a per-user Realtime channel. On subscription, broadcast
-  // our sessionId so any other active session (same browser or other device)
-  // sees a different ID and signs itself out. Ignore our own broadcast.
+  // our sessionId. Any other active session sees a different ID and gets a
+  // 30-second warning before being quietly closed (no signOut call, so the
+  // new session's shared JWT stays intact in same-browser scenarios).
   sessionId = crypto.randomUUID();
   let _announced = false;
   if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
   sessionRealtime = sb.channel(`idw_session:${user.id}`)
     .on('broadcast', { event: 'login' }, ({ payload }) => {
-      if (payload.sid !== sessionId) {
-        showToast('⚠️ Signed in from another location — this session has ended.');
-        doLogout();
+      if (payload.sid !== sessionId && !kickedCountdown) {
+        showToast('⚠️ Another login detected. This session will close in 30 seconds.');
+        kickedCountdown = setTimeout(() => doKickedLogout(), 30000);
       }
     })
     .subscribe(async (status) => {

@@ -1774,6 +1774,7 @@ RESOURCE_DEFS.forEach(r => {
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 let gameFullyLoaded = false;
 let isGuestUser = false;
+let sessionId = null, sessionRealtime = null;
 
 let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
@@ -2055,6 +2056,7 @@ async function doLinkAccount() {
 }
 
 async function doLogout() {
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
   if (isGuestUser) {
@@ -2099,6 +2101,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       await startGame(session.user);
     } else if (event === 'SIGNED_OUT') {
       isPasswordRecoveryMode = false;
+      if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
       currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();hideGame();
     }
   });
@@ -2129,6 +2132,31 @@ async function startGame(user) {
   currentUser=user;
   gameFullyLoaded=false;
   isGuestUser = !!(user.user_metadata?.is_guest);
+
+  // ── Single-session enforcement ──────────────────────────────────────────
+  // Subscribe to a per-user Realtime channel. On subscription, broadcast
+  // our sessionId so any other active session (same browser or other device)
+  // sees a different ID and signs itself out. Ignore our own broadcast.
+  sessionId = crypto.randomUUID();
+  let _announced = false;
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  sessionRealtime = sb.channel(`idw_session:${user.id}`)
+    .on('broadcast', { event: 'login' }, ({ payload }) => {
+      if (payload.sid !== sessionId) {
+        showToast('⚠️ Signed in from another location — this session has ended.');
+        doLogout();
+      }
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED' && !_announced) {
+        _announced = true;
+        await sessionRealtime.send({
+          type: 'broadcast', event: 'login', payload: { sid: sessionId }
+        });
+      }
+    });
+  // ────────────────────────────────────────────────────────────────────────
+
   const meta=user.user_metadata||{};
   document.getElementById('username-display').textContent = meta.username || (user.email ? user.email.split('@')[0] : 'Guest');
   document.getElementById('guest-banner').style.display = isGuestUser ? 'flex' : 'none';
