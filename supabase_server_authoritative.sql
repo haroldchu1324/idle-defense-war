@@ -828,7 +828,7 @@ begin
 
   if p_state ? 'playerLevel' then
     update public.idw_player_state
-    set player_level = greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), updated_at = now()
+    set player_level = least(greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), case when (select email from auth.users where id = auth.uid()) is null then 9 else 2147483647 end), updated_at = now()
     where user_id = p.user_id;
   end if;
 
@@ -1347,7 +1347,7 @@ create table if not exists public.idw_alliances (
   join_type               text    not null default 'open' check (join_type in ('open','apply','invite')),
   min_power               integer not null default 0,
   language                text    not null default 'EN',
-  max_members             integer not null default 50,
+  max_members             integer not null default 20,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now()
 );

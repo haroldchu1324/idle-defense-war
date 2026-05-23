@@ -34,8 +34,8 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 #auth-layer.visible{opacity:1;}
 #auth-layer.hidden{display:none;}
 .auth-wrap{width:100%;max-width:420px;}
-#screen-login,#screen-signup,#screen-confirm{display:none;}
-#screen-login.visible,#screen-signup.visible,#screen-confirm.visible{display:block;}
+#screen-login,#screen-signup,#screen-confirm,#screen-forgot,#screen-reset-password{display:none;}
+#screen-login.visible,#screen-signup.visible,#screen-confirm.visible,#screen-forgot.visible,#screen-reset-password.visible{display:block;}
 .auth-logo{text-align:center;margin-bottom:2rem;}
 .auth-logo-icon{font-size:40px;display:block;margin-bottom:0.5rem;}
 .auth-logo-title{font-family:'Cinzel',serif;font-size:22px;color:#fff;letter-spacing:0.08em;}
@@ -55,7 +55,45 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .auth-switch a:hover{text-decoration:underline;}
 .auth-msg{font-size:13px;text-align:center;margin-top:1rem;min-height:20px;}
 .auth-msg.error{color:var(--red);}
+.auth-msg.success{color:var(--green);}
+.auth-forgot-link{text-align:right;margin-top:-0.5rem;margin-bottom:0.75rem;font-size:12px;}
+.auth-forgot-link a{color:var(--text3);cursor:pointer;text-decoration:none;}
+.auth-forgot-link a:hover{color:var(--blue);text-decoration:underline;}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:1rem 0;color:var(--text3);font-size:12px;}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.auth-guest-btn{width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:14px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,color 0.15s,background 0.15s;}
+.auth-guest-btn:hover{border-color:var(--text3);color:var(--text);background:var(--bg3);}
+.auth-guest-btn:active{transform:scale(0.98);}
 .auth-confirm-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:3rem 2rem;text-align:center;}
+.guest-banner{display:none;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:8px;padding:4px 12px;font-size:12px;color:#f0c040;text-align:center;margin-left:auto;align-items:center;white-space:nowrap;flex-shrink:0;}
+.guest-banner a{color:#f0c040;font-weight:600;cursor:pointer;text-decoration:underline;}
+.guest-banner a:hover{color:#fff;}
+.auth-layout{display:flex;align-items:center;justify-content:center;gap:2rem;width:100%;max-width:860px;}
+.guest-saved-panel{display:none;flex-direction:column;align-items:center;flex-shrink:0;}
+.guest-saved-panel.visible{display:flex;}
+.guest-saved-card{background:var(--bg2);border:1px solid rgba(240,192,64,0.4);border-radius:16px;padding:2rem;text-align:center;min-width:190px;}
+.guest-saved-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;}
+.guest-saved-icon{font-size:36px;margin-bottom:0.75rem;}
+.guest-saved-name{font-size:15px;font-weight:600;color:#fff;margin-bottom:0.3rem;word-break:break-all;}
+.guest-saved-level{font-size:13px;color:var(--gold);margin-bottom:1.25rem;}
+.guest-saved-btn{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(240,192,64,0.4);background:transparent;color:#f0c040;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
+.guest-saved-btn:hover{background:rgba(240,192,64,0.12);border-color:rgba(240,192,64,0.7);}
+.guest-saved-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.guest-clear-link{font-size:11px;color:var(--text3);cursor:pointer;margin-top:0.75rem;display:block;text-align:center;text-decoration:underline;background:none;border:none;font-family:'Inter',sans-serif;}
+.guest-clear-link:hover{color:#e55;}
+.pvp-guest-lock{display:none;position:absolute;inset:0;z-index:50;background:rgba(10,12,20,0.92);flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem;}
+.pvp-guest-lock.active{display:flex;}
+.pvp-lock-icon{font-size:52px;}
+.pvp-lock-title{font-size:20px;font-weight:700;color:#fff;}
+.pvp-lock-sub{font-size:14px;color:var(--text2);max-width:320px;line-height:1.7;}
+.pvp-lock-btn{padding:12px 28px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--blue2),var(--blue));color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:opacity 0.15s;}
+.pvp-lock-btn:hover{opacity:0.88;}
+#link-account-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;}
+#link-account-modal.open{display:flex;}
+.link-modal-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:400px;margin:1rem;}
+.link-modal-title{font-size:18px;font-weight:600;color:#fff;margin-bottom:0.5rem;}
+.link-modal-sub{font-size:13px;color:var(--text2);margin-bottom:1.5rem;line-height:1.6;}
+.link-modal-close{float:right;background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;line-height:1;margin-top:-4px;}
 .confirm-icon{font-size:48px;margin-bottom:1rem;display:block;}
 .confirm-title{font-size:20px;font-weight:600;color:#fff;margin-bottom:0.75rem;}
 .confirm-sub{font-size:14px;color:var(--text2);line-height:1.7;}
@@ -900,6 +938,9 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .al-panel.active{display:flex;}
 .al-members-table{width:100%;border-collapse:collapse;}
 .al-members-table th{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+.al-sort-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;cursor:pointer;white-space:nowrap;transition:background 0.15s,color 0.15s,border-color 0.15s;}
+.al-sort-btn:hover{background:rgba(94,139,255,0.12);border-color:rgba(94,139,255,0.35);color:var(--accent);}
+.al-sort-btn.active{background:rgba(94,139,255,0.18);border-color:rgba(94,139,255,0.5);color:var(--accent);}
 .al-members-table td{font-size:12px;color:var(--text2);padding:8px 10px;border-bottom:1px solid rgba(42,46,66,0.5);vertical-align:middle;}
 .al-members-table tr.al-commander-row td{background:rgba(240,192,64,0.04);}
 .al-members-table tr:hover td{background:rgba(255,255,255,0.02);}
@@ -976,6 +1017,17 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 <body>
 
 <div id="auth-layer">
+  <div class="auth-layout">
+  <div id="guest-saved-panel" class="guest-saved-panel">
+    <div class="guest-saved-card">
+      <div class="guest-saved-label">Saved Guest</div>
+      <div class="guest-saved-icon">👤</div>
+      <div class="guest-saved-name" id="guest-saved-name">Guest</div>
+      <div class="guest-saved-level" id="guest-saved-level">Level 1</div>
+      <button class="guest-saved-btn" id="guest-resume-btn" onclick="doResumeGuest()">Continue</button>
+      <button class="guest-clear-link" onclick="doClearGuestProgress()">Clear progress</button>
+    </div>
+  </div>
   <div class="auth-wrap">
     <div class="auth-logo">
       <span class="auth-logo-icon">🏰</span>
@@ -987,9 +1039,12 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <div class="auth-title">Welcome back, Commander</div>
         <div class="auth-field"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLogin()" oninput="this.style.color=''"></div>
         <div class="auth-field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div class="auth-forgot-link"><a onclick="showAuthScreen('screen-forgot')">Forgot password?</a></div>
         <button class="auth-submit" id="login-btn" onclick="doLogin()">Sign In</button>
         <div class="auth-msg" id="login-msg"></div>
-        <div class="auth-switch">No account? <a onclick="showAuthScreen('screen-signup')">Sign up</a></div>
+        <div class="auth-divider">or</div>
+        <button class="auth-guest-btn" id="guest-play-btn" onclick="doGuestPlay()">👤 Play as Guest</button>
+        <div class="auth-switch" style="margin-top:1rem;">No account? <a onclick="showAuthScreen('screen-signup')">Sign up</a></div>
       </div>
     </div>
     <div id="screen-signup">
@@ -1010,6 +1065,43 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <div class="confirm-sub">We sent a confirmation link.<br>Click it, then return here to sign in.</div>
       </div>
     </div>
+    <div id="screen-forgot">
+      <div class="auth-card">
+        <div class="auth-title">Reset your password</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:1.25rem;line-height:1.6;">Enter your account email and we'll send you a link to reset your password.</div>
+        <div class="auth-field"><label>Email</label><input type="email" id="forgot-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
+        <button class="auth-submit" id="forgot-btn" onclick="doForgotPassword()">Send Reset Link</button>
+        <div class="auth-msg" id="forgot-msg"></div>
+        <div class="auth-switch"><a onclick="showAuthScreen('screen-login')">← Back to sign in</a></div>
+      </div>
+    </div>
+    <div id="screen-reset-password">
+      <div class="auth-card">
+        <div class="auth-title">Set a new password</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:1.25rem;line-height:1.6;">Resetting password for <span id="reset-email-display" style="color:var(--gold);font-weight:600;">your account</span></div>
+        <div class="auth-field"><label>New Password</label><input type="password" id="reset-password" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')doResetPassword()"></div>
+        <div class="auth-field"><label>Confirm Password</label><input type="password" id="reset-password-confirm" placeholder="Repeat password" onkeydown="if(event.key==='Enter')doResetPassword()"></div>
+        <button class="auth-submit" id="reset-btn" onclick="doResetPassword()">Update Password</button>
+        <div class="auth-msg" id="reset-msg"></div>
+        <div class="auth-switch"><a onclick="doResetPasswordCancel()">← Back to sign in</a></div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div id="link-account-modal">
+  <div class="link-modal-card">
+    <button class="link-modal-close" onclick="closeLinkAccountModal()">✕</button>
+    <div class="link-modal-title">🔗 Link Your Account</div>
+    <div class="link-modal-sub">Create a permanent account to save your progress, access PvP, alliances, and all game content. Your current guest progress will carry over.</div>
+    <div class="auth-field"><label>Username</label><input type="text" id="link-username" placeholder="Commander123" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
+    <div class="auth-field"><label>Email</label><input type="email" id="link-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
+    <div class="auth-field"><label>Confirm Email</label><input type="email" id="link-email-confirm" placeholder="Repeat email" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
+    <div class="auth-field"><label>Password</label><input type="password" id="link-password" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
+    <div class="auth-field"><label>Confirm Password</label><input type="password" id="link-password-confirm" placeholder="Repeat password" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
+    <button class="auth-submit" id="link-btn" onclick="doLinkAccount()">Create &amp; Link Account</button>
+    <div class="auth-msg" id="link-msg"></div>
   </div>
 </div>
 
@@ -1067,6 +1159,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
           <button class="ctab" onclick="switchBaseTab('inventory')">🎒 Inventory</button>
           <button class="ctab" onclick="switchBaseTab('crafting')">⚒️ Crafting</button>
           <button class="ctab" onclick="switchBaseTab('settings')">⚙️ Settings</button>
+          <div id="guest-banner" class="guest-banner">👤 Playing as Guest — <a onclick="openLinkAccountModal()">Link account to save progress</a></div>
         </div>
         <div class="panel active" id="base-panel-resources">
           <div id="offline-banner-slot"></div>
@@ -1216,7 +1309,13 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         </div>
       </div>
       <!-- WORLD PVP MAP -->
-      <div id="section-pvp" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+      <div id="section-pvp" style="display:none;flex:1;flex-direction:column;overflow:hidden;position:relative;">
+        <div id="pvp-guest-lock" class="pvp-guest-lock">
+          <div class="pvp-lock-icon">🔒</div>
+          <div class="pvp-lock-title">World PvP is Locked</div>
+          <div class="pvp-lock-sub">The World PvP Map is only available to registered players. Link your guest account to unlock full access to PvP, alliances, and all game content.</div>
+          <button class="pvp-lock-btn" onclick="openLinkAccountModal()">🔗 Link Account to Unlock</button>
+        </div>
         <div class="pvp-wrap">
           <div class="pvp-toolbar">
             <div style="display:flex;align-items:center;">
@@ -1420,7 +1519,14 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 // ═══════════════════════════════════════════════
 const SUPABASE_URL  = 'https://gdlkslptehtxudfghhqh.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkbGtzbHB0ZWh0eHVkZmdoaHFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTY1MzIsImV4cCI6MjA5NDE5MjUzMn0.p-NfAzh1gVmuaPiRNv0kubERaGLyfWmbF2GnheExYIA';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+// Use sessionStorage so each browser tab has its own isolated auth session.
+// This prevents one tab's signOut / signIn from affecting any other open tab.
+// Unique key per page-load so Supabase's internal BroadcastChannel is
+// isolated to this tab and never interferes with other open tabs.
+const _tabAuthKey = 'idw-' + Math.random().toString(36).slice(2, 10);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { storage: window.sessionStorage, storageKey: _tabAuthKey },
+});
 
 // ═══════════════════════════════════════════════
 // SERVER-AUTHORITATIVE RPC ADAPTER
@@ -1430,7 +1536,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let currentBattleId = null;
 
 async function serverRpc(name, args = {}) {
-  const { data, error } = await sb.rpc(name, args);
+  const timeout = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error(`RPC timeout: ${name}`)), 15000)
+  );
+  const { data, error } = await Promise.race([sb.rpc(name, args), timeout]);
   if (error) {
     console.error('RPC failed:', name, error);
     showToast(error.message || 'Something went wrong, please try again.');
@@ -1450,11 +1559,12 @@ function applyServerPayload(payload) {
   // Trust server level as base, then process remaining XP through level-up loop
   playerLevel = rawLevel;
   playerXP = rawXP;
-  // Drain any overflow XP into level-ups
-  while (playerXP >= xpForLevel(playerLevel)) {
+  // Drain any overflow XP into level-ups (guests capped at GUEST_MAX_LEVEL)
+  while (playerXP >= xpForLevel(playerLevel) && (!isGuestUser || playerLevel < GUEST_MAX_LEVEL)) {
     playerXP -= xpForLevel(playerLevel);
     playerLevel++;
   }
+  if (isGuestUser && playerLevel >= GUEST_MAX_LEVEL) playerXP = Math.min(playerXP, xpForLevel(GUEST_MAX_LEVEL) - 1);
   updatePlayerLevelUI();
   if (s.nodes) {
     const syncMs = Date.now();
@@ -1523,6 +1633,7 @@ const LEVEL_UNLOCK = [0, 10, 20, 40, 60];
 const XP_PER_UNLOCK = 50;
 const XP_PER_UPGRADE = 15;
 const MAX_NODE_LEVEL = 15;
+const GUEST_MAX_LEVEL = 9;
 
 function xpForLevel(n) { return Math.floor(100 * Math.pow(1.35, n - 1)); }
 
@@ -1576,11 +1687,24 @@ function fmtCompact(n) {
   return Math.floor(n).toLocaleString();
 }
 
+// Alliance production bonus — mirrors idw_collect_resource server formula exactly:
+// TV>=1: +5%, TV>=5: +10%, plus sum of per-tile production bonuses
+function getAllianceProdBonus() {
+  if (!allianceState?.in_alliance) return 0;
+  const tc = allianceState.territory_value || 0;
+  let bonus = 0;
+  if (tc >= 1) bonus += 0.05;
+  if (tc >= 5) bonus += 0.10;
+  bonus += (allianceState.territory_production_bonus || 0);
+  return bonus;
+}
+
 function nodeProdPerHour(r, ti, ul) {
   const base = Math.round(r.tiers[ti].baseProd * (1 + (ul - 1) * 0.50));
   const levelMult = 1 + bonusProd(playerLevel);
   const resMult = (typeof researchProdBonus === 'function') ? (1 + researchProdBonus(r.id)) : 1;
-  return Math.round(base * levelMult * resMult);
+  const allianceMult = 1 + getAllianceProdBonus();
+  return Math.round(base * levelMult * resMult * allianceMult);
 }
 function nodeStorageCap(r, ti, ul) {
   return Math.round(r.tiers[ti].cap * (1 + (ul - 1) * 0.90));
@@ -1652,6 +1776,11 @@ RESOURCE_DEFS.forEach(r => {
 
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 let gameFullyLoaded = false;
+let isGuestUser = false;
+let sessionId = null, sessionRealtime = null, kickedCountdown = null;
+// True after this tab's user explicitly logs out — prevents TOKEN_REFRESHED from re-triggering startGame.
+// Reset to false at the top of startGame() so a fresh login clears it.
+let manualLogoutDone = false;
 
 let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
@@ -1663,8 +1792,19 @@ let lastTick = Date.now(), lastStructuralRender = 0;
 // ═══════════════════════════════════════════════
 const sessionChannel = new BroadcastChannel('blade_forge_session');
 sessionChannel.onmessage = (e) => {
-  if (e.data === 'logout' && currentUser) {
-    currentUser=null; stopLoop(); clearTimeout(saveTimer); resetState(); hideGame();
+  const msg = e.data;
+  const isLogout = msg === 'logout' || msg?.type === 'logout';
+  if (isLogout && currentUser) {
+    const logoutUserId = msg?.userId ?? null;
+    console.log('[broadcast] logout received — my userId:', currentUser.id, '| logout userId:', logoutUserId);
+    if (logoutUserId && logoutUserId !== currentUser.id) {
+      console.log('[broadcast] logout IGNORED — different account, Tab stays logged in as:', currentUser.id);
+      return;
+    }
+    console.log('[broadcast] logout ACCEPTED — clearing state for userId:', currentUser.id);
+    currentUser=null; stopLoop(); clearTimeout(saveTimer); resetState();
+    hideLoadingScreen();
+    hideGame();
   }
 };
 
@@ -1672,7 +1812,7 @@ sessionChannel.onmessage = (e) => {
 // AUTH
 // ═══════════════════════════════════════════════
 function showAuthScreen(id) {
-  ['screen-login','screen-signup','screen-confirm'].forEach(s => {
+  ['screen-login','screen-signup','screen-confirm','screen-forgot','screen-reset-password'].forEach(s => {
     const el = document.getElementById(s);
     el.style.display = s === id ? 'block' : 'none';
     el.classList.toggle('visible', s === id);
@@ -1695,6 +1835,12 @@ function showLoadingScreen() {
   const sl = document.getElementById('screen-loading');
   sl.style.display='flex'; sl.offsetHeight; sl.classList.add('visible');
 }
+function hideLoadingScreen() {
+  const sl = document.getElementById('screen-loading');
+  if (!sl) return;
+  sl.classList.remove('visible');
+  setTimeout(() => { sl.style.display = 'none'; }, 300);
+}
 function showGame() {
   const sl=document.getElementById('screen-loading'), g=document.getElementById('game');
   sl.classList.remove('visible'); g.style.display='flex'; g.offsetHeight;
@@ -1710,6 +1856,10 @@ function hideGame() {
   g.classList.remove('visible');
   setTimeout(()=>{ g.style.display='none'; }, 400);
   showAuthLayer('screen-login');
+  document.getElementById('guest-play-btn').style.display = '';
+  document.getElementById('guest-saved-panel').classList.remove('visible');
+  const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+  if (_gc.username && _gc.password) showGuestSavedCard(_gc);
 }
 
 async function doLogin() {
@@ -1717,12 +1867,18 @@ async function doLogin() {
   const pass=document.getElementById('login-password').value;
   const btn=document.getElementById('login-btn'), msg=document.getElementById('login-msg');
   if(!email||!pass){msg.textContent='Please enter email and password.';msg.className='auth-msg error';return;}
+  console.log('[login] button clicked');
   btn.disabled=true; msg.textContent='Signing in…'; msg.className='auth-msg';
+  console.log('[login] supabase sign-in started');
   const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
-  if(error){btn.disabled=false;msg.textContent=error.message;msg.className='auth-msg error';return;}
+  if(error){
+    console.warn('[login] sign-in failed:', error.message);
+    btn.disabled=false;msg.textContent=error.message;msg.className='auth-msg error';return;
+  }
+  console.log('[login] sign-in success, userId:', data.user?.id);
   btn.disabled=false; msg.textContent='';
   localStorage.setItem('bf_saved_email',email);
-  try{await startGame(data.user);}catch(e){console.error('startGame failed:',e);}
+  try{await startGame(data.user);}catch(e){console.error('[login] startGame threw:', e);}
 }
 async function doSignup() {
   const username=document.getElementById('signup-username').value.trim();
@@ -1736,59 +1892,388 @@ async function doSignup() {
   if(error){msg.textContent=error.message;msg.className='auth-msg error';}
   else{showAuthScreen('screen-confirm');}
 }
+async function doForgotPassword() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const btn   = document.getElementById('forgot-btn');
+  const msg   = document.getElementById('forgot-msg');
+  if (!email) { msg.textContent = 'Please enter your email.'; msg.className = 'auth-msg error'; return; }
+  btn.disabled = true; msg.textContent = 'Sending…'; msg.className = 'auth-msg';
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  btn.disabled = false;
+  if (error) { msg.textContent = error.message; msg.className = 'auth-msg error'; }
+  else { msg.textContent = '✓ Reset link sent — check your email.'; msg.className = 'auth-msg success'; }
+}
+
+async function doResetPassword() {
+  const pass    = document.getElementById('reset-password').value;
+  const confirm = document.getElementById('reset-password-confirm').value;
+  const btn     = document.getElementById('reset-btn');
+  const msg     = document.getElementById('reset-msg');
+  if (!pass)            { msg.textContent = 'Please enter a new password.'; msg.className='auth-msg error'; return; }
+  if (pass.length < 6)  { msg.textContent = 'Password must be at least 6 characters.'; msg.className='auth-msg error'; return; }
+  if (pass !== confirm) { msg.textContent = 'Passwords do not match.'; msg.className='auth-msg error'; return; }
+  btn.disabled = true;
+  msg.textContent = 'Updating password…'; msg.className = 'auth-msg';
+  const { error } = await sb.auth.updateUser({ password: pass });
+  btn.disabled = false;
+  if (error) {
+    msg.textContent = error.message; msg.className = 'auth-msg error';
+    return;
+  }
+  msg.textContent = '✓ Password updated! Redirecting to sign in…';
+  msg.className = 'auth-msg success';
+  // Clear the recovery hash and sign out so user signs in with new password
+  setTimeout(async () => {
+    isPasswordRecoveryMode = false;
+    history.replaceState(null, '', window.location.pathname);
+    await sb.auth.signOut();
+    document.getElementById('reset-password').value = '';
+    document.getElementById('reset-password-confirm').value = '';
+    document.getElementById('reset-msg').textContent = '';
+    showAuthScreen('screen-login');
+  }, 1500);
+}
+
+async function doResetPasswordCancel() {
+  isPasswordRecoveryMode = false;
+  history.replaceState(null, '', window.location.pathname);
+  await sb.auth.signOut();
+  showAuthScreen('screen-login');
+}
+
+function showGuestSavedCard(info) {
+  document.getElementById('guest-saved-name').textContent = info.username;
+  document.getElementById('guest-saved-level').textContent = 'Level ' + (info.level || 1);
+  document.getElementById('guest-saved-panel').classList.add('visible');
+  document.getElementById('guest-play-btn').style.display = 'none';
+  const btn = document.getElementById('guest-resume-btn');
+  btn.disabled = false; btn.textContent = 'Continue';
+}
+
+async function doResumeGuest() {
+  const cached = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+  const btn = document.getElementById('guest-resume-btn');
+  const msg = document.getElementById('login-msg');
+  btn.disabled = true; btn.textContent = 'Loading…';
+
+  if (!cached.email || !cached.password) {
+    // Old anonymous-auth cache — credentials not stored, can't resume
+    localStorage.removeItem('idw_guest_cache');
+    btn.disabled = false; btn.textContent = 'Continue';
+    document.getElementById('guest-saved-panel').classList.remove('visible');
+    document.getElementById('guest-play-btn').style.display = '';
+    msg.textContent = 'Guest session expired. Start a new guest session.';
+    msg.className = 'auth-msg error';
+    return;
+  }
+
+  console.log('[guest resume] signing in with stored credentials…');
+  const { error } = await sb.auth.signInWithPassword({ email: cached.email, password: cached.password });
+  if (error) {
+    console.error('[guest resume] signInWithPassword failed:', error);
+    localStorage.removeItem('idw_guest_cache');
+    btn.disabled = false; btn.textContent = 'Continue';
+    document.getElementById('guest-saved-panel').classList.remove('visible');
+    document.getElementById('guest-play-btn').style.display = '';
+    msg.textContent = 'Guest session expired. Start a new guest session.';
+    msg.className = 'auth-msg error';
+    return;
+  }
+  // Re-enable the button now. If startGame loads the game the login screen hides
+  // anyway; if the session claim is denied the button must be clickable for a retry.
+  btn.disabled = false; btn.textContent = 'Continue';
+}
+
+function doClearGuestProgress() {
+  if (!confirm('Clear your guest progress? This cannot be undone.')) return;
+  localStorage.removeItem('idw_guest_cache');
+  document.getElementById('guest-saved-panel').classList.remove('visible');
+  document.getElementById('guest-play-btn').style.display = '';
+}
+
+async function doGuestPlay() {
+  const btn = document.getElementById('guest-play-btn');
+  const msg = document.getElementById('login-msg');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  msg.textContent = 'Setting up guest account…'; msg.className = 'auth-msg';
+
+  const randHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2,'0')).join('');
+  const username = 'Guest' + Math.floor(Math.random() * 9_000_000 + 1_000_000);
+  const email    = 'guest_' + randHex(8) + '@idw.local';
+  const password = randHex(16);
+
+  // Store credentials first so startGame's finally block can read them
+  localStorage.setItem('idw_guest_cache', JSON.stringify({ email, password, username, level: 1 }));
+
+  try {
+    // Create a pre-confirmed account via SECURITY DEFINER RPC (bypasses email confirmation)
+    const { error: rpcErr } = await sb.rpc('idw_create_guest_account', { p_username: username, p_email: email, p_password: password });
+    if (rpcErr) throw rpcErr;
+
+    // Sign in with real credentials — fast, no token expiry issues
+    // onAuthStateChange SIGNED_IN fires during this call and starts the game
+    const { error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+    if (signInErr) throw signInErr;
+
+    msg.textContent = '';
+  } catch(e) {
+    console.error('[guest create] failed:', e);
+    localStorage.removeItem('idw_guest_cache');
+    btn.disabled = false; btn.textContent = 'Play as Guest';
+    msg.textContent = 'Could not create guest account. Please try again.';
+    msg.className = 'auth-msg error';
+  }
+}
+
+function openLinkAccountModal() {
+  document.getElementById('link-username').value = '';
+  document.getElementById('link-email').value = '';
+  document.getElementById('link-email-confirm').value = '';
+  document.getElementById('link-password').value = '';
+  document.getElementById('link-password-confirm').value = '';
+  document.getElementById('link-msg').textContent = '';
+  document.getElementById('link-msg').className = 'auth-msg';
+  document.getElementById('link-account-modal').classList.add('open');
+}
+function closeLinkAccountModal() {
+  document.getElementById('link-account-modal').classList.remove('open');
+}
+
+async function doLinkAccount() {
+  const username     = document.getElementById('link-username').value.trim();
+  const email        = document.getElementById('link-email').value.trim();
+  const emailConfirm = document.getElementById('link-email-confirm').value.trim();
+  const pass         = document.getElementById('link-password').value;
+  const confirm      = document.getElementById('link-password-confirm').value;
+  const btn          = document.getElementById('link-btn');
+  const msg          = document.getElementById('link-msg');
+
+  if (!username)             { msg.textContent = 'Please enter a username.';          msg.className='auth-msg error'; return; }
+  if (!email)                { msg.textContent = 'Please enter an email.';            msg.className='auth-msg error'; return; }
+  if (email !== emailConfirm){ msg.textContent = 'Emails do not match.';              msg.className='auth-msg error'; return; }
+  if (!pass)                 { msg.textContent = 'Please enter a password.';          msg.className='auth-msg error'; return; }
+  if (pass.length < 6)       { msg.textContent = 'Password must be at least 6 characters.'; msg.className='auth-msg error'; return; }
+  if (pass !== confirm)      { msg.textContent = 'Passwords do not match.';           msg.className='auth-msg error'; return; }
+
+  btn.disabled = true;
+  msg.textContent = 'Linking account…'; msg.className = 'auth-msg';
+
+  const { error } = await sb.rpc('idw_link_guest_account', {
+    p_new_email: email, p_new_password: pass, p_username: username
+  });
+  if (error) {
+    btn.disabled = false;
+    msg.textContent = error.message; msg.className = 'auth-msg error';
+    return;
+  }
+
+  // Trigger the same signup confirmation email a new user receives
+  await sb.auth.resend({ type: 'signup', email });
+
+  msg.textContent = `✓ Almost done! Confirmation email sent to ${email}.`;
+  msg.className = 'auth-msg success';
+
+  // Clear guest cache so the resume card doesn't reappear after logout
+  localStorage.removeItem('idw_guest_cache');
+
+  setTimeout(async () => {
+    closeLinkAccountModal();
+    await doLogout(); // saves game state, signs out, shows login screen
+    // Show confirmation reminder on the login screen with email pre-filled
+    const loginMsg = document.getElementById('login-msg');
+    loginMsg.textContent = `📬 Confirmation email sent to ${email} — check your inbox, then sign in.`;
+    loginMsg.className = 'auth-msg success';
+    document.getElementById('login-email').value = email;
+  }, 2000);
+}
+
+// Called when another session kicks this one. Does NOT call sb.auth.signOut()
+// (a global signOut would invalidate all server sessions including the new tab's).
+async function doKickedLogout() {
+  console.log('[session] kicked — another tab claimed this account');
+  if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  stopLoop(); clearTimeout(saveTimer);
+  saveToDB().catch(()=>{});
+  currentUser=null; isGuestUser=false; gameFullyLoaded=false;
+  stopLoop(); clearTimeout(saveTimer); resetState();
+  // Clear the local Supabase session so token auto-refresh can't fire
+  // TOKEN_REFRESHED and re-trigger startGame() with currentUser=null.
+  sb.auth.signOut({ scope: 'local' }).catch(()=>{});
+  hideLoadingScreen();
+  hideGame();
+  const lmsg = document.getElementById('login-msg');
+  if (lmsg) { lmsg.textContent = '⚠️ You were logged out because this account was opened in another tab.'; lmsg.className = 'auth-msg error'; }
+}
+
 async function doLogout() {
+  manualLogoutDone = true;
+  const _logoutUserId = currentUser?.id;
+  console.log('[logout] doLogout — userId:', _logoutUserId, '| tabSessionId:', sessionId);
+  if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  if (sessionId) { Promise.resolve(sb.rpc('idw_release_session', { p_session_id: sessionId })).catch(()=>{}); }
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
-  sessionChannel.postMessage('logout'); currentUser=null;
+  if (isGuestUser) {
+    // Update level in cache — email/password already stored, no token juggling needed
+    const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+    if (_prev.email) localStorage.setItem('idw_guest_cache', JSON.stringify({ ..._prev, level: playerLevel }));
+    sessionChannel.postMessage({ type: 'logout', userId: _logoutUserId });
+    currentUser=null; isGuestUser=false;
+    gameFullyLoaded=false; stopLoop(); clearTimeout(saveTimer); resetState();
+    hideGame();
+    await sb.auth.signOut();
+    return;
+  }
+  sessionChannel.postMessage({ type: 'logout', userId: _logoutUserId });
+  currentUser=null; isGuestUser = false;
   await sb.auth.signOut();
 }
-window.addEventListener('DOMContentLoaded', async () => {
-  // Always sign out any existing session so login screen is always shown
-  await sb.auth.signOut();
+// Flag set synchronously on page load so the SIGNED_IN handler doesn't
+// accidentally start the game when arriving via a password-recovery link
+let isPasswordRecoveryMode = window.location.hash.includes('type=recovery');
 
-  // Auth state listener — only fires after user explicitly logs in
+window.addEventListener('DOMContentLoaded', async () => {
+  // Each page load uses a fresh _tabAuthKey, so sessionStorage always starts
+  // empty — no stale session cleanup needed here.
+
+  // Auth state listener
   sb.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='SIGNED_IN'&&session?.user&&!currentUser) await startGame(session.user);
-    else if(event==='SIGNED_OUT'){currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();hideGame();}
+    if (event === 'PASSWORD_RECOVERY') {
+      isPasswordRecoveryMode = true;
+      const email = session?.user?.email || '';
+      const disp = document.getElementById('reset-email-display');
+      if (disp) disp.textContent = email || 'your account';
+      showAuthLayer('screen-reset-password');
+    } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !currentUser && !isPasswordRecoveryMode) {
+      if (manualLogoutDone) {
+        console.log('[auth] auto-login BLOCKED — manual logout was done in this tab | event:', event, '| userId:', session.user.id);
+      } else {
+        console.log('[auth] session event — starting game | event:', event, '| userId:', session.user.id, '| tabSessionId:', sessionId);
+        await startGame(session.user);
+      }
+    } else if (event === 'SIGNED_OUT') {
+      console.log('[auth] SIGNED_OUT — tabSessionId:', sessionId, '| currentUser:', currentUser?.id ?? 'none');
+      isPasswordRecoveryMode = false;
+      if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
+      if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+      currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();
+      hideGame();
+    }
   });
 
-  // Always show login screen on page load
-  showAuthLayer('screen-login');
-  const e=localStorage.getItem('bf_saved_email');
-  if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
+  if (isPasswordRecoveryMode) {
+    // Show reset screen immediately; email will be filled in once
+    // PASSWORD_RECOVERY event fires (or via getUser fallback below)
+    showAuthLayer('screen-reset-password');
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      const disp = document.getElementById('reset-email-display');
+      if (user?.email && disp) disp.textContent = user.email;
+    } catch(e) {}
+  } else {
+    showAuthLayer('screen-login');
+    const e = localStorage.getItem('bf_saved_email');
+    if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
+    const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+    if (_gc.username && _gc.password) showGuestSavedCard(_gc);
+  }
 });
 
 // ═══════════════════════════════════════════════
 // GAME START
 // ═══════════════════════════════════════════════
 async function startGame(user) {
+  if (currentUser) { console.log('[startGame] already running, skipping duplicate call'); return; }
+  manualLogoutDone = false; // new login — clear the manual-logout block
+  console.log('[startGame] starting, userId:', user?.id);
   currentUser=user;
   gameFullyLoaded=false;
+  isGuestUser = !!(user.user_metadata?.is_guest);
+
+  // ── Single-session enforcement ──────────────────────────────────────────
+  sessionId = crypto.randomUUID();
+  console.log('[startGame] claiming session, sessionId:', sessionId);
+  try {
+    const _result = await Promise.race([
+      sb.rpc('idw_claim_session', { p_session_id: sessionId }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('session claim timed out')), 10000))
+    ]);
+    const _allowed = _result?.data?.allowed;
+    const _claimErr = _result?.data?.error || _result?.error;
+    console.log('[startGame] claim result — allowed:', _allowed, 'err:', _claimErr?.message);
+    if (!_allowed) {
+      console.warn('[startGame] claim denied or timed out — proceeding anyway; Realtime kick will handle the conflict');
+    }
+  } catch(e) {
+    console.warn('[startGame] claim RPC error (non-blocking):', e?.message);
+  }
+  // Never block login based on claim result — always proceed and send the Realtime kick.
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  sessionRealtime = sb.channel(`idw_session:${user.id}`)
+    .on('broadcast', { event: 'kick' }, ({ payload }) => {
+      if (payload.sid !== sessionId) {
+        console.log('[session] kick received — my sessionId:', sessionId, 'payload.sid:', payload.sid);
+        doKickedLogout();
+      }
+    })
+    .subscribe(async (status) => {
+      console.log('[session] realtime status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('[session] subscribed — sending kick broadcast, sessionId:', sessionId);
+        sessionRealtime.send({ type: 'broadcast', event: 'kick', payload: { sid: sessionId } }).catch(()=>{});
+      }
+    });
+  // ────────────────────────────────────────────────────────────────────────
+
   const meta=user.user_metadata||{};
-  document.getElementById('username-display').textContent=meta.username||user.email.split('@')[0];
+  document.getElementById('username-display').textContent = meta.username || (user.email ? user.email.split('@')[0] : 'Guest');
+  document.getElementById('guest-banner').style.display = isGuestUser ? 'flex' : 'none';
   document.getElementById('login-msg').textContent='';
   // Zero out resources before loading so stale JS defaults never show
   resources={wood:0,stone:0,fiber:0,leather:0,ore:0};
+  console.log('[startGame] showing loading screen, fetching profile');
   showLoadingScreen();
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
   try{
-    await loadFromDB();
+    await Promise.race([
+      loadFromDB(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load timeout')),20000))
+    ]);
+    console.log('[startGame] profile loaded successfully');
     // Pre-load alliance state so territory buffs apply from game start
     serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
-    await new Promise(r=>setTimeout(r,450));
   }
-  catch(e){console.warn('startGame failed:',e);}
+  catch(e){console.warn('[startGame] load failed or timed out:', e);}
   finally{
+    if (!currentUser) { hideLoadingScreen(); return; } // kicked during load
     gameFullyLoaded=true;
-    // Full panel build on login
-    buildResourcesPanel();
-    buildResearchPanel();
-    buildInventoryPanel();
-    buildCraftingPanel();
-    buildCampaignMap();
-    updateResourcePills();
-    updatePlayerLevelUI();
+    if (isGuestUser) {
+      // Sync update — preserve email/password, just refresh level
+      const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+      localStorage.setItem('idw_guest_cache', JSON.stringify({
+        ..._prev,
+        userId: user.id,
+        username: meta.username || 'Guest',
+        level: playerLevel,
+      }));
+    }
+    // Full panel build on login — wrapped so a builder crash never leaves the loading screen stuck
+    console.log('[startGame] building panels, userId:', user.id);
+    try {
+      buildResourcesPanel();
+      buildResearchPanel();
+      buildInventoryPanel();
+      buildCraftingPanel();
+      buildCampaignMap();
+      updateResourcePills();
+      updatePlayerLevelUI();
+    } catch(e) {
+      console.error('[startGame] panel build error:', e);
+    }
+    console.log('[startGame] showing game');
     showGame();
     startLoop(); // start loop AFTER server state is loaded
   }
@@ -1828,8 +2313,11 @@ async function loadFromDB() {
     // Resolve any offline research that completed while away
     await resolveOfflineResearch();
   } catch (e) {
-    console.warn('server load failed, falling back to old game_saves:', e);
-    // Old fallback kept so a bad SQL install does not freeze the login screen.
+    console.warn('server load failed:', e);
+    // Guest users save via RPCs only — game_saves table has no guest rows (406).
+    // Skip the fallback for guests to avoid a wasted 8s wait.
+    if (isGuestUser) return;
+    // Old fallback for email accounts with legacy saves.
     let data,error;
     try{
       const result=await Promise.race([
@@ -2029,12 +2517,13 @@ function tickAll(){ tickResources(); }
 function addXP(amount, x, y) {
   // Update locally for immediate visual feedback
   playerXP += amount;
-  while(playerXP >= xpForLevel(playerLevel)){
+  while(playerXP >= xpForLevel(playerLevel) && (!isGuestUser || playerLevel < GUEST_MAX_LEVEL)){
     playerXP -= xpForLevel(playerLevel);
     playerLevel++;
     showToast(`🎉 Level up! Now Level ${playerLevel}`);
     updateNodeCards();
   }
+  if(isGuestUser && playerLevel >= GUEST_MAX_LEVEL) playerXP = Math.min(playerXP, xpForLevel(GUEST_MAX_LEVEL) - 1);
   updatePlayerLevelUI();
   if(x !== undefined) spawnXPFloater(`+${amount} XP`, x, y);
   // Persist to server — debounced so rapid XP gains batch together
@@ -2119,11 +2608,40 @@ function openBuffsModal(){
   const pct = Math.min((playerXP/needed)*100,100).toFixed(1);
   const rb = getResearchBonuses();
   const pl = calculatePowerLevel();
+  const ab = getAllianceBuffs();
+  const alProd = getAllianceProdBonus();
   function fmtBonus(v){ const n=parseFloat(v.toFixed(1)); return `<span class="buff-val${n===0?' zero':''}">${n===0?'—':'+'+n.toFixed(1)+'%'}</span>`; }
   const prodRows = RESOURCE_DEFS.map(r => {
-    const total = (bonusProd(playerLevel) + researchProdBonus(r.id)) * 100;
+    const total = (bonusProd(playerLevel) + researchProdBonus(r.id) + alProd) * 100;
     return `<div class="buff-row"><span class="buff-label">${r.icon} ${r.name}</span>${fmtBonus(total)}</div>`;
   }).join('');
+
+  // Alliance buffs section
+  const inAlliance = allianceState?.in_alliance;
+  const alName = allianceState?.alliance?.name || 'Alliance';
+  const alTV   = allianceState?.territory_value || 0;
+  function fmtAlBuff(v, unit='%') {
+    if (!v || v === 0) return `<span class="buff-val zero">—</span>`;
+    return `<span class="buff-val">${unit === '%' ? '+' + (v * 100).toFixed(0) + '%' : '+' + v}</span>`;
+  }
+  const allianceSection = inAlliance ? `
+    <div class="buffs-section">
+      <div class="buffs-section-title">🏰 Alliance Buffs — ${alName} (${alTV} TV)</div>
+      <div class="buff-row"><span class="buff-label">🌾 Resource Production</span>${fmtBonus(alProd * 100)}</div>
+      ${ab.tower_dmg   ? `<div class="buff-row"><span class="buff-label">⚔️ Tower Damage</span>${fmtAlBuff(ab.tower_dmg)}</div>` : ''}
+      ${ab.tower_spd   ? `<div class="buff-row"><span class="buff-label">⚡ Attack Speed</span>${fmtAlBuff(ab.tower_spd)}</div>` : ''}
+      ${ab.slow        ? `<div class="buff-row"><span class="buff-label">🧊 Enemy Slow</span>${fmtAlBuff(ab.slow)}</div>` : ''}
+      ${ab.crit_bonus  ? `<div class="buff-row"><span class="buff-label">🎯 Crit Bonus Dmg</span>${fmtAlBuff(ab.crit_bonus)}</div>` : ''}
+      ${ab.boss_dmg    ? `<div class="buff-row"><span class="buff-label">💀 Boss Damage</span>${fmtAlBuff(ab.boss_dmg)}</div>` : ''}
+      ${ab.mob_hp_reduce ? `<div class="buff-row"><span class="buff-label">🛡️ Enemy HP Reduce</span>${fmtAlBuff(ab.mob_hp_reduce)}</div>` : ''}
+      ${ab.extra_projectile ? `<div class="buff-row"><span class="buff-label">🏹 Extra Projectiles</span>${fmtAlBuff(ab.extra_projectile, 'flat')}</div>` : ''}
+      ${ab.extra_slot  ? `<div class="buff-row"><span class="buff-label">🗼 Extra Tower Slots</span>${fmtAlBuff(ab.extra_slot, 'flat')}</div>` : ''}
+      ${ab.stage_value ? `<div class="buff-row"><span class="buff-label">🛡️ Territory Stage Bonus</span><span class="buff-val">+${ab.stage_value} stages</span></div>` : ''}
+    </div>` : `
+    <div class="buffs-section">
+      <div class="buffs-section-title">🏰 Alliance Buffs</div>
+      <div class="buff-row" style="color:var(--text3);font-size:12px;">Join an alliance to unlock territory bonuses.</div>
+    </div>`;
   document.getElementById('buffs-modal-content').innerHTML=`
     <div class="bmodal-header">
       <div>
@@ -2154,6 +2672,7 @@ function openBuffsModal(){
       <div class="buffs-section-title">🌾 Resource Production</div>
       ${prodRows}
     </div>
+    ${allianceSection}
     <div class="buffs-section">
       <div class="buffs-section-title">🗼 Tower Bonuses</div>
       <div class="buff-row"><span class="buff-label">Tower Damage</span>${fmtBonus(rb.tower_dmg*100)}</div>
@@ -7134,6 +7653,13 @@ function pvpAnimateTile(idx, fromColor, toColor, duration=1200) {
 
 function pvpTileIdx(tx,ty){ return ty*PVP_GRID+tx; }
 
+// Convert numeric pvp difficulty to "world-stage" label (e.g. 11 → "2-1", 5 → "1-5")
+function pvpDiffToStageLabel(d) {
+  const world = Math.ceil(d / 10);
+  const stage = ((d - 1) % 10) + 1;
+  return `${world}-${stage}`;
+}
+
 function pvpTileDifficulty(tx,ty){
   // Returns tile's stage level (1=stage 1-1, 2=stage 1-2 … 10=stage 1-10).
   // Upgraded by owner via pvpApplyBaseUpgrade().
@@ -7990,8 +8516,15 @@ function pvpClickTile(tx,ty,e) {
   title.innerHTML = `${catIcon} <span style="color:${catColor};font-weight:700;">${catLabel}</span>${rarityTag}`;
 
   // Coordinate + type info (always shown first)
+  // Stage territory bonus: if this tile is a stage special territory and is owned,
+  // attackers face a harder battle (base level + stage bonus)
+  const stageBonus = (specInfo?.bonusStat === 'stage_value' && isOwned) ? (specInfo.bonusValue || 0) : 0;
+  const effectiveDiff = diff + stageBonus;
+  const stageLine = stageBonus > 0
+    ? `Stage 1-${diff} <span style="color:#f0c040;font-size:10px;">(+${stageBonus} → ${pvpDiffToStageLabel(effectiveDiff)})</span>`
+    : `Stage 1-${diff}`;
   const tvSuffix = catLabel !== 'Value Territory' ? ` · <span style="color:${catColor};font-weight:600;">+${tileTV} TV</span>` : '';
-  const coordLine = `<div style="color:#a0a8c0;margin-bottom:2px;">(${tx}, ${ty}) · Stage 1-${diff}</div>`
+  const coordLine = `<div style="color:#a0a8c0;margin-bottom:2px;">(${tx}, ${ty}) · ${stageLine}</div>`
                   + `<div style="color:#a0a8c0;margin-bottom:4px;">${catLabel}${tvSuffix}</div>`;
 
   const mineBtns=document.getElementById('pvp-tt-mine-btns');
@@ -8014,7 +8547,9 @@ function pvpClickTile(tx,ty,e) {
       sub.innerHTML=coordLine+`<span style="color:#6a7090;">Unclaimed</span>`;
     }
     const canAttack = canAttackTile(tx, ty, isUnderAttack, onCooldown);
-    btn.textContent = canAttack.canAttack ? `⚔️ Attack (Stage 1-${diff})` : canAttack.reason;
+    btn.textContent = canAttack.canAttack
+      ? `⚔️ Attack (Stage ${pvpDiffToStageLabel(effectiveDiff)}${stageBonus > 0 ? ` +${stageBonus}` : ''})`
+      : canAttack.reason;
     btn.disabled = !canAttack.canAttack;
     btn.onclick = canAttack.canAttack ? pvpAttackTile : null;
   }
@@ -8126,9 +8661,14 @@ async function pvpAttackTile(){
   if(!pvpSelectedTile) return;
   const{tx,ty,idx}=pvpSelectedTile;
   const diff=pvpTileDifficulty(tx,ty);
+  // Stage territory defense bonus: owned stage territories boost effective difficulty for attackers
+  const spec=SPECIAL_TERRITORIES[idx];
+  const tile=pvpTiles[idx];
+  const stageBonus=(spec?.bonusStat==='stage_value'&&tile?.owner)?(spec.bonusValue||0):0;
+  const effectiveDiff=diff+stageBonus;
   pvpHideTooltip();
   pvpPendingTile={tx,ty,idx};
-  openBattleSetup(`pvp-${diff}`,true);
+  openBattleSetup(`pvp-${effectiveDiff}`,true);
 }
 
 async function pvpBattleEnded(tile,won){
@@ -8136,7 +8676,7 @@ async function pvpBattleEnded(tile,won){
   try{
     const cooldownUntil=new Date(Date.now()+30*1000).toISOString();
     if(won){
-      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:currentUser.id,attacking_until:cooldownUntil,claimed_at:new Date().toISOString()});
+      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: true});
       const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
       pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+30000};
       pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
@@ -8145,8 +8685,7 @@ async function pvpBattleEnded(tile,won){
       pvpUpdateStats();
       await pvpCheckAndApplyChain(tile.tx, tile.ty);
     } else {
-      const prevOwner=pvpTiles[tile.idx]?.owner||null;
-      await sb.from('pvp_world').upsert({tile_idx:tile.idx,owner_id:prevOwner,attacking_until:cooldownUntil});
+      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: false});
       if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+30000;
       showToast('💀 Attack failed!');
       pvpAttackCooldownUntil=Date.now()+60*1000;
@@ -8261,17 +8800,10 @@ async function pvpCheckAndApplyChain(triggerTx, triggerTy) {
       if(closingLevel < maxGroupLevel) continue;
 
       // All conditions met — capture the group
-      const cooldownUntil = new Date(Date.now()+10*1000).toISOString();
-      const upserts = group.map(gi=>({
-        tile_idx: gi,
-        owner_id: currentUser.id,
-        attacking_until: cooldownUntil,
-        claimed_at: new Date().toISOString()
-      }));
       try {
-        await sb.from('pvp_world').upsert(upserts);
+        await serverRpc('pvp_chain_capture', {p_tile_idxs: group});
       } catch(e) {
-        console.warn('pvpCheckAndApplyChain upsert failed:', e.message);
+        console.warn('pvpCheckAndApplyChain failed:', e.message);
         continue;
       }
 
@@ -8487,7 +9019,7 @@ const ALLIANCE_TERRITORY_MILESTONES = [
   { territories: 25, icon:'⚡', name:'Battle Tempo',         desc:'+15% turret attack speed',               type:'tower_spd',          pct:0.15  },
   { territories: 40, icon:'🧊', name:'Freezing Arrowheads', desc:'Non-AOE turrets slow targets by 25%',    type:'slow',               pct:0.25  },
   { territories: 60, icon:'🏹', name:'Multi-Barrage',        desc:'Non-AOE turrets fire +1 projectile',     type:'extra_projectile',   count:1   },
-  { territories: 80, icon:'🛡️', name:'War Bonds',            desc:'+20% turret HP',                         type:'troop_hp',           pct:0.20  },
+  { territories: 80, icon:'🛡️', name:'War Bonds',            desc:'-20% enemy HP',                          type:'mob_hp_reduce',      pct:0.20  },
   { territories:100, icon:'🗡️', name:'Grand Campaign',       desc:'+1 maximum equipped turret in battle',   type:'extra_slot',         count:1   },
   { territories:120, icon:'💥', name:'Critical Warfare',     desc:'Projectile hits have 10% chance for +50% bonus damage', type:'crit_bonus', pct:0.50 },
   { territories:150, icon:'👁️', name:'Giant Slayer',         desc:'Boss enemies take +15% damage',          type:'boss_dmg',           pct:0.15  },
@@ -8509,7 +9041,7 @@ function getAllianceBuffs() {
     else if (m.type === 'slow')          ab.slow               += m.pct;
     else if (m.type === 'crit_bonus')    ab.crit_bonus         += m.pct;
     else if (m.type === 'boss_dmg')      ab.boss_dmg           += m.pct;
-    else if (m.type === 'troop_hp')      ab.troop_hp           += m.pct;
+    else if (m.type === 'mob_hp_reduce') ab.mob_hp_reduce      += m.pct;
     else if (m.type === 'all_resource_prod') ab.all_resource_prod += m.pct;
   }
   // Special territory buffs (owned named territories)
@@ -8541,6 +9073,19 @@ let allianceState = null;     // cached result of idw_get_alliance_state()
 let allianceActiveTab = 'members';
 let allianceBrowserFilters = { joinType:'all', minPower:'', maxPower:'', lang:'all', sort:'power', joinableOnly:false, search:'' };
 let _alRefreshTimer = null;
+let alMemberSort = 'power';   // 'power' | 'level' | 'last_online'
+let alMemberSortDir = 'desc';
+
+function alSetMemberSort(col) {
+  if (alMemberSort === col) {
+    alMemberSortDir = alMemberSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    alMemberSort = col;
+    alMemberSortDir = 'desc';
+  }
+  const el = document.getElementById('al-content');
+  if (el && allianceState) renderAllianceHome(el, allianceState);
+}
 
 // ── helpers ──
 
@@ -8752,10 +9297,25 @@ function alMembersPanel(state) {
     return `<div class="al-panel" id="al-panel-members"><div class="al-placeholder">No members found.</div></div>`;
   }
 
-  const rows = members.map(m => {
+  // Sort members by selected column
+  const sorted = [...members].sort((a, b) => {
+    let av, bv;
+    if (alMemberSort === 'power')       { av = a.power||0;               bv = b.power||0; }
+    else if (alMemberSort === 'level')  { av = a.level||1;               bv = b.level||1; }
+    else                                { av = new Date(a.last_online||0); bv = new Date(b.last_online||0); }
+    return alMemberSortDir === 'desc' ? bv - av : av - bv;
+  });
+
+  function sortBtn(col, label) {
+    const active = alMemberSort === col;
+    const arrow = active ? (alMemberSortDir === 'desc' ? ' ↓' : ' ↑') : '';
+    return `<button class="al-sort-btn${active?' active':''}" onclick="alSetMemberSort('${col}')">${label}${arrow}</button>`;
+  }
+
+  const rows = sorted.map(m => {
     const canAct = canManage && m.user_id !== myUserId && alCanManageMember(myRank, m.rank);
     return `
-    <tr>
+    <tr${m.rank==='commander'?' class="al-commander-row"':''}>
       <td>${alRankBadge(m.rank)}</td>
       <td style="color:#fff;font-weight:${m.rank==='commander'?700:400};">${m.username}</td>
       <td>${alFmtPower(m.power||0)}</td>
@@ -8776,7 +9336,10 @@ function alMembersPanel(state) {
       <div style="overflow-x:auto;">
         <table class="al-members-table">
           <thead><tr>
-            <th>Rank</th><th>Username</th><th>Power</th><th>Level</th><th>Last Online</th>
+            <th>Rank</th><th>Username</th>
+            <th>${sortBtn('power','Power')}</th>
+            <th>${sortBtn('level','Level')}</th>
+            <th>${sortBtn('last_online','Last Online')}</th>
             ${canManage?'<th>Actions</th>':''}
           </tr></thead>
           <tbody>${rows}</tbody>
@@ -9194,14 +9757,21 @@ function switchSection(name){
   }
 
   // Init PVP map when switching to it
-  if(name === 'pvp' && !pvpLoaded) {
-    const overlay=document.getElementById('pvp-loading-overlay');
-    if(overlay) overlay.style.display='flex';
-    pvpLoad();
-  }
-  else if(name === 'pvp') {
-    pvpInitCanvas();
-    pvpRefresh(); // always refresh when opening map
+  if(name === 'pvp') {
+    const lockEl = document.getElementById('pvp-guest-lock');
+    if(isGuestUser) {
+      if(lockEl) lockEl.classList.add('active');
+    } else {
+      if(lockEl) lockEl.classList.remove('active');
+      if(!pvpLoaded) {
+        const overlay=document.getElementById('pvp-loading-overlay');
+        if(overlay) overlay.style.display='flex';
+        pvpLoad();
+      } else {
+        pvpInitCanvas();
+        pvpRefresh();
+      }
+    }
   }
   // Stop auto-refresh and hide tooltip when leaving
   if(name !== 'pvp') {
