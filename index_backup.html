@@ -1519,11 +1519,14 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 // ═══════════════════════════════════════════════
 const SUPABASE_URL  = 'https://gdlkslptehtxudfghhqh.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkbGtzbHB0ZWh0eHVkZmdoaHFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTY1MzIsImV4cCI6MjA5NDE5MjUzMn0.p-NfAzh1gVmuaPiRNv0kubERaGLyfWmbF2GnheExYIA';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-// Key Supabase uses to store the session in localStorage.
-// Removing this manually clears the local session WITHOUT calling signOut()
-// on the server — so the refresh token stays valid for guest resume.
-const SB_SESSION_KEY = `sb-${SUPABASE_URL.replace('https://','').split('.')[0]}-auth-token`;
+// Use sessionStorage so each browser tab has its own isolated auth session.
+// This prevents one tab's signOut / signIn from affecting any other open tab.
+// Unique key per page-load so Supabase's internal BroadcastChannel is
+// isolated to this tab and never interferes with other open tabs.
+const _tabAuthKey = 'idw-' + Math.random().toString(36).slice(2, 10);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { storage: window.sessionStorage, storageKey: _tabAuthKey },
+});
 
 // ═══════════════════════════════════════════════
 // SERVER-AUTHORITATIVE RPC ADAPTER
@@ -1774,7 +1777,10 @@ RESOURCE_DEFS.forEach(r => {
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 let gameFullyLoaded = false;
 let isGuestUser = false;
-let sessionId = null, sessionRealtime = null;
+let sessionId = null, sessionRealtime = null, kickedCountdown = null;
+// True after this tab's user explicitly logs out — prevents TOKEN_REFRESHED from re-triggering startGame.
+// Reset to false at the top of startGame() so a fresh login clears it.
+let manualLogoutDone = false;
 
 let pendingOfflineBanner = null;
 let modalResId = null, modalTierIdx = null;
@@ -1786,8 +1792,19 @@ let lastTick = Date.now(), lastStructuralRender = 0;
 // ═══════════════════════════════════════════════
 const sessionChannel = new BroadcastChannel('blade_forge_session');
 sessionChannel.onmessage = (e) => {
-  if (e.data === 'logout' && currentUser) {
-    currentUser=null; stopLoop(); clearTimeout(saveTimer); resetState(); hideGame();
+  const msg = e.data;
+  const isLogout = msg === 'logout' || msg?.type === 'logout';
+  if (isLogout && currentUser) {
+    const logoutUserId = msg?.userId ?? null;
+    console.log('[broadcast] logout received — my userId:', currentUser.id, '| logout userId:', logoutUserId);
+    if (logoutUserId && logoutUserId !== currentUser.id) {
+      console.log('[broadcast] logout IGNORED — different account, Tab stays logged in as:', currentUser.id);
+      return;
+    }
+    console.log('[broadcast] logout ACCEPTED — clearing state for userId:', currentUser.id);
+    currentUser=null; stopLoop(); clearTimeout(saveTimer); resetState();
+    hideLoadingScreen();
+    hideGame();
   }
 };
 
@@ -1818,6 +1835,12 @@ function showLoadingScreen() {
   const sl = document.getElementById('screen-loading');
   sl.style.display='flex'; sl.offsetHeight; sl.classList.add('visible');
 }
+function hideLoadingScreen() {
+  const sl = document.getElementById('screen-loading');
+  if (!sl) return;
+  sl.classList.remove('visible');
+  setTimeout(() => { sl.style.display = 'none'; }, 300);
+}
 function showGame() {
   const sl=document.getElementById('screen-loading'), g=document.getElementById('game');
   sl.classList.remove('visible'); g.style.display='flex'; g.offsetHeight;
@@ -1844,12 +1867,18 @@ async function doLogin() {
   const pass=document.getElementById('login-password').value;
   const btn=document.getElementById('login-btn'), msg=document.getElementById('login-msg');
   if(!email||!pass){msg.textContent='Please enter email and password.';msg.className='auth-msg error';return;}
+  console.log('[login] button clicked');
   btn.disabled=true; msg.textContent='Signing in…'; msg.className='auth-msg';
+  console.log('[login] supabase sign-in started');
   const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
-  if(error){btn.disabled=false;msg.textContent=error.message;msg.className='auth-msg error';return;}
+  if(error){
+    console.warn('[login] sign-in failed:', error.message);
+    btn.disabled=false;msg.textContent=error.message;msg.className='auth-msg error';return;
+  }
+  console.log('[login] sign-in success, userId:', data.user?.id);
   btn.disabled=false; msg.textContent='';
   localStorage.setItem('bf_saved_email',email);
-  try{await startGame(data.user);}catch(e){console.error('startGame failed:',e);}
+  try{await startGame(data.user);}catch(e){console.error('[login] startGame threw:', e);}
 }
 async function doSignup() {
   const username=document.getElementById('signup-username').value.trim();
@@ -1939,7 +1968,6 @@ async function doResumeGuest() {
   }
 
   console.log('[guest resume] signing in with stored credentials…');
-  // signInWithPassword triggers onAuthStateChange SIGNED_IN → startGame
   const { error } = await sb.auth.signInWithPassword({ email: cached.email, password: cached.password });
   if (error) {
     console.error('[guest resume] signInWithPassword failed:', error);
@@ -1949,7 +1977,11 @@ async function doResumeGuest() {
     document.getElementById('guest-play-btn').style.display = '';
     msg.textContent = 'Guest session expired. Start a new guest session.';
     msg.className = 'auth-msg error';
+    return;
   }
+  // Re-enable the button now. If startGame loads the game the login screen hides
+  // anyway; if the session claim is denied the button must be clickable for a retry.
+  btn.disabled = false; btn.textContent = 'Continue';
 }
 
 function doClearGuestProgress() {
@@ -2055,21 +2087,46 @@ async function doLinkAccount() {
   }, 2000);
 }
 
-async function doLogout() {
+// Called when another session kicks this one. Does NOT call sb.auth.signOut()
+// (a global signOut would invalidate all server sessions including the new tab's).
+async function doKickedLogout() {
+  console.log('[session] kicked — another tab claimed this account');
+  if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
   if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  stopLoop(); clearTimeout(saveTimer);
+  saveToDB().catch(()=>{});
+  currentUser=null; isGuestUser=false; gameFullyLoaded=false;
+  stopLoop(); clearTimeout(saveTimer); resetState();
+  // Clear the local Supabase session so token auto-refresh can't fire
+  // TOKEN_REFRESHED and re-trigger startGame() with currentUser=null.
+  sb.auth.signOut({ scope: 'local' }).catch(()=>{});
+  hideLoadingScreen();
+  hideGame();
+  const lmsg = document.getElementById('login-msg');
+  if (lmsg) { lmsg.textContent = '⚠️ You were logged out because this account was opened in another tab.'; lmsg.className = 'auth-msg error'; }
+}
+
+async function doLogout() {
+  manualLogoutDone = true;
+  const _logoutUserId = currentUser?.id;
+  console.log('[logout] doLogout — userId:', _logoutUserId, '| tabSessionId:', sessionId);
+  if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
+  if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
+  if (sessionId) { Promise.resolve(sb.rpc('idw_release_session', { p_session_id: sessionId })).catch(()=>{}); }
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
   if (isGuestUser) {
     // Update level in cache — email/password already stored, no token juggling needed
     const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
     if (_prev.email) localStorage.setItem('idw_guest_cache', JSON.stringify({ ..._prev, level: playerLevel }));
-    sessionChannel.postMessage('logout');
+    sessionChannel.postMessage({ type: 'logout', userId: _logoutUserId });
     currentUser=null; isGuestUser=false;
-    gameFullyLoaded=false; stopLoop(); clearTimeout(saveTimer); resetState(); hideGame();
+    gameFullyLoaded=false; stopLoop(); clearTimeout(saveTimer); resetState();
+    hideGame();
     await sb.auth.signOut();
     return;
   }
-  sessionChannel.postMessage('logout');
+  sessionChannel.postMessage({ type: 'logout', userId: _logoutUserId });
   currentUser=null; isGuestUser = false;
   await sb.auth.signOut();
 }
@@ -2078,16 +2135,8 @@ async function doLogout() {
 let isPasswordRecoveryMode = window.location.hash.includes('type=recovery');
 
 window.addEventListener('DOMContentLoaded', async () => {
-  // Skip auto sign-out when arriving from a password recovery link — we need
-  // the recovery session to remain active so updateUser({ password }) works
-  if (!isPasswordRecoveryMode) {
-    const { data: { session: _sess } } = await sb.auth.getSession();
-    if (_sess) {
-      // Any stale session on page load gets cleared — guests resume via stored
-      // email/password credentials, non-guests re-authenticate manually
-      await sb.auth.signOut();
-    }
-  }
+  // Each page load uses a fresh _tabAuthKey, so sessionStorage always starts
+  // empty — no stale session cleanup needed here.
 
   // Auth state listener
   sb.auth.onAuthStateChange(async(event,session)=>{
@@ -2098,11 +2147,19 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (disp) disp.textContent = email || 'your account';
       showAuthLayer('screen-reset-password');
     } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !currentUser && !isPasswordRecoveryMode) {
-      await startGame(session.user);
+      if (manualLogoutDone) {
+        console.log('[auth] auto-login BLOCKED — manual logout was done in this tab | event:', event, '| userId:', session.user.id);
+      } else {
+        console.log('[auth] session event — starting game | event:', event, '| userId:', session.user.id, '| tabSessionId:', sessionId);
+        await startGame(session.user);
+      }
     } else if (event === 'SIGNED_OUT') {
+      console.log('[auth] SIGNED_OUT — tabSessionId:', sessionId, '| currentUser:', currentUser?.id ?? 'none');
       isPasswordRecoveryMode = false;
+      if (kickedCountdown) { clearTimeout(kickedCountdown); kickedCountdown = null; }
       if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
-      currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();hideGame();
+      currentUser=null;gameFullyLoaded=false;stopLoop();clearTimeout(saveTimer);resetState();
+      hideGame();
     }
   });
 
@@ -2128,31 +2185,44 @@ window.addEventListener('DOMContentLoaded', async () => {
 // GAME START
 // ═══════════════════════════════════════════════
 async function startGame(user) {
-  if (currentUser) return; // already loading — prevent double-start
+  if (currentUser) { console.log('[startGame] already running, skipping duplicate call'); return; }
+  manualLogoutDone = false; // new login — clear the manual-logout block
+  console.log('[startGame] starting, userId:', user?.id);
   currentUser=user;
   gameFullyLoaded=false;
   isGuestUser = !!(user.user_metadata?.is_guest);
 
   // ── Single-session enforcement ──────────────────────────────────────────
-  // Subscribe to a per-user Realtime channel. On subscription, broadcast
-  // our sessionId so any other active session (same browser or other device)
-  // sees a different ID and signs itself out. Ignore our own broadcast.
   sessionId = crypto.randomUUID();
-  let _announced = false;
+  console.log('[startGame] claiming session, sessionId:', sessionId);
+  try {
+    const _result = await Promise.race([
+      sb.rpc('idw_claim_session', { p_session_id: sessionId }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('session claim timed out')), 10000))
+    ]);
+    const _allowed = _result?.data?.allowed;
+    const _claimErr = _result?.data?.error || _result?.error;
+    console.log('[startGame] claim result — allowed:', _allowed, 'err:', _claimErr?.message);
+    if (!_allowed) {
+      console.warn('[startGame] claim denied or timed out — proceeding anyway; Realtime kick will handle the conflict');
+    }
+  } catch(e) {
+    console.warn('[startGame] claim RPC error (non-blocking):', e?.message);
+  }
+  // Never block login based on claim result — always proceed and send the Realtime kick.
   if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
   sessionRealtime = sb.channel(`idw_session:${user.id}`)
-    .on('broadcast', { event: 'login' }, ({ payload }) => {
+    .on('broadcast', { event: 'kick' }, ({ payload }) => {
       if (payload.sid !== sessionId) {
-        showToast('⚠️ Signed in from another location — this session has ended.');
-        doLogout();
+        console.log('[session] kick received — my sessionId:', sessionId, 'payload.sid:', payload.sid);
+        doKickedLogout();
       }
     })
     .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED' && !_announced) {
-        _announced = true;
-        await sessionRealtime.send({
-          type: 'broadcast', event: 'login', payload: { sid: sessionId }
-        });
+      console.log('[session] realtime status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('[session] subscribed — sending kick broadcast, sessionId:', sessionId);
+        sessionRealtime.send({ type: 'broadcast', event: 'kick', payload: { sid: sessionId } }).catch(()=>{});
       }
     });
   // ────────────────────────────────────────────────────────────────────────
@@ -2163,6 +2233,7 @@ async function startGame(user) {
   document.getElementById('login-msg').textContent='';
   // Zero out resources before loading so stale JS defaults never show
   resources={wood:0,stone:0,fiber:0,leather:0,ore:0};
+  console.log('[startGame] showing loading screen, fetching profile');
   showLoadingScreen();
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
@@ -2171,11 +2242,13 @@ async function startGame(user) {
       loadFromDB(),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('load timeout')),20000))
     ]);
+    console.log('[startGame] profile loaded successfully');
     // Pre-load alliance state so territory buffs apply from game start
     serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
   }
-  catch(e){console.warn('startGame failed:',e);}
+  catch(e){console.warn('[startGame] load failed or timed out:', e);}
   finally{
+    if (!currentUser) { hideLoadingScreen(); return; } // kicked during load
     gameFullyLoaded=true;
     if (isGuestUser) {
       // Sync update — preserve email/password, just refresh level
@@ -2187,14 +2260,20 @@ async function startGame(user) {
         level: playerLevel,
       }));
     }
-    // Full panel build on login
-    buildResourcesPanel();
-    buildResearchPanel();
-    buildInventoryPanel();
-    buildCraftingPanel();
-    buildCampaignMap();
-    updateResourcePills();
-    updatePlayerLevelUI();
+    // Full panel build on login — wrapped so a builder crash never leaves the loading screen stuck
+    console.log('[startGame] building panels, userId:', user.id);
+    try {
+      buildResourcesPanel();
+      buildResearchPanel();
+      buildInventoryPanel();
+      buildCraftingPanel();
+      buildCampaignMap();
+      updateResourcePills();
+      updatePlayerLevelUI();
+    } catch(e) {
+      console.error('[startGame] panel build error:', e);
+    }
+    console.log('[startGame] showing game');
     showGame();
     startLoop(); // start loop AFTER server state is loaded
   }
