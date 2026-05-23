@@ -1095,6 +1095,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
     <button class="link-modal-close" onclick="closeLinkAccountModal()">✕</button>
     <div class="link-modal-title">🔗 Link Your Account</div>
     <div class="link-modal-sub">Create a permanent account to save your progress, access PvP, alliances, and all game content. Your current guest progress will carry over.</div>
+    <div class="auth-field"><label>Username</label><input type="text" id="link-username" placeholder="Commander123" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
     <div class="auth-field"><label>Email</label><input type="email" id="link-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
     <div class="auth-field"><label>Password</label><input type="password" id="link-password" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
     <div class="auth-field"><label>Confirm Password</label><input type="password" id="link-password-confirm" placeholder="Repeat password" onkeydown="if(event.key==='Enter')doLinkAccount()"></div>
@@ -1991,6 +1992,7 @@ async function doGuestPlay() {
 }
 
 function openLinkAccountModal() {
+  document.getElementById('link-username').value = '';
   document.getElementById('link-email').value = '';
   document.getElementById('link-password').value = '';
   document.getElementById('link-password-confirm').value = '';
@@ -2003,21 +2005,23 @@ function closeLinkAccountModal() {
 }
 
 async function doLinkAccount() {
-  const email   = document.getElementById('link-email').value.trim();
-  const pass    = document.getElementById('link-password').value;
-  const confirm = document.getElementById('link-password-confirm').value;
-  const btn     = document.getElementById('link-btn');
-  const msg     = document.getElementById('link-msg');
+  const username = document.getElementById('link-username').value.trim();
+  const email    = document.getElementById('link-email').value.trim();
+  const pass     = document.getElementById('link-password').value;
+  const confirm  = document.getElementById('link-password-confirm').value;
+  const btn      = document.getElementById('link-btn');
+  const msg      = document.getElementById('link-msg');
 
-  if (!email)           { msg.textContent = 'Please enter an email.';          msg.className='auth-msg error'; return; }
-  if (!pass)            { msg.textContent = 'Please enter a password.';         msg.className='auth-msg error'; return; }
+  if (!username)        { msg.textContent = 'Please enter a username.';          msg.className='auth-msg error'; return; }
+  if (!email)           { msg.textContent = 'Please enter an email.';            msg.className='auth-msg error'; return; }
+  if (!pass)            { msg.textContent = 'Please enter a password.';          msg.className='auth-msg error'; return; }
   if (pass.length < 6)  { msg.textContent = 'Password must be at least 6 characters.'; msg.className='auth-msg error'; return; }
-  if (pass !== confirm) { msg.textContent = 'Passwords do not match.';          msg.className='auth-msg error'; return; }
+  if (pass !== confirm) { msg.textContent = 'Passwords do not match.';           msg.className='auth-msg error'; return; }
 
   btn.disabled = true;
   msg.textContent = 'Linking account…'; msg.className = 'auth-msg';
 
-  const { error } = await sb.auth.updateUser({ email, password: pass });
+  const { error } = await sb.auth.updateUser({ email, password: pass, data: { username, is_guest: false } });
   btn.disabled = false;
   if (error) {
     msg.textContent = error.message; msg.className = 'auth-msg error';
