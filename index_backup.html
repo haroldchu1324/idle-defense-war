@@ -2021,17 +2021,33 @@ async function doLinkAccount() {
   btn.disabled = true;
   msg.textContent = 'Linking account…'; msg.className = 'auth-msg';
 
-  const { error } = await sb.auth.updateUser({ email, password: pass, data: { username, is_guest: false } });
-  btn.disabled = false;
+  const { error } = await sb.rpc('idw_link_guest_account', {
+    p_new_email: email, p_new_password: pass, p_username: username
+  });
   if (error) {
+    btn.disabled = false;
     msg.textContent = error.message; msg.className = 'auth-msg error';
-  } else {
-    msg.textContent = '✓ Check your email to confirm — then your full account will be active!';
-    msg.className = 'auth-msg success';
-    // Update display name to use the email handle once confirmed
-    document.getElementById('guest-banner').innerHTML =
-      '📬 Confirmation email sent — check your inbox to activate your account.';
+    return;
   }
+
+  // Trigger the same signup confirmation email a new user receives
+  await sb.auth.resend({ type: 'signup', email });
+
+  msg.textContent = `✓ Almost done! Confirmation email sent to ${email}.`;
+  msg.className = 'auth-msg success';
+
+  // Clear guest cache so the resume card doesn't reappear after logout
+  localStorage.removeItem('idw_guest_cache');
+
+  setTimeout(async () => {
+    closeLinkAccountModal();
+    await doLogout(); // saves game state, signs out, shows login screen
+    // Show confirmation reminder on the login screen with email pre-filled
+    const loginMsg = document.getElementById('login-msg');
+    loginMsg.textContent = `📬 Confirmation email sent to ${email} — check your inbox, then sign in.`;
+    loginMsg.className = 'auth-msg success';
+    document.getElementById('login-email').value = email;
+  }, 2000);
 }
 
 async function doLogout() {
