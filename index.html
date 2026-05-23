@@ -79,6 +79,8 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .guest-saved-btn{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(240,192,64,0.4);background:transparent;color:#f0c040;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
 .guest-saved-btn:hover{background:rgba(240,192,64,0.12);border-color:rgba(240,192,64,0.7);}
 .guest-saved-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.guest-clear-link{font-size:11px;color:var(--text3);cursor:pointer;margin-top:0.75rem;display:block;text-align:center;text-decoration:underline;background:none;border:none;font-family:'Inter',sans-serif;}
+.guest-clear-link:hover{color:#e55;}
 .pvp-guest-lock{display:none;position:absolute;inset:0;z-index:50;background:rgba(10,12,20,0.92);flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem;}
 .pvp-guest-lock.active{display:flex;}
 .pvp-lock-icon{font-size:52px;}
@@ -1023,6 +1025,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
       <div class="guest-saved-name" id="guest-saved-name">Guest</div>
       <div class="guest-saved-level" id="guest-saved-level">Level 1</div>
       <button class="guest-saved-btn" id="guest-resume-btn" onclick="doResumeGuest()">Continue</button>
+      <button class="guest-clear-link" onclick="doClearGuestProgress()">Clear progress</button>
     </div>
   </div>
   <div class="auth-wrap">
@@ -1040,7 +1043,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <button class="auth-submit" id="login-btn" onclick="doLogin()">Sign In</button>
         <div class="auth-msg" id="login-msg"></div>
         <div class="auth-divider">or</div>
-        <button class="auth-guest-btn" onclick="doGuestPlay()">👤 Play as Guest</button>
+        <button class="auth-guest-btn" id="guest-play-btn" onclick="doGuestPlay()">👤 Play as Guest</button>
         <div class="auth-switch" style="margin-top:1rem;">No account? <a onclick="showAuthScreen('screen-signup')">Sign up</a></div>
       </div>
     </div>
@@ -1515,6 +1518,10 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 const SUPABASE_URL  = 'https://gdlkslptehtxudfghhqh.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkbGtzbHB0ZWh0eHVkZmdoaHFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTY1MzIsImV4cCI6MjA5NDE5MjUzMn0.p-NfAzh1gVmuaPiRNv0kubERaGLyfWmbF2GnheExYIA';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+// Key Supabase uses to store the session in localStorage.
+// Removing this manually clears the local session WITHOUT calling signOut()
+// on the server — so the refresh token stays valid for guest resume.
+const SB_SESSION_KEY = `sb-${SUPABASE_URL.replace('https://','').split('.')[0]}-auth-token`;
 
 // ═══════════════════════════════════════════════
 // SERVER-AUTHORITATIVE RPC ADAPTER
@@ -1524,7 +1531,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let currentBattleId = null;
 
 async function serverRpc(name, args = {}) {
-  const { data, error } = await sb.rpc(name, args);
+  const timeout = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error(`RPC timeout: ${name}`)), 15000)
+  );
+  const { data, error } = await Promise.race([sb.rpc(name, args), timeout]);
   if (error) {
     console.error('RPC failed:', name, error);
     showToast(error.message || 'Something went wrong, please try again.');
@@ -1820,6 +1830,10 @@ function hideGame() {
   g.classList.remove('visible');
   setTimeout(()=>{ g.style.display='none'; }, 400);
   showAuthLayer('screen-login');
+  document.getElementById('guest-play-btn').style.display = '';
+  document.getElementById('guest-saved-panel').classList.remove('visible');
+  const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+  if (_gc.username && _gc.password) showGuestSavedCard(_gc);
 }
 
 async function doLogin() {
@@ -1899,35 +1913,81 @@ function showGuestSavedCard(info) {
   document.getElementById('guest-saved-name').textContent = info.username;
   document.getElementById('guest-saved-level').textContent = 'Level ' + (info.level || 1);
   document.getElementById('guest-saved-panel').classList.add('visible');
+  document.getElementById('guest-play-btn').style.display = 'none';
+  const btn = document.getElementById('guest-resume-btn');
+  btn.disabled = false; btn.textContent = 'Continue';
 }
 
 async function doResumeGuest() {
   const cached = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
-  if (!cached.refreshToken) return;
   const btn = document.getElementById('guest-resume-btn');
+  const msg = document.getElementById('login-msg');
   btn.disabled = true; btn.textContent = 'Loading…';
-  const { data, error } = await sb.auth.setSession({ access_token: cached.accessToken, refresh_token: cached.refreshToken });
-  if (error || !data.user) {
+
+  if (!cached.email || !cached.password) {
+    // Old anonymous-auth cache — credentials not stored, can't resume
     localStorage.removeItem('idw_guest_cache');
-    document.getElementById('guest-saved-panel').classList.remove('visible');
     btn.disabled = false; btn.textContent = 'Continue';
+    document.getElementById('guest-saved-panel').classList.remove('visible');
+    document.getElementById('guest-play-btn').style.display = '';
+    msg.textContent = 'Guest session expired. Start a new guest session.';
+    msg.className = 'auth-msg error';
     return;
   }
-  await startGame(data.user);
+
+  console.log('[guest resume] signing in with stored credentials…');
+  // signInWithPassword triggers onAuthStateChange SIGNED_IN → startGame
+  const { error } = await sb.auth.signInWithPassword({ email: cached.email, password: cached.password });
+  if (error) {
+    console.error('[guest resume] signInWithPassword failed:', error);
+    localStorage.removeItem('idw_guest_cache');
+    btn.disabled = false; btn.textContent = 'Continue';
+    document.getElementById('guest-saved-panel').classList.remove('visible');
+    document.getElementById('guest-play-btn').style.display = '';
+    msg.textContent = 'Guest session expired. Start a new guest session.';
+    msg.className = 'auth-msg error';
+  }
+}
+
+function doClearGuestProgress() {
+  if (!confirm('Clear your guest progress? This cannot be undone.')) return;
+  localStorage.removeItem('idw_guest_cache');
+  document.getElementById('guest-saved-panel').classList.remove('visible');
+  document.getElementById('guest-play-btn').style.display = '';
 }
 
 async function doGuestPlay() {
+  const btn = document.getElementById('guest-play-btn');
   const msg = document.getElementById('login-msg');
-  msg.textContent = 'Starting guest session…'; msg.className = 'auth-msg';
-  const { data, error } = await sb.auth.signInAnonymously();
-  if (error) { msg.textContent = error.message; msg.className = 'auth-msg error'; return; }
-  // Generate a unique guest name and persist it to user metadata
-  const guestName = 'Guest' + Math.floor(Math.random() * 9_000_000_000 + 1_000_000_000);
-  await sb.auth.updateUser({ data: { username: guestName } });
-  // Refresh session so user_metadata reflects the new username
-  const { data: refreshed } = await sb.auth.getUser();
-  msg.textContent = '';
-  try { await startGame(refreshed.user || data.user); } catch(e) { console.error('startGame (guest) failed:', e); }
+  btn.disabled = true; btn.textContent = 'Creating…';
+  msg.textContent = 'Setting up guest account…'; msg.className = 'auth-msg';
+
+  const randHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2,'0')).join('');
+  const username = 'Guest' + Math.floor(Math.random() * 9_000_000 + 1_000_000);
+  const email    = 'guest_' + randHex(8) + '@idw.local';
+  const password = randHex(16);
+
+  // Store credentials first so startGame's finally block can read them
+  localStorage.setItem('idw_guest_cache', JSON.stringify({ email, password, username, level: 1 }));
+
+  try {
+    // Create a pre-confirmed account via SECURITY DEFINER RPC (bypasses email confirmation)
+    const { error: rpcErr } = await sb.rpc('idw_create_guest_account', { p_username: username, p_email: email, p_password: password });
+    if (rpcErr) throw rpcErr;
+
+    // Sign in with real credentials — fast, no token expiry issues
+    // onAuthStateChange SIGNED_IN fires during this call and starts the game
+    const { error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+    if (signInErr) throw signInErr;
+
+    msg.textContent = '';
+  } catch(e) {
+    console.error('[guest create] failed:', e);
+    localStorage.removeItem('idw_guest_cache');
+    btn.disabled = false; btn.textContent = 'Play as Guest';
+    msg.textContent = 'Could not create guest account. Please try again.';
+    msg.className = 'auth-msg error';
+  }
 }
 
 function openLinkAccountModal() {
@@ -1973,8 +2033,17 @@ async function doLinkAccount() {
 async function doLogout() {
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
+  if (isGuestUser) {
+    // Update level in cache — email/password already stored, no token juggling needed
+    const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+    if (_prev.email) localStorage.setItem('idw_guest_cache', JSON.stringify({ ..._prev, level: playerLevel }));
+    sessionChannel.postMessage('logout');
+    currentUser=null; isGuestUser=false;
+    gameFullyLoaded=false; stopLoop(); clearTimeout(saveTimer); resetState(); hideGame();
+    await sb.auth.signOut();
+    return;
+  }
   sessionChannel.postMessage('logout');
-  if (isGuestUser) localStorage.removeItem('idw_guest_cache');
   currentUser=null; isGuestUser = false;
   await sb.auth.signOut();
 }
@@ -1987,19 +2056,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   // the recovery session to remain active so updateUser({ password }) works
   if (!isPasswordRecoveryMode) {
     const { data: { session: _sess } } = await sb.auth.getSession();
-    if (_sess && !_sess.user.email) {
-      // Guest session: save tokens before signing out so we can restore later
-      const _meta = _sess.user.user_metadata || {};
-      const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
-      localStorage.setItem('idw_guest_cache', JSON.stringify({
-        userId: _sess.user.id,
-        username: _meta.username || 'Guest',
-        level: _prev.level || 1,
-        accessToken: _sess.access_token,
-        refreshToken: _sess.refresh_token
-      }));
-      await sb.auth.signOut({ scope: 'local' });
-    } else {
+    if (_sess) {
+      // Any stale session on page load gets cleared — guests resume via stored
+      // email/password credentials, non-guests re-authenticate manually
       await sb.auth.signOut();
     }
   }
@@ -2012,7 +2071,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const disp = document.getElementById('reset-email-display');
       if (disp) disp.textContent = email || 'your account';
       showAuthLayer('screen-reset-password');
-    } else if (event === 'SIGNED_IN' && session?.user && !currentUser && !isPasswordRecoveryMode) {
+    } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !currentUser && !isPasswordRecoveryMode) {
       await startGame(session.user);
     } else if (event === 'SIGNED_OUT') {
       isPasswordRecoveryMode = false;
@@ -2034,7 +2093,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const e = localStorage.getItem('bf_saved_email');
     if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
     const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
-    if (_gc.username && _gc.refreshToken) showGuestSavedCard(_gc);
+    if (_gc.username && _gc.password) showGuestSavedCard(_gc);
   }
 });
 
@@ -2042,9 +2101,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 // GAME START
 // ═══════════════════════════════════════════════
 async function startGame(user) {
+  if (currentUser) return; // already loading — prevent double-start
   currentUser=user;
   gameFullyLoaded=false;
-  isGuestUser = !user.email;
+  isGuestUser = !!(user.user_metadata?.is_guest);
   const meta=user.user_metadata||{};
   document.getElementById('username-display').textContent = meta.username || (user.email ? user.email.split('@')[0] : 'Guest');
   document.getElementById('guest-banner').style.display = isGuestUser ? 'flex' : 'none';
@@ -2055,22 +2115,24 @@ async function startGame(user) {
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
   try{
-    await loadFromDB();
+    await Promise.race([
+      loadFromDB(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load timeout')),20000))
+    ]);
     // Pre-load alliance state so territory buffs apply from game start
     serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
-    await new Promise(r=>setTimeout(r,450));
   }
   catch(e){console.warn('startGame failed:',e);}
   finally{
     gameFullyLoaded=true;
     if (isGuestUser) {
-      const { data: { session: _gs } } = await sb.auth.getSession();
+      // Sync update — preserve email/password, just refresh level
+      const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
       localStorage.setItem('idw_guest_cache', JSON.stringify({
+        ..._prev,
         userId: user.id,
         username: meta.username || 'Guest',
         level: playerLevel,
-        accessToken: _gs?.access_token || '',
-        refreshToken: _gs?.refresh_token || ''
       }));
     }
     // Full panel build on login
@@ -2120,8 +2182,11 @@ async function loadFromDB() {
     // Resolve any offline research that completed while away
     await resolveOfflineResearch();
   } catch (e) {
-    console.warn('server load failed, falling back to old game_saves:', e);
-    // Old fallback kept so a bad SQL install does not freeze the login screen.
+    console.warn('server load failed:', e);
+    // Guest users save via RPCs only — game_saves table has no guest rows (406).
+    // Skip the fallback for guests to avoid a wasted 8s wait.
+    if (isGuestUser) return;
+    // Old fallback for email accounts with legacy saves.
     let data,error;
     try{
       const result=await Promise.race([

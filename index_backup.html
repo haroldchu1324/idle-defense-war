@@ -68,6 +68,19 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 .guest-banner{display:none;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:8px;padding:4px 12px;font-size:12px;color:#f0c040;text-align:center;margin-left:auto;align-items:center;white-space:nowrap;flex-shrink:0;}
 .guest-banner a{color:#f0c040;font-weight:600;cursor:pointer;text-decoration:underline;}
 .guest-banner a:hover{color:#fff;}
+.auth-layout{display:flex;align-items:center;justify-content:center;gap:2rem;width:100%;max-width:860px;}
+.guest-saved-panel{display:none;flex-direction:column;align-items:center;flex-shrink:0;}
+.guest-saved-panel.visible{display:flex;}
+.guest-saved-card{background:var(--bg2);border:1px solid rgba(240,192,64,0.4);border-radius:16px;padding:2rem;text-align:center;min-width:190px;}
+.guest-saved-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;}
+.guest-saved-icon{font-size:36px;margin-bottom:0.75rem;}
+.guest-saved-name{font-size:15px;font-weight:600;color:#fff;margin-bottom:0.3rem;word-break:break-all;}
+.guest-saved-level{font-size:13px;color:var(--gold);margin-bottom:1.25rem;}
+.guest-saved-btn{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(240,192,64,0.4);background:transparent;color:#f0c040;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
+.guest-saved-btn:hover{background:rgba(240,192,64,0.12);border-color:rgba(240,192,64,0.7);}
+.guest-saved-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.guest-clear-link{font-size:11px;color:var(--text3);cursor:pointer;margin-top:0.75rem;display:block;text-align:center;text-decoration:underline;background:none;border:none;font-family:'Inter',sans-serif;}
+.guest-clear-link:hover{color:#e55;}
 .pvp-guest-lock{display:none;position:absolute;inset:0;z-index:50;background:rgba(10,12,20,0.92);flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem;}
 .pvp-guest-lock.active{display:flex;}
 .pvp-lock-icon{font-size:52px;}
@@ -1004,6 +1017,17 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 <body>
 
 <div id="auth-layer">
+  <div class="auth-layout">
+  <div id="guest-saved-panel" class="guest-saved-panel">
+    <div class="guest-saved-card">
+      <div class="guest-saved-label">Saved Guest</div>
+      <div class="guest-saved-icon">👤</div>
+      <div class="guest-saved-name" id="guest-saved-name">Guest</div>
+      <div class="guest-saved-level" id="guest-saved-level">Level 1</div>
+      <button class="guest-saved-btn" id="guest-resume-btn" onclick="doResumeGuest()">Continue</button>
+      <button class="guest-clear-link" onclick="doClearGuestProgress()">Clear progress</button>
+    </div>
+  </div>
   <div class="auth-wrap">
     <div class="auth-logo">
       <span class="auth-logo-icon">🏰</span>
@@ -1019,7 +1043,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <button class="auth-submit" id="login-btn" onclick="doLogin()">Sign In</button>
         <div class="auth-msg" id="login-msg"></div>
         <div class="auth-divider">or</div>
-        <button class="auth-guest-btn" onclick="doGuestPlay()">👤 Play as Guest</button>
+        <button class="auth-guest-btn" id="guest-play-btn" onclick="doGuestPlay()">👤 Play as Guest</button>
         <div class="auth-switch" style="margin-top:1rem;">No account? <a onclick="showAuthScreen('screen-signup')">Sign up</a></div>
       </div>
     </div>
@@ -1062,6 +1086,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
         <div class="auth-switch"><a onclick="doResetPasswordCancel()">← Back to sign in</a></div>
       </div>
     </div>
+  </div>
   </div>
 </div>
 
@@ -1493,6 +1518,10 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
 const SUPABASE_URL  = 'https://gdlkslptehtxudfghhqh.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkbGtzbHB0ZWh0eHVkZmdoaHFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTY1MzIsImV4cCI6MjA5NDE5MjUzMn0.p-NfAzh1gVmuaPiRNv0kubERaGLyfWmbF2GnheExYIA';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+// Key Supabase uses to store the session in localStorage.
+// Removing this manually clears the local session WITHOUT calling signOut()
+// on the server — so the refresh token stays valid for guest resume.
+const SB_SESSION_KEY = `sb-${SUPABASE_URL.replace('https://','').split('.')[0]}-auth-token`;
 
 // ═══════════════════════════════════════════════
 // SERVER-AUTHORITATIVE RPC ADAPTER
@@ -1502,7 +1531,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let currentBattleId = null;
 
 async function serverRpc(name, args = {}) {
-  const { data, error } = await sb.rpc(name, args);
+  const timeout = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error(`RPC timeout: ${name}`)), 15000)
+  );
+  const { data, error } = await Promise.race([sb.rpc(name, args), timeout]);
   if (error) {
     console.error('RPC failed:', name, error);
     showToast(error.message || 'Something went wrong, please try again.');
@@ -1798,6 +1830,10 @@ function hideGame() {
   g.classList.remove('visible');
   setTimeout(()=>{ g.style.display='none'; }, 400);
   showAuthLayer('screen-login');
+  document.getElementById('guest-play-btn').style.display = '';
+  document.getElementById('guest-saved-panel').classList.remove('visible');
+  const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+  if (_gc.username && _gc.refreshToken) showGuestSavedCard(_gc);
 }
 
 async function doLogin() {
@@ -1873,6 +1909,71 @@ async function doResetPasswordCancel() {
   showAuthScreen('screen-login');
 }
 
+function showGuestSavedCard(info) {
+  document.getElementById('guest-saved-name').textContent = info.username;
+  document.getElementById('guest-saved-level').textContent = 'Level ' + (info.level || 1);
+  document.getElementById('guest-saved-panel').classList.add('visible');
+  document.getElementById('guest-play-btn').style.display = 'none';
+  const btn = document.getElementById('guest-resume-btn');
+  btn.disabled = false; btn.textContent = 'Continue';
+}
+
+async function doResumeGuest() {
+  const cached = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+  const btn = document.getElementById('guest-resume-btn');
+  const msg = document.getElementById('login-msg');
+  btn.disabled = true; btn.textContent = 'Loading…';
+
+  const showResumeError = (text) => {
+    btn.disabled = false; btn.textContent = 'Continue';
+    msg.textContent = text; msg.className = 'auth-msg error';
+    document.getElementById('guest-saved-panel').classList.remove('visible');
+    document.getElementById('guest-play-btn').style.display = '';
+    localStorage.removeItem('idw_guest_cache');
+  };
+
+  console.log('[guest resume] saved cache:', JSON.stringify({ userId: cached.userId, hasToken: !!cached.refreshToken, level: cached.level }));
+
+  if (!cached.refreshToken) {
+    showResumeError('Guest session expired. Start a new guest session.');
+    return;
+  }
+
+  console.log('[guest resume] calling refreshSession…');
+  let data, error;
+  try {
+    const refreshTimeout = new Promise((_, rej) =>
+      setTimeout(() => rej(new Error('auth timeout')), 8000)
+    );
+    ({ data, error } = await Promise.race([
+      sb.auth.refreshSession({ refresh_token: cached.refreshToken }),
+      refreshTimeout
+    ]));
+  } catch(e) {
+    console.error('[guest resume] refreshSession threw:', e);
+    showResumeError('Could not connect. Check your connection and try again.');
+    return;
+  }
+
+  if (error || !data?.user) {
+    console.error('[guest resume] refreshSession failed:', error);
+    showResumeError('Guest session expired. Start a new guest session.');
+    return;
+  }
+
+  console.log('[guest resume] session restored, user id:', data.user.id, '— starting game…');
+  await startGame(data.user);
+  console.log('[guest resume] startGame returned');
+}
+
+function doClearGuestProgress() {
+  if (!confirm('Clear your guest progress? This cannot be undone.')) return;
+  localStorage.removeItem('idw_guest_cache');
+  localStorage.removeItem(SB_SESSION_KEY);
+  document.getElementById('guest-saved-panel').classList.remove('visible');
+  document.getElementById('guest-play-btn').style.display = '';
+}
+
 async function doGuestPlay() {
   const msg = document.getElementById('login-msg');
   msg.textContent = 'Starting guest session…'; msg.className = 'auth-msg';
@@ -1930,8 +2031,26 @@ async function doLinkAccount() {
 async function doLogout() {
   stopLoop(); clearTimeout(saveTimer);
   try{await saveToDB();}catch(e){}
-  sessionChannel.postMessage('logout'); currentUser=null;
-  isGuestUser = false;
+  if (isGuestUser) {
+    // Save fresh tokens then manually clear the local Supabase session key.
+    // This preserves the server-side refresh token so resume works.
+    const { data: { session: _gs } } = await sb.auth.getSession();
+    if (_gs) {
+      const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+      localStorage.setItem('idw_guest_cache', JSON.stringify({
+        ..._prev,
+        level: playerLevel,
+        refreshToken: _gs.refresh_token
+      }));
+    }
+    localStorage.removeItem(SB_SESSION_KEY);
+    sessionChannel.postMessage('logout');
+    currentUser=null; isGuestUser=false;
+    gameFullyLoaded=false; stopLoop(); clearTimeout(saveTimer); resetState(); hideGame();
+    return;
+  }
+  sessionChannel.postMessage('logout');
+  currentUser=null; isGuestUser = false;
   await sb.auth.signOut();
 }
 // Flag set synchronously on page load so the SIGNED_IN handler doesn't
@@ -1942,7 +2061,24 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Skip auto sign-out when arriving from a password recovery link — we need
   // the recovery session to remain active so updateUser({ password }) works
   if (!isPasswordRecoveryMode) {
-    await sb.auth.signOut();
+    const { data: { session: _sess } } = await sb.auth.getSession();
+    if (_sess && !_sess.user.email) {
+      // Guest session found on page load — save the refresh token to our cache,
+      // then manually remove the Supabase localStorage key. This clears the
+      // local session WITHOUT calling the server, so the refresh token remains
+      // valid and can be used to resume later.
+      const _meta = _sess.user.user_metadata || {};
+      const _prev = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+      localStorage.setItem('idw_guest_cache', JSON.stringify({
+        userId: _sess.user.id,
+        username: _meta.username || 'Guest',
+        level: _prev.level || 1,
+        refreshToken: _sess.refresh_token
+      }));
+      localStorage.removeItem(SB_SESSION_KEY);
+    } else {
+      await sb.auth.signOut();
+    }
   }
 
   // Auth state listener
@@ -1953,7 +2089,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const disp = document.getElementById('reset-email-display');
       if (disp) disp.textContent = email || 'your account';
       showAuthLayer('screen-reset-password');
-    } else if (event === 'SIGNED_IN' && session?.user && !currentUser && !isPasswordRecoveryMode) {
+    } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !currentUser && !isPasswordRecoveryMode) {
       await startGame(session.user);
     } else if (event === 'SIGNED_OUT') {
       isPasswordRecoveryMode = false;
@@ -1974,6 +2110,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     showAuthLayer('screen-login');
     const e = localStorage.getItem('bf_saved_email');
     if(e){const el=document.getElementById('login-email');el.value=e;el.style.color='#6a7090';document.getElementById('login-password').focus();}
+    const _gc = JSON.parse(localStorage.getItem('idw_guest_cache') || '{}');
+    if (_gc.username && _gc.refreshToken) showGuestSavedCard(_gc);
   }
 });
 
@@ -1981,6 +2119,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // GAME START
 // ═══════════════════════════════════════════════
 async function startGame(user) {
+  if (currentUser) return; // already loading — prevent double-start
   currentUser=user;
   gameFullyLoaded=false;
   isGuestUser = !user.email;
@@ -1994,14 +2133,28 @@ async function startGame(user) {
   const lb=document.getElementById('loading-bar');
   lb.style.animation='none'; lb.offsetHeight; lb.style.animation='';
   try{
-    await loadFromDB();
+    await Promise.race([
+      loadFromDB(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('load timeout')),20000))
+    ]);
     // Pre-load alliance state so territory buffs apply from game start
     serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
-    await new Promise(r=>setTimeout(r,450));
   }
   catch(e){console.warn('startGame failed:',e);}
   finally{
     gameFullyLoaded=true;
+    if (isGuestUser) {
+      // Fire-and-forget — must NOT await here or showGame() will be blocked
+      // if getSession() triggers an internal Supabase token refresh (network call)
+      sb.auth.getSession().then(({ data: { session: _gs } }) => {
+        if (_gs) localStorage.setItem('idw_guest_cache', JSON.stringify({
+          userId: user.id,
+          username: meta.username || 'Guest',
+          level: playerLevel,
+          refreshToken: _gs.refresh_token
+        }));
+      }).catch(() => {});
+    }
     // Full panel build on login
     buildResourcesPanel();
     buildResearchPanel();
@@ -2049,8 +2202,11 @@ async function loadFromDB() {
     // Resolve any offline research that completed while away
     await resolveOfflineResearch();
   } catch (e) {
-    console.warn('server load failed, falling back to old game_saves:', e);
-    // Old fallback kept so a bad SQL install does not freeze the login screen.
+    console.warn('server load failed:', e);
+    // Guest users save via RPCs only — game_saves table has no guest rows (406).
+    // Skip the fallback for guests to avoid a wasted 8s wait.
+    if (isGuestUser) return;
+    // Old fallback for email accounts with legacy saves.
     let data,error;
     try{
       const result=await Promise.race([
