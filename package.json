@@ -1,0 +1,20 @@
+{
+  "name": "idle-defense-war-qa",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup":          "npm install && npx playwright install chromium",
+    "test":           "playwright test",
+    "test:auth":      "playwright test tests/e2e/auth",
+    "test:smoke":     "playwright test tests/e2e/game/smoke.spec.js",
+    "test:formulas":  "playwright test tests/e2e/game/formulas.spec.js",
+    "test:ui":        "playwright test --ui",
+    "test:report":    "playwright show-report",
+    "serve:test":     "serve . -l 5000"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "dotenv": "^16.4.0",
+    "serve": "^14.2.0"
+  }
+}
