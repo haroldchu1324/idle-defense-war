@@ -1181,9 +1181,12 @@ declare
 begin
   p := public.idw_ensure_player();
 
-  -- Only one research at a time
+  -- Only one research at a time (shared queue with tower research)
   if p.active_research_id is not null then
     raise exception 'Already researching: %', p.active_research_id;
+  end if;
+  if p.active_tower_research is not null then
+    raise exception 'Tower research in progress: %', p.active_tower_research->>'towerId';
   end if;
 
   rs := p.research->p_research_id;
@@ -1319,6 +1322,159 @@ begin
   return public.idw_check_research_completion();
 end $$;
 grant execute on function public.idw_resolve_offline_research() to authenticated;
+
+-- ══════════════════════════════════════════════════════════════
+-- TOWER RESEARCH SYSTEM
+-- ══════════════════════════════════════════════════════════════
+
+-- Add tower research columns to player state
+alter table public.idw_player_state
+  add column if not exists tower_research_levels jsonb not null default '{}',
+  add column if not exists active_tower_research jsonb;
+
+-- Update idw_state_to_v2 to include tower research data
+create or replace function public.idw_state_to_v2(p public.idw_player_state)
+returns jsonb language plpgsql stable as $$
+declare n jsonb := p.nodes; res_id text; i int; ns jsonb; stored int;
+begin
+  foreach res_id in array array['wood','stone','fiber','leather','ore'] loop
+    for i in 0..4 loop
+      ns := n->res_id->i;
+      stored := public.idw_node_stored_amount(ns, i, p.player_level, p.research, res_id);
+      ns := jsonb_set(ns,'{storedAmount}',to_jsonb(stored),true);
+      n := jsonb_set(n, array[res_id,i::text], ns, true);
+    end loop;
+  end loop;
+  return jsonb_build_object(
+    'resources', p.resources,
+    'playerXP', p.player_xp,
+    'playerLevel', p.player_level,
+    'nodes', n,
+    'research', p.research,
+    'armoryTowers', p.armory,
+    'campCompleted', to_jsonb(p.campaign_completed),
+    'lastSeen', extract(epoch from p.last_seen)*1000,
+    'silo', p.silo,
+    'towerResearchLevels', coalesce(p.tower_research_levels, '{}'::jsonb),
+    'activeTowerResearch', p.active_tower_research
+  );
+end $$;
+
+-- Start tower research (runs independently from normal research queue)
+create or replace function public.idw_start_tower_research(
+  p_tower_id text,
+  p_cost jsonb,
+  p_duration_ms bigint
+)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
+  current_level int;
+begin
+  if p_tower_id not in ('archer','catapult','crossbow','ice_tower','sniper','inferno') then
+    raise exception 'Invalid tower id: %', p_tower_id;
+  end if;
+
+  p := public.idw_ensure_player();
+
+  if p.active_tower_research is not null then
+    raise exception 'Tower research already in progress';
+  end if;
+  if p.active_research_id is not null then
+    raise exception 'Already researching: %', p.active_research_id;
+  end if;
+
+  current_level := coalesce((p.tower_research_levels->>p_tower_id)::int, 0);
+  if current_level >= 10 then
+    raise exception 'Tower already at max research level (10)';
+  end if;
+
+  if not public.idw_can_pay(p.resources, p_cost) then
+    raise exception 'Not enough resources';
+  end if;
+
+  update public.idw_player_state
+  set
+    resources = public.idw_apply_resource_delta(resources, public.idw_negative(p_cost)),
+    active_tower_research = jsonb_build_object(
+      'towerId', p_tower_id,
+      'startMs', now_ms,
+      'durationMs', p_duration_ms,
+      'cost', p_cost
+    ),
+    updated_at = now()
+  where user_id = p.user_id;
+
+  return public.idw_get_state();
+end $$;
+grant execute on function public.idw_start_tower_research(text, jsonb, bigint) to authenticated;
+
+-- Update idw_check_research_completion to also handle tower research
+create or replace function public.idw_check_research_completion()
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p public.idw_player_state;
+  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
+  rs jsonb;
+  rid text;
+  completed text[] := '{}';
+  atr jsonb;
+  tower_id text;
+  cur_level int;
+begin
+  p := public.idw_ensure_player();
+
+  -- Check normal research
+  rid := p.active_research_id;
+  if rid is not null then
+    rs := p.research->rid;
+    if coalesce((rs->>'researching')::boolean, false)
+       and now_ms >= coalesce((rs->>'startMs')::bigint, 0) + coalesce((rs->>'durationMs')::bigint, 0) then
+
+      update public.idw_player_state
+      set
+        research = jsonb_set(
+          research,
+          array[rid],
+          jsonb_build_object('done', true, 'researching', false, 'startMs', 0, 'durationMs', 0)
+        ),
+        active_research_id = null,
+        player_xp = player_xp + 30,
+        updated_at = now()
+      where user_id = p.user_id;
+
+      completed := array_append(completed, rid);
+      p := public.idw_ensure_player();
+    end if;
+  end if;
+
+  -- Check tower research
+  atr := p.active_tower_research;
+  if atr is not null then
+    if now_ms >= coalesce((atr->>'startMs')::bigint, 0) + coalesce((atr->>'durationMs')::bigint, 0) then
+      tower_id := atr->>'towerId';
+      cur_level := coalesce((p.tower_research_levels->>tower_id)::int, 0);
+
+      update public.idw_player_state
+      set
+        tower_research_levels = jsonb_set(
+          coalesce(tower_research_levels, '{}'::jsonb),
+          array[tower_id],
+          to_jsonb(cur_level + 1)
+        ),
+        active_tower_research = null,
+        player_xp = player_xp + 30,
+        updated_at = now()
+      where user_id = p.user_id;
+
+      completed := array_append(completed, 'tower_research:' || tower_id);
+    end if;
+  end if;
+
+  return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
+end $$;
+grant execute on function public.idw_check_research_completion() to authenticated;
 
 -- ══════════════════════════════════════════════════════════════
 -- ALLIANCE SYSTEM

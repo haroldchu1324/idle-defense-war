@@ -69,6 +69,8 @@ function applyServerPayload(payload) {
     RESEARCH_DEFS.forEach(rd => { if (researchState[rd.id]?.researching) activeResearchId = rd.id; });
   }
   if (s.armoryTowers) armoryTowers = s.armoryTowers.map(recalcTowerStatsFromEnchants);
+  if (s.towerResearchLevels) Object.assign(towerResearchLevels, s.towerResearchLevels);
+  activeTowerResearch = s.activeTowerResearch ?? null;
   // Always update campCompleted even if empty array
   if (s.campCompleted !== undefined) {
     const serverCompleted = Array.isArray(s.campCompleted) ? s.campCompleted : [];
@@ -97,6 +99,7 @@ function applyServerPayload(payload) {
     updateNodeCards();
     updateArmorySlotCount();
     renderArmoryGrid();
+    renderTowerGrid();
     buildCampaignMap();
   }
   updateResourcePills();
@@ -2068,6 +2071,8 @@ async function openNodeModal(resId,tierIdx){
 function closeModal(){
   document.getElementById('building-modal').classList.remove('open');
   modalResId=modalTierIdx=null;
+  researchModalId=null;
+  towerResearchModalId=null;
 }
 
 function renderNodeModal(){
@@ -2359,6 +2364,7 @@ const RESEARCH_CATEGORIES = [
   { id:'magic',      name:'Magic',      icon:'🔮', desc:'Arcane arts and enchantments' },
   { id:'mastery',    name:'Mastery',    icon:'🌟', desc:'Cross-domain expertise' },
   { id:'transcendent', name:'Transcendent', icon:'🔥', desc:'Ultimate power' },
+  { id:'towers',     name:'Towers',     icon:'🏯', desc:'Upgrade individual tower stats (+5% per level)' },
 ];
 
 const researchState = {};
@@ -2368,6 +2374,17 @@ RESEARCH_DEFS.forEach(r => {
 
 let activeResearchId = null;
 let activeResearchTab = null; // persists across buildResearchPanel rebuilds
+let towerResearchLevels = {};
+let activeTowerResearch = null;
+const TOWER_RESEARCH_MAX_LEVEL = 10;
+const TOWER_RESEARCH_BASE_COSTS = {
+  archer:    { wood:200,  fiber:100 },
+  catapult:  { stone:250, wood:120 },
+  crossbow:  { wood:300,  fiber:150, ore:80 },
+  ice_tower: { stone:200, fiber:120, leather:80 },
+  sniper:    { ore:350,   leather:200, wood:150 },
+  inferno:   { ore:500,   stone:300,  leather:200, fiber:150 },
+};
 
 function switchResearchTab(catId) {
   activeResearchTab = catId;
@@ -2408,6 +2425,21 @@ function getResearchBonuses() {
     if (bx.type === 'transcendent') { b.all_prod += bx.all_prod; b.tower_dmg += bx.tower_dmg; b.tower_spd += bx.tower_spd; b.start_gold += bx.start_gold; b.start_lives += bx.start_lives; }
   });
   return b;
+}
+
+function getTowerResearchMult(towerId) {
+  return 1 + (towerResearchLevels[towerId] || 0) * 0.05;
+}
+function towerResearchCost(towerId, currentLevel) {
+  const base = TOWER_RESEARCH_BASE_COSTS[towerId];
+  if (!base) return {};
+  const result = {};
+  Object.entries(base).forEach(([k,v]) => { result[k] = Math.round(v * Math.pow(1.5, currentLevel)); });
+  return result;
+}
+function towerResearchDurationMs(level) {
+  // Level 0→1: 10 min, each subsequent level scales 1.5×
+  return Math.round(10 * 60 * 1000 * Math.pow(1.5, level));
 }
 
 function researchProdBonus(resId) {
@@ -2478,14 +2510,14 @@ function buildResearchPanel() {
   // Default to first category if none selected yet
   if (!activeResearchTab) activeResearchTab = RESEARCH_CATEGORIES[0].id;
 
-  // Overview: one pill per category
+  // Overview: one pill per category (skip 'towers' — it has its own progress display)
   const progress = getResearchProgress();
   const overviewDiv = document.createElement('div');
   overviewDiv.className = 'research-overview';
   overviewDiv.innerHTML = `
     <div class="research-overview-header">📊 Research Progress Overview</div>
     <div class="research-tier-progress">
-      ${RESEARCH_CATEGORIES.map(cat => {
+      ${RESEARCH_CATEGORIES.filter(cat => cat.id !== 'towers').map(cat => {
         const done = getCompletedResearchByCategory(cat.id);
         const tot  = getTotalResearchByCategory(cat.id);
         return `<div class="tier-prog">${cat.icon} ${cat.name}: ${done}/${tot}</div>`;
@@ -2510,6 +2542,26 @@ function buildResearchPanel() {
 
   // One section per category; only the active one is visible
   RESEARCH_CATEGORIES.forEach(cat => {
+    // Special handling for the Towers tab
+    if (cat.id === 'towers') {
+      const section = document.createElement('div');
+      section.id = 'rcatsection-towers';
+      section.className = 'research-category';
+      section.setAttribute('data-category', 'towers');
+      section.style.display = cat.id === activeResearchTab ? '' : 'none';
+      section.innerHTML = `
+        <div class="research-cat-header">
+          <span class="research-cat-icon">${cat.icon}</span>
+          <span class="research-cat-name">${cat.name}</span>
+          <span class="research-cat-desc">${cat.desc}</span>
+        </div>
+        <div class="research-card-grid" id="rtree-towers"></div>
+      `;
+      panel.appendChild(section);
+      buildTowerResearchTab(document.getElementById('rtree-towers'));
+      return;
+    }
+
     const nodes = RESEARCH_DEFS.filter(r => r.category === cat.id);
     if (!nodes.length) return;
 
@@ -2547,6 +2599,172 @@ function buildResearchPanel() {
   });
 
   updateResearchCards();
+}
+
+function buildTowerResearchTab(grid) {
+  if (!grid) return;
+  grid.innerHTML = '';
+  const now = Date.now();
+
+  TOWER_DEFS.filter(td => td.id !== 'god_tower').forEach(td => {
+    const currentLevel = towerResearchLevels[td.id] || 0;
+    const isMaxed = currentLevel >= TOWER_RESEARCH_MAX_LEVEL;
+    const isResearching = activeTowerResearch?.towerId === td.id;
+    const cost = isMaxed ? {} : towerResearchCost(td.id, currentLevel);
+    const dur  = isMaxed ? 0  : towerResearchDurationMs(currentLevel);
+    const currentBoostPct = Math.round(getTowerResearchMult(td.id) * 100 - 100);
+    const nextBoostPct = Math.round((currentLevel + 1) * 5);
+
+    const card = document.createElement('div');
+    card.className = 'rnode' + (isMaxed ? ' rnode-done' : isResearching ? ' rnode-researching' : ' rnode-available');
+    card.onclick = () => openTowerResearchModal(td.id);
+
+    let bodyHtml = '';
+    if (isResearching) {
+      const { startMs, durationMs } = activeTowerResearch;
+      const pct = Math.min(((now - startMs) / durationMs) * 100, 100).toFixed(1);
+      const rem = Math.max(0, Math.ceil((durationMs - (now - startMs)) / 1000));
+      bodyHtml = `
+        <div style="color:var(--orange);font-size:11px;font-weight:700;margin-top:2px;">🔬 Researching…</div>
+        <div class="rnode-time" id="rptimer-tr-${td.id}" style="font-size:12px;font-weight:600;">⏱ ${fmtCountdown(rem)}</div>
+        <div class="rnode-prog-wrap" style="height:6px;margin-top:4px;"><div class="rnode-prog" id="tr-prog-${td.id}" style="width:${pct}%"></div></div>
+      `;
+    } else if (!isMaxed) {
+      const costSpans = Object.entries(cost).map(([k,v]) => {
+        const icon = RESOURCE_DEFS.find(x=>x.id===k)?.icon||'';
+        const ok = (resources[k]||0) >= v;
+        return `<span style="color:${ok?'var(--green)':'var(--red)'}">${icon}${v.toLocaleString()}</span>`;
+      }).join(' ');
+      bodyHtml = `
+        <div class="rnode-cost">${costSpans}</div>
+        <div class="rnode-time">⏱ ${fmtTime(dur/1000)}</div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="rnode-top">
+        <span class="rnode-icon">${td.icon}</span>
+        <span class="rnode-status-badge ${isMaxed?'badge-done':isResearching?'badge-researching':'badge-available'}">
+          ${isMaxed ? '✓ MAX' : `Lv ${currentLevel}/${TOWER_RESEARCH_MAX_LEVEL}`}
+        </span>
+      </div>
+      <div class="rnode-name">${td.name}</div>
+      <div class="rnode-effect">${currentBoostPct > 0 ? `+${currentBoostPct}% stats` : 'No bonus yet'}${!isMaxed ? ` → +${nextBoostPct}%` : ''}</div>
+      ${bodyHtml}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function startTowerResearch(towerId) {
+  const level = towerResearchLevels[towerId] || 0;
+  if (level >= TOWER_RESEARCH_MAX_LEVEL) { showToast('Tower research is already maxed!'); return; }
+  if (activeTowerResearch) { showToast('Tower research already in progress'); return; }
+  if (activeResearchId) { showToast('Already researching something! Finish it first.'); return; }
+  const cost = towerResearchCost(towerId, level);
+  const dur  = towerResearchDurationMs(level);
+  try {
+    await serverRpc('idw_start_tower_research', { p_tower_id: towerId, p_cost: cost, p_duration_ms: dur });
+    await refreshFromServer();
+    if (activeResearchTab === 'towers') buildTowerResearchTab(document.getElementById('rtree-towers'));
+    const td = TOWER_DEFS.find(t => t.id === towerId);
+    showToast(`🗼 ${td?.name||towerId} tower research started!`);
+    renderTowerResearchModal();  // refresh modal if open
+  } catch(e) {
+    console.error('Tower research failed:', e);
+  }
+}
+
+// ── TOWER RESEARCH MODAL ─────────────────────────
+function openTowerResearchModal(towerId) {
+  towerResearchModalId = towerId;
+  renderTowerResearchModal();
+  document.getElementById('building-modal').classList.add('open');
+}
+
+function renderTowerResearchModal() {
+  if (!towerResearchModalId) return;
+  const td = TOWER_DEFS.find(t => t.id === towerResearchModalId);
+  if (!td) return;
+  const currentLevel = towerResearchLevels[td.id] || 0;
+  const isMaxed = currentLevel >= TOWER_RESEARCH_MAX_LEVEL;
+  const isResearching = activeTowerResearch?.towerId === td.id;
+  const cost = isMaxed ? {} : towerResearchCost(td.id, currentLevel);
+  const dur  = isMaxed ? 0  : towerResearchDurationMs(currentLevel);
+  const now  = Date.now();
+  const currentBoostPct = Math.round(getTowerResearchMult(td.id) * 100 - 100);
+  const nextBoostPct    = Math.round((currentLevel + 1) * 5);
+  const canAfford = !isMaxed && Object.entries(cost).every(([k,v]) => (resources[k]||0) >= v);
+  const queueBusy = (activeResearchId !== null) || (activeTowerResearch !== null && !isResearching);
+
+  const costLines = Object.entries(cost).map(([k,v]) => {
+    const def  = RESOURCE_DEFS.find(x => x.id === k);
+    const have = Math.floor(resources[k] || 0);
+    const ok   = have >= v;
+    return `<div class="info-row">
+      <span class="info-row-label">${def?.icon||''} ${def?.label||k}</span>
+      <span style="color:${ok?'var(--green)':'var(--red)'};">${have.toLocaleString()} / ${v.toLocaleString()}</span>
+    </div>`;
+  }).join('');
+
+  let body = '';
+
+  if (isMaxed) {
+    body = `
+      <div class="rmodal-effect-box">✅ Max level reached — +${currentBoostPct}% to all stats!</div>
+      <div style="font-size:13px;color:var(--text2);">This tower's research is fully upgraded. Its bonus is permanently active.</div>
+    `;
+  } else if (isResearching) {
+    const { startMs, durationMs } = activeTowerResearch;
+    const elapsed = now - startMs;
+    const pct = Math.min((elapsed / durationMs) * 100, 100).toFixed(1);
+    const rem = Math.max(0, Math.ceil((durationMs - elapsed) / 1000));
+    body = `
+      <div class="rmodal-in-progress">
+        <div style="font-size:14px;font-weight:700;color:var(--orange);margin-bottom:4px;">🔬 Researching…</div>
+        <div style="font-size:12px;color:var(--text2);">Research continues while the game is open.</div>
+        <div class="rmodal-prog-wrap"><div class="rmodal-prog" id="rmodal-tr-prog" style="width:${pct}%"></div></div>
+        <div class="rmodal-eta upg-eta" id="rmodal-tr-eta">⏱ ${fmtCountdown(rem)} remaining</div>
+      </div>
+    `;
+  } else {
+    const activeRd = activeResearchId ? RESEARCH_DEFS.find(x => x.id === activeResearchId) : null;
+    const activeTrName = (activeTowerResearch && activeTowerResearch.towerId !== td.id)
+      ? (TOWER_DEFS.find(t => t.id === activeTowerResearch.towerId)?.name || activeTowerResearch.towerId)
+      : null;
+    body = `
+      <div class="rmodal-effect-box" style="background:var(--bg3);border-color:var(--border2);color:var(--green);">
+        ✨ ${currentBoostPct > 0 ? `Currently +${currentBoostPct}% → ` : ''}Next level: +${nextBoostPct}% to all stats
+      </div>
+      <div class="bmodal-section">
+        <div class="bmodal-section-title">Resource Cost</div>
+        ${costLines}
+      </div>
+      <div class="info-row" style="margin-bottom:0.9rem;">
+        <span class="info-row-label">Research time</span>
+        <span style="color:var(--orange);font-weight:600;">⏱ ${fmtTime(dur/1000)}</span>
+      </div>
+      ${queueBusy ? `<div style="background:rgba(240,160,64,0.1);border:1px solid rgba(240,160,64,0.3);border-radius:8px;padding:0.6rem 0.85rem;font-size:12px;color:var(--orange);margin-bottom:0.75rem;">⚠️ Already researching <b>${activeRd?.name || activeTrName || '…'}</b>. Finish it first.</div>` : ''}
+      <div class="bmodal-btns">
+        <button class="bmodal-btn upgrade" ${(!canAfford || queueBusy) ? 'disabled' : ''} onclick="startTowerResearch('${td.id}')">
+          🔬 Begin Research
+          <div class="btn-sub">⏱ ${fmtTime(dur/1000)} · +30 XP on complete</div>
+        </button>
+      </div>
+    `;
+  }
+
+  document.getElementById('bmodal-content').innerHTML = `
+    <div class="bmodal-header">
+      <div>
+        <span class="bmodal-icon">${td.icon}</span>
+        <div class="bmodal-title">${td.name} <span style="font-size:13px;color:var(--text3);font-weight:400;">— Tower Research</span></div>
+        <div class="bmodal-sub">Lv ${currentLevel} / ${TOWER_RESEARCH_MAX_LEVEL} · ${isMaxed ? 'Fully upgraded' : `+${nextBoostPct}% stats at next level`}</div>
+      </div>
+      <button class="bmodal-close" onclick="closeModal()">✕</button>
+    </div>
+    ${body}
+  `;
 }
 
 function updateResearchCards() {
@@ -2644,6 +2862,29 @@ async function updateResearchBars() {
     }
   });
 
+  // Tick tower research progress bar
+  if (activeTowerResearch) {
+    const { towerId, startMs, durationMs } = activeTowerResearch;
+    if (now >= startMs + durationMs) {
+      needsServerCheck = true;
+    } else {
+      const bar = document.getElementById('tr-prog-' + towerId);
+      if (bar) {
+        const pct = Math.min(((now - startMs) / durationMs) * 100, 100);
+        bar.style.width = pct.toFixed(2) + '%';
+      }
+      const timerEl = document.getElementById('rptimer-tr-' + towerId);
+      if (timerEl) timerEl.textContent = '⏱ ' + fmtCountdown(Math.max(0, Math.ceil((durationMs - (now - startMs)) / 1000)));
+      // Also tick the modal timer/progress if the tower research modal is open
+      const mbar = document.getElementById('rmodal-tr-prog');
+      if (mbar && towerResearchModalId === towerId) {
+        mbar.style.width = (Math.min(((now - startMs) / durationMs) * 100, 100)).toFixed(2) + '%';
+        const meta = document.getElementById('rmodal-tr-eta');
+        if (meta) meta.textContent = '⏱ ' + fmtCountdown(Math.max(0, Math.ceil((durationMs - (now - startMs)) / 1000))) + ' remaining';
+      }
+    }
+  }
+
   // Check with server for completed research (but don't block the UI)
   if (needsServerCheck) {
     try {
@@ -2653,6 +2894,18 @@ async function updateResearchBars() {
         await refreshFromServer();
         updateResearchCards();
         result.completed_research.forEach(research_id => {
+          // Tower research completion (prefixed with 'tower_research:')
+          if (research_id.startsWith('tower_research:')) {
+            const trTowerId = research_id.slice('tower_research:'.length);
+            const td = TOWER_DEFS.find(t => t.id === trTowerId);
+            showToast(`🗼 ${td?.name||trTowerId} tower research complete! (+5% stats)`);
+            addXP(30, undefined, undefined);
+            if (activeResearchTab === 'towers') buildTowerResearchTab(document.getElementById('rtree-towers'));
+            if (towerResearchModalId === trTowerId) renderTowerResearchModal();
+            renderArmoryGrid();
+            renderTowerGrid();
+            return;
+          }
           const rd = RESEARCH_DEFS.find(x => x.id === research_id);
           if (rd) {
             showToast(`🔬 ${rd.name} research complete!`);
@@ -2671,6 +2924,7 @@ async function updateResearchBars() {
 
 // ── RESEARCH MODAL ───────────────────────────────
 let researchModalId = null;
+let towerResearchModalId = null;
 
 function openResearchModal(id) {
   researchModalId = id;
@@ -2780,6 +3034,7 @@ async function startResearch(id) {
   if (rs.done || rs.researching) return;
   if (!isResearchUnlocked(rd)) { showToast('Prerequisites not met!'); return; }
   if (activeResearchId) { showToast('Already researching something!'); return; }
+  if (activeTowerResearch) { showToast('Tower research in progress! Finish it first.'); return; }
 
   const ok = Object.entries(rd.cost).every(([k,v]) => (resources[k]||0) >= v);
   if (!ok) { showToast('Not enough resources!'); return; }
@@ -2877,9 +3132,10 @@ function renderArmoryGrid() {
     const slot = document.createElement('div');
     if (entry) {
       const td = TOWER_DEFS.find(t => t.id === entry.towerId);
+      const resLv = towerResearchLevels[entry.towerId] || 0;
       slot.className = 'inv-slot filled tower-slot';
       slot.innerHTML = `
-        <div class="inv-slot-level">Lv${entry.level}</div>
+        <div class="inv-slot-level">Lv${resLv}</div>
         <div class="inv-slot-icon">${td?.icon||'🗼'}</div>
         <div class="inv-slot-name">${td?.name||'Tower'}</div>
       `;
@@ -3069,17 +3325,22 @@ function openArmorySlotModal(slotIdx) {
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
   if (!td) return;
   const { currentStats, enchantBonus } = calculateTowerStats(entry, td);
+  const trm = getTowerResearchMult(entry.towerId);
+  const resLv = towerResearchLevels[entry.towerId] || 0;
+  const _rb = getResearchBonuses();
+  const _ab = getAllianceBuffs();
+  // Mirror makeTower formula exactly: base * (1 + research + alliance) * towerResearchMult
+  const displayStats = {
+    dmg:         Math.round(currentStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg) * trm),
+    atkSpeed:    (currentStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd) / trm).toFixed(2),
+    range:       (currentStats.range * trm).toFixed(2),
+    projectiles: currentStats.projectiles,
+  };
   const disenchantRes = towerDisenchantValue(td);
   const disStr = Object.entries(disenchantRes).map(([k,v]) => {
     const def = RESOURCE_DEFS.find(r=>r.id===k);
     return `${def?.icon||''} ${v.toLocaleString()} ${def?.label||k}`;
   }).join(', ');
-  const upgCost = towerUpgradeCost(td, entry.level);
-  const upgCostStr = Object.entries(upgCost).map(([k,v]) => {
-    const def = RESOURCE_DEFS.find(r=>r.id===k);
-    return `${def?.icon||''} ${v.toLocaleString()} ${def?.label||k}`;
-  }).join(' + ');
-  const canUpgAfford = Object.entries(upgCost).every(([k,v]) => (resources[k]||0) >= v);
 
   // Helper function to format stat bonus display
   // invertColor: for stats where lower is better (atkSpeed cooldown), negative bonus = green
@@ -3094,32 +3355,34 @@ function openArmorySlotModal(slotIdx) {
 
   const enchantCount = entry.enchantments ? entry.enchantments.length : 0;
   const enchantsList = entry.enchantments ? entry.enchantments.map(e => `<div style="font-size:11px;padding:4px 8px;background:var(--bg4);border-radius:4px;color:var(--text2);">${e.name}</div>`).join('') : '';
+  const researchBoostPct = Math.round((trm - 1) * 100);
 
   document.getElementById('item-modal-content').innerHTML = `
     <div class="bmodal-header">
       <div>
         <span class="bmodal-icon">${td.icon}</span>
-        <div class="bmodal-title">${td.name} <span style="font-size:12px;color:var(--text3)">Lv ${entry.level}</span></div>
+        <div class="bmodal-title">${td.name} <span style="font-size:12px;color:var(--text3)">Research Lv ${resLv}</span></div>
         <div class="bmodal-sub">${td.desc}</div>
       </div>
       <button class="bmodal-close" onclick="closeItemModal()">✕</button>
     </div>
+    ${researchBoostPct > 0 ? `<div style="background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.2);border-radius:8px;padding:6px 12px;margin-bottom:10px;font-size:12px;color:var(--green);">🗼 Tower Research: +${researchBoostPct}% to all stats</div>` : ''}
     <div class="bmodal-stat-grid">
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">⚔️ Damage</div>
-        <div class="bmodal-stat-value">${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+        <div class="bmodal-stat-value">${displayStats.dmg}${formatBonus(enchantBonus.dmg)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">⚡ Atk Speed</div>
-        <div class="bmodal-stat-value">${(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
+        <div class="bmodal-stat-value">${displayStats.atkSpeed}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">🎯 Range</div>
-        <div class="bmodal-stat-value">${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+        <div class="bmodal-stat-value">${displayStats.range}${formatBonus(enchantBonus.range)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">🏹 Projectiles</div>
-        <div class="bmodal-stat-value">${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
+        <div class="bmodal-stat-value">${Math.round(displayStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
       </div>
     </div>
     ${enchantCount > 0 ? `
@@ -3130,11 +3393,7 @@ function openArmorySlotModal(slotIdx) {
     ` : ''}
     ${td.special ? `<div style="background:var(--bg3);border-radius:9px;padding:0.7rem 1rem;font-size:12px;color:var(--orange);margin-bottom:1rem;">⚡ ${td.special}</div>` : ''}
     <div class="info-row"><span class="info-row-label">Disenchant value</span><span style="color:var(--gold);">${disStr}</span></div>
-    <div style="margin-top:1rem;display:flex;flex-direction:column;gap:0.5rem;">
-      <button class="bmodal-btn upgrade" ${!canUpgAfford?'disabled':''} onclick="upgradeTowerInArmory(${slotIdx})">
-        ⬆️ Upgrade to Lv ${entry.level + 1}
-        <div class="btn-sub">${upgCostStr} · +${Math.round(td.upgPctPerLevel*100)}% stats${!canUpgAfford?' · <span style=\"color:var(--red)\">Not enough resources</span>':''}</div>
-      </button>
+    <div style="margin-top:1rem;">
       <button class="bmodal-btn cancel-upg" onclick="disenchantTower(${slotIdx})">
         💔 Disenchant — ${disStr}
       </button>
@@ -3313,6 +3572,8 @@ function renderTowerGrid() {
   const grid = document.getElementById('tower-grid');
   if (!grid) return;
   grid.innerHTML = '';
+  const rb = getResearchBonuses();
+  const ab = getAllianceBuffs();
   TOWER_DEFS.forEach(td => {
     const locked = playerLevel < td.unlockLevel;
     const effCost = towerEffectiveCost(td);
@@ -3327,10 +3588,13 @@ function renderTowerGrid() {
       return `<span class="tower-cost-chip ${ok?'ok':'bad'}">${def?.icon||''} ${v.toLocaleString()}</span>`;
     }).join('');
 
+    const trm = getTowerResearchMult(td.id);
+    const effDmg = Math.round(td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg) * trm);
+    const effSpd = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd) / trm).toFixed(2);
     const statsHtml = `
-      <span class="tower-stat">⚔️ <span>${td.baseStats.dmg}</span></span>
-      <span class="tower-stat">⚡ <span>${td.baseStats.atkSpeed}s</span></span>
-      <span class="tower-stat">📏 <span>${td.baseStats.range}</span></span>
+      <span class="tower-stat">⚔️ <span>${effDmg}</span></span>
+      <span class="tower-stat">⚡ <span>${effSpd}s</span></span>
+      <span class="tower-stat">📏 <span>${(td.baseStats.range * trm).toFixed(2)}</span></span>
       <span class="tower-stat">🎯 <span>×${td.baseStats.projectiles}</span></span>
     `;
 
@@ -3358,7 +3622,15 @@ function openTowerModal(towerId) {
   const td = TOWER_DEFS.find(t => t.id === towerId);
   if (!td) return;
   const locked = playerLevel < td.unlockLevel;
-  const stats = td.baseStats;
+  const _rb = getResearchBonuses();
+  const _ab = getAllianceBuffs();
+  const _trm = getTowerResearchMult(td.id);
+  const stats = {
+    dmg:        Math.round(td.baseStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg) * _trm),
+    atkSpeed:   (td.baseStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd) / _trm).toFixed(2),
+    range:      (td.baseStats.range * _trm).toFixed(2),
+    projectiles:td.baseStats.projectiles,
+  };
   const effCost = towerEffectiveCost(td);
   const canAfford = !locked && Object.entries(effCost).every(([k,v]) => (resources[k]||0) >= v);
   const slots = totalArmorySlots();
@@ -3876,9 +4148,9 @@ for (let w=1;w<=10;w++) for (let s=1;s<=10;s++) STAGE_MAP[`${w}-${s}`] = WORLD_M
 
 const ENEMY_TYPES = {
   red:    { name:'Red Crawler',    color:'#e03030', size:9,  hp:30,  speed:51,  reward:1, spawnOnDeath:null },
-  blue:   { name:'Blue Runner',   color:'#3060e0', size:9,  hp:30,  speed:77,  reward:2, spawnOnDeath:{ type:'red',   count:1 } },
-  green:  { name:'Green Sprinter',color:'#30a030', size:10, hp:30,  speed:96,  reward:3, spawnOnDeath:{ type:'blue',  count:1 } },
-  yellow: { name:'Yellow Armored',color:'#c0b020', size:11, hp:30,  speed:45,  reward:4, spawnOnDeath:{ type:'green', count:2 } },
+  blue:   { name:'Blue Runner',   color:'#3060e0', size:9,  hp:40,  speed:77,  reward:2, spawnOnDeath:{ type:'red',   count:1 } },
+  green:  { name:'Green Sprinter',color:'#30a030', size:10, hp:50,  speed:96,  reward:3, spawnOnDeath:{ type:'blue',  count:1 } },
+  yellow: { name:'Yellow Armored',color:'#c0b020', size:11, hp:55,  speed:45,  reward:4, spawnOnDeath:{ type:'green', count:2 } },
   pink:   { name:'Pink Speeder',  color:'#d050a0', size:10, hp:60,  speed:115, reward:5, spawnOnDeath:{ type:'red',   count:3 } },
   black:  { name:'Black Tank',    color:'#303030', size:13, hp:120, speed:32,  reward:8, spawnOnDeath:{ type:'yellow',count:2 } },
   purple: { name:'Purple Mage',   color:'#8030c0', size:12, hp:120, speed:64,  reward:10,spawnOnDeath:{ type:'pink',  count:2 } },
@@ -4481,6 +4753,12 @@ async function startBattle() {
     wave: 0, wavesQueued: 0, waveActive: false, waveEnemiesLeft: 0, waveSpawnQueue: [],
     spawnTimer: 0, gameOver: false, victory: false, lastTime: null};
 
+  if (isEliteBattleB) {
+    const eliteCfg = { hpMult:1, speedMult:1, countMult:1, waveBonusMult:1, dmgReduce:0, turretSlowMult:1, enemyRegen:false };
+    getEliteModifiers(baseStageIdB).forEach(m => m.apply(bs, eliteCfg));
+    bs.eliteCfg = eliteCfg;
+  }
+
   renderShop(); updateBattleHUD(); showShopPanel();
   placingTower = null; selectedTowerId = null;
   document.getElementById('result-overlay').style.display = 'none';
@@ -4604,16 +4882,19 @@ function makeTower(td, level, x, y, entry) {
   const projectiles= (entry?.projectiles!== undefined) ? entry.projectiles: td.baseStats.projectiles;
   const rb = getResearchBonuses();
   const ab = getAllianceBuffs();
+  const trm = getTowerResearchMult(td.id);
   const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower');
+  const finalDmg = Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg) * trm);
   return {
     id: Math.random(),
     towerId: td.id,
     td, level,
     x, y,
     r: TOWER_RADIUS_PX,
-    dmg:      Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg)),
-    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd),
-    range:    range * tileW * (1 + rb.tower_range),
+    dmg:     finalDmg,
+    baseDmg: finalDmg,
+    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd) / trm * (bs?.eliteCfg?.turretSlowMult ?? 1),
+    range:    range * tileW * (1 + rb.tower_range) * trm,
     projectiles: projectiles + (isAoeTower ? 0 : ab.extra_projectile),
     projectileSpeed: 280,
     piercing: 0,
@@ -4671,11 +4952,16 @@ function renderShop() {
   const list = document.getElementById('shop-list');
   if (!list || !bs) return;
   list.innerHTML = '';
+  const rb = getResearchBonuses();
+  const ab = getAllianceBuffs();
   TOWER_DEFS.forEach(td => {
     const locked = playerLevel < td.unlockLevel;
     const shopCost = Math.round(Object.values(td.cost).reduce((a,b)=>a+b,0) * 0.4);
     const canAfford = (bs?.gold||0) >= shopCost;
     const sel = placingTower?.towerId === td.id && !placingTower.fromPending;
+    const trm     = getTowerResearchMult(td.id);
+    const effDmg  = Math.round(td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg) * trm);
+    const effSpd  = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd) / trm).toFixed(2);
     const div = document.createElement('div');
     div.className = 'shop-item' + (sel?' shop-selected':'') + (locked?' shop-locked':'') + (!canAfford&&!locked?' shop-cant-afford':'');
     div.innerHTML = `
@@ -4684,7 +4970,7 @@ function renderShop() {
         <span class="shop-item-name">${td.name}</span>
         <span class="shop-item-cost">💰${shopCost}</span>
       </div>
-      <div class="shop-item-stats">⚔️${td.baseStats.dmg} · ⚡${td.baseStats.atkSpeed}s · ×${td.baseStats.projectiles}${locked?` · 🔒Lv${td.unlockLevel}`:''}</div>
+      <div class="shop-item-stats">⚔️${effDmg} · ⚡${effSpd}s · ×${td.baseStats.projectiles}${locked?` · 🔒Lv${td.unlockLevel}`:''}</div>
     `;
     if (!locked) div.onclick = () => selectShopTower(td.id, shopCost);
     list.appendChild(div);
@@ -4806,8 +5092,9 @@ function launchWave() {
   const thisWave = bs.wave;
   let newEnemiesCount = 0;
   config.enemies.forEach(group => {
-    newEnemiesCount += group.count;
-    for (let i=0;i<group.count;i++) {
+    const count = Math.round(group.count * (bs.eliteCfg?.countMult ?? 1));
+    newEnemiesCount += count;
+    for (let i=0;i<count;i++) {
       bs.waveSpawnQueue.push({ ...group, waveNum:thisWave, spawnDelay: bs.spawnTimer + i*(Math.max(350,1000-bs.wave*50)) });
     }
   });
@@ -4839,16 +5126,14 @@ const UPGRADE_PATHS = [
     apply(t, lvl) { t.atkSpeed = parseFloat(towerStatsAtLevel(t.td,t.level).atkSpeed) * (1 - lvl*0.15); }
   },
   {
-    key:'special', icon:'✨', name:'Special Boost',
+    key:'damage', icon:'⚔️', name:'Damage',
     levels:[
-      { desc:'Proj speed +25%',  cost:70  },
-      { desc:'Pierce +1 enemy',  cost:150 },
-      { desc:'Damage +30%',      cost:260 },
+      { desc:'Damage +25%', cost:70  },
+      { desc:'Damage +50%', cost:150 },
+      { desc:'Damage +75%', cost:260 },
     ],
     apply(t, lvl) {
-      if (lvl >= 1) t.projectileSpeed = 280 * (1 + (lvl)*0.25);
-      if (lvl >= 2) t.piercing = 1;
-      if (lvl >= 3) t.dmg = Math.round(towerStatsAtLevel(t.td,t.level).dmg * 1.3);
+      t.dmg = Math.round(t.baseDmg * (1 + lvl * 0.25));
     }
   },
 ];
@@ -4906,7 +5191,7 @@ function renderUpgradePanel(tower) {
     const canAfford = nextLvl && (bs?.gold||0) >= nextLvl.cost;
 
     const pips = Array.from({length: maxLvl}).map((_,i) => {
-      const cls = i < currentLvl ? 'done' : i === currentLvl ? 'current' : '';
+      const cls = i < currentLvl ? 'done' : '';
       return `<div class="upg-pip ${cls}"></div>`;
     }).join('');
 
@@ -4944,6 +5229,28 @@ function applyTowerUpgrade(towerId, pathIdx) {
   updateBattleHUD();
 }
 
+// Patch affordability display in-place without rebuilding the panel.
+// Called on gold-change so button destroyed/recreated mid-click never happens.
+function refreshUpgradePanelAffordability() {
+  if (!bs || !selectedTowerId) return;
+  const tower = bs.towers.find(t => t.id === selectedTowerId);
+  if (!tower) return;
+  const pathEls = document.getElementById('upg-paths')?.querySelectorAll('.upg-path');
+  if (!pathEls) return;
+  UPGRADE_PATHS.forEach((path, pi) => {
+    const el = pathEls[pi];
+    if (!el) return;
+    const currentLvl = tower.upgrades[pi];
+    const nextLvl = path.levels[currentLvl];
+    if (!nextLvl) return; // already maxed
+    const canAfford = (bs.gold || 0) >= nextLvl.cost;
+    const btn = el.querySelector('.upg-path-btn');
+    const costEl = el.querySelector('.upg-path-cost');
+    if (btn) btn.disabled = !canAfford;
+    if (costEl) costEl.textContent = canAfford ? 'Can afford' : `Need ${nextLvl.cost - (bs.gold || 0)} more gold`;
+  });
+}
+
 function toggleSpeed() {
   if (battleSpeed === 1) battleSpeed = 2;
   else if (battleSpeed === 2) battleSpeed = 4;
@@ -4955,14 +5262,14 @@ let enemyIdCounter = 0;
 function spawnEnemy(template) {
   const wp = bs.waypoints;
   const mobHpMult = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
-  const spawnHp = Math.max(1, Math.round(template.hp * mobHpMult));
+  const spawnHp = Math.max(1, Math.round(template.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1)));
   return {
     id: ++enemyIdCounter,
     type: template.type,
     waveNum: template.waveNum || bs.wave,
     x: wp[0].x, y: wp[0].y,
     hp: spawnHp, maxHp: spawnHp,
-    speed: template.speed,
+    speed: template.speed * (bs.eliteCfg?.speedMult ?? 1),
     reward: template.reward,
     size: template.size,
     color: template.color,
@@ -4983,18 +5290,16 @@ function spawnChildEnemy(parent, typeKey, count) {
   }
   const t = ENEMY_TYPES[typeKey];
   if (!t) return;
-  const stageIdx = CAMPAIGN_STAGES.findIndex(s=>s.id===bs.stageId);
-  const waveMult = 1 + (bs.wave-1)*0.14;
-  const stageMult = 1 + stageIdx*0.20;
-  const mult = stageMult * waveMult;
+  const mobHpMult = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
+  const spawnHp = Math.max(1, Math.round(t.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1)));
   for (let i = 0; i < count; i++) {
     bs.enemies.push({
       id: ++enemyIdCounter,
       type: typeKey,
       waveNum: parent.waveNum,
       x: parent.x, y: parent.y,
-      hp: Math.round(t.hp * mult), maxHp: Math.round(t.hp * mult),
-      speed: t.speed,
+      hp: spawnHp, maxHp: spawnHp,
+      speed: t.speed * (bs.eliteCfg?.speedMult ?? 1),
       reward: Math.max(1, Math.round(t.reward * 0.5)),
       size: t.size,
       color: t.color,
@@ -5049,6 +5354,7 @@ function battleLoop(ts) {
   // Drawing now handled by startBattleLoop RAF
 }
 
+
 function startBattleLoop() {
   stopBattleLoop();
   // Use setInterval as the PRIMARY loop — works in all tab states
@@ -5065,8 +5371,9 @@ function startBattleLoop() {
       const dt = rawDt * battleSpeed;
       updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
       updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
-      drawBattle();
     }
+    // Always draw so the canvas stays live during the victory/defeat delay window
+    if (bs) drawBattle();
     battleRaf = requestAnimationFrame(rafTick);
   }
   battleRaf = requestAnimationFrame(rafTick);
@@ -5103,6 +5410,7 @@ function updateSpawn(dt) {
 function updateEnemies(dt) {
   bs.enemies.forEach(e => {
     if (e.isDead || e.isReached) return;
+    if (bs.eliteCfg?.enemyRegen) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.02 * dt);
     let _speedMult = 1.0;
     if (e.slowTimer   > 0) { _speedMult *= 0.50;                       e.slowTimer   -= dt * 1000; }
     if (e.alSlowTimer > 0) { _speedMult *= (1 - (e.alSlowPct || 0.25)); e.alSlowTimer -= dt * 1000; }
@@ -5156,7 +5464,7 @@ function updateTowers(dt) {
     // Inferno: hit all in range (capped at 6)
     if (t.towerId === 'inferno') {
       inRange.slice(0,6).forEach(e => {
-        e.hp -= t.dmg;
+        applyDmgToEnemy(e, t.dmg);
         if (e.hp <= 0) killEnemy(e, t);
       });
       t.cooldown = t.atkSpeed;
@@ -5166,7 +5474,7 @@ function updateTowers(dt) {
     // God Tower: hit every enemy on the map with no cap
     if (t.towerId === 'god_tower') {
       inRange.forEach(e => {
-        e.hp -= t.dmg;
+        applyDmgToEnemy(e, t.dmg);
         if (e.hp <= 0) killEnemy(e, t);
       });
       t.cooldown = t.atkSpeed;
@@ -5214,7 +5522,7 @@ function updateProjectiles(dt) {
           .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
           .slice(0, maxHit);
         inAoe.forEach(e => {
-          e.hp -= p.dmg;
+          applyDmgToEnemy(e, p.dmg);
           if (e.hp <= 0) killEnemy(e, null);
         });
         // Spawn explosion animation
@@ -5234,7 +5542,7 @@ function updateProjectiles(dt) {
           if (_abHit.boss_dmg > 0 && target.type === 'boss') {
             hitDmg = Math.round(hitDmg * (1 + _abHit.boss_dmg));
           }
-          target.hp -= hitDmg;
+          applyDmgToEnemy(target, hitDmg);
           // Alliance slow (stacks multiplicatively with ice_tower)
           if (_abHit.slow > 0) {
             target.alSlowTimer = Math.max(target.alSlowTimer || 0, 1500);
@@ -5263,6 +5571,11 @@ function updateProjectiles(dt) {
     }
   });
   bs.projectiles = bs.projectiles.filter(p => !p._done);
+}
+
+function applyDmgToEnemy(e, dmg) {
+  const reduce = bs.eliteCfg?.dmgReduce ?? 0;
+  e.hp -= reduce > 0 ? Math.max(1, Math.round(dmg * (1 - reduce))) : dmg;
 }
 
 function killEnemy(e, tower) {
@@ -5301,7 +5614,7 @@ function checkWaveEnd() {
     updateBattleHUD();
     if (bs.wave >= 10) {
       bs.victory = true;
-      setTimeout(()=>showResultScreen(true), 800);
+      setTimeout(()=>showResultScreen(true), 2000);
     } else {
       // Auto-advance to next wave after 1.5s
       setTimeout(()=>{ if(bs&&!bs.gameOver&&!bs.victory&&bs.wave<10) launchWave(); }, 1500);
@@ -5489,6 +5802,7 @@ function drawTower(ctx, t) {
 }
 
 function drawEnemy(ctx, e) {
+  if (e.isDead || e.isReached) return;
   ctx.save();
 
   const isBoss = e.type === 'boss';
@@ -5971,10 +6285,11 @@ function updateBattleHUD() {
   if (bs.gold !== _lastHudGold) {
     _lastHudGold = bs.gold;
     renderShop();
+    // Patch affordability in-place — never rebuild the panel on a gold tick.
+    // A full rebuild destroys button elements mid-click, causing dropped upgrades.
     const upgradePanel = document.getElementById('upgrade-panel');
     if (upgradePanel && upgradePanel.style.display !== 'none' && selectedTowerId) {
-      const tower = bs.towers.find(t => t.id === selectedTowerId);
-      if (tower) renderUpgradePanel(tower);
+      refreshUpgradePanelAffordability();
     }
   }
 }
