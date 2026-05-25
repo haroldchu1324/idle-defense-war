@@ -736,7 +736,7 @@ async function startGame(user) {
     ]);
     console.log('[startGame] profile loaded successfully');
     // Pre-load alliance state so territory buffs apply from game start
-    serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; }).catch(()=>{});
+    serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; renderTowerGrid(); }).catch(()=>{});
   }
   catch(e){console.warn('[startGame] load failed or timed out:', e);}
   finally{
@@ -1256,8 +1256,7 @@ function closeResourceInfoModal() {
 // ─── Shared stat-formatting helpers (single source of truth for display) ───
 // Always use these so "Your Towers" list and "Selected Tower" panel match exactly.
 function formatStatVal(val) {
-  // Round to 2 decimal places (same as selected-tower panel)
-  return Math.round(val * 100) / 100;
+  return parseFloat(val).toFixed(2);
 }
 function formatStatSpd(val) {
   return val.toFixed(2);
@@ -1326,8 +1325,14 @@ function buildEnchantInventory() {
     const originalIndex = armoryTowers.findIndex(t => t === tower);
     const enchantCount = tower.enchantments ? tower.enchantments.length : 0;
 
-    // Use calculateTowerStats so this list always matches the Selected Tower panel
     const { currentStats: listStats } = calculateTowerStats(tower, towerDef);
+    const _lrb = getResearchBonuses(), _lab = getAllianceBuffs();
+    const _lresLv = towerResearchLevels[tower.towerId] || 0;
+    const listDisplay = {
+      dmg:      (listStats.dmg * (1 + _lrb.tower_dmg + _lab.tower_dmg + _lresLv * 0.05)).toFixed(2),
+      atkSpeed: (listStats.atkSpeed / (1 + _lrb.tower_spd + _lab.tower_spd + _lresLv * 0.05)).toFixed(2),
+      range:    (listStats.range * (1 + _lresLv * 0.05)).toFixed(2),
+    };
 
     const item = document.createElement('div');
     item.className = `enchant-tower-item ${selectedTowerForEnchant === originalIndex ? 'selected' : ''}`;
@@ -1336,9 +1341,9 @@ function buildEnchantInventory() {
     item.innerHTML = `
       <div class="enchant-tower-icon">${towerDef.icon}</div>
       <div class="enchant-tower-info">
-        <div class="enchant-tower-name">${towerDef.name} Lv.${tower.level || 1}</div>
+        <div class="enchant-tower-name">${towerDef.name} <span class="tower-res-lv-badge">Lv ${towerResearchLevels[tower.towerId] || 0}</span></div>
         <div class="enchant-tower-stats">
-          DMG: ${formatStatVal(listStats.dmg)} | SPD: ${formatStatSpd(listStats.atkSpeed)} | RNG: ${formatStatVal(listStats.range)}
+          DMG: ${listDisplay.dmg} | SPD: ${listDisplay.atkSpeed}s | RNG: ${listDisplay.range}
         </div>
         <div class="enchant-tower-enchants">
           Enchants: ${enchantCount}
@@ -1376,14 +1381,28 @@ function selectTowerForEnchant(index) {
 
   if (selectedArea && selectedCard) {
     const { currentStats, enchantBonus } = calculateTowerStats(tower, towerDef);
+    const _srb = getResearchBonuses(), _sab = getAllianceBuffs();
+    const _sresLv = towerResearchLevels[tower.towerId] || 0;
+    const _sdmgMult   = 1 + _srb.tower_dmg + _sab.tower_dmg + _sresLv * 0.05;
+    const _sspdDiv    = 1 + _srb.tower_spd + _sab.tower_spd + _sresLv * 0.05;
+    const _srangeMult = 1 + _sresLv * 0.05;
+    const selDisplay = {
+      dmg:         (currentStats.dmg * _sdmgMult).toFixed(2),
+      atkSpeed:    (currentStats.atkSpeed / _sspdDiv).toFixed(2),
+      range:       (currentStats.range    * _srangeMult).toFixed(2),
+      projectiles: currentStats.projectiles,
+    };
+    const selBonus = {
+      dmg:         enchantBonus.dmg      * _sdmgMult,
+      atkSpeed:    enchantBonus.atkSpeed / _sspdDiv,
+      range:       enchantBonus.range    * _srangeMult,
+      projectiles: enchantBonus.projectiles,
+    };
 
-    // Helper function to format stat bonus display
     const formatBonus = (bonus, isTime = false, invertColor = false) => {
       if (Math.abs(bonus) < 0.01) return '';
       const sign = bonus > 0 ? '+' : '';
       const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
-      // invertColor: for stats where lower is better (e.g. atkSpeed cooldown),
-      // a negative bonus is actually a buff — show it green instead of red.
       const isGood = invertColor ? bonus < 0 : bonus > 0;
       const color = isGood ? '#3ecf8e' : '#f55a5a';
       return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
@@ -1396,15 +1415,15 @@ function selectTowerForEnchant(index) {
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
         <span style="font-size:24px;">${towerDef.icon}</span>
         <div>
-          <div style="font-weight:600;color:var(--text);">${towerDef.name} Level ${tower.level || 1}</div>
+          <div style="font-weight:600;color:var(--text);">${towerDef.name} <span class="tower-res-lv-badge">Lv ${towerResearchLevels[tower.towerId] || 0}</span></div>
           <div style="font-size:12px;color:var(--text2);">${towerDef.desc}</div>
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
-        <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
-        <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
-        <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
+        <div>⚔️ DMG: ${selDisplay.dmg}${formatBonus(selBonus.dmg)}</div>
+        <div>⚡ Speed: ${selDisplay.atkSpeed}s${formatBonus(selBonus.atkSpeed, true, true)}</div>
+        <div>🎯 Range: ${selDisplay.range}${formatBonus(selBonus.range)}</div>
+        <div>🏹 Projectiles: ${Math.round(selDisplay.projectiles)}${formatBonus(selBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
       </div>
     `;
@@ -1418,8 +1437,11 @@ function selectTowerForEnchant(index) {
     console.log('Spin button enabled for tower:', towerDef.name);
   }
 
-  // Generate new strip
-  generateEnchantStrip();
+  // Only generate the strip if it hasn't been built yet — don't reshuffle on every tower click
+  const _strip = document.getElementById('enchant-strip');
+  if (!_strip?.enchantments || _strip.enchantments.length === 0) {
+    generateEnchantStrip();
+  }
 }
 
 function generateEnchantStrip() {
@@ -1758,15 +1780,33 @@ function updateSelectedTowerDisplay() {
   const selectedCard = document.getElementById('selected-tower-card');
 
   if (selectedArea && selectedCard) {
-    const { currentStats, enchantBonus } = calculateTowerStats(tower, towerDef);
+    const { currentStats, enchantBonus, baseWithLevel } = calculateTowerStats(tower, towerDef);
+    const _urb = getResearchBonuses(), _uab = getAllianceBuffs();
+    const _uresLv = towerResearchLevels[tower.towerId] || 0;
+    const dmgMult    = 1 + _urb.tower_dmg + _uab.tower_dmg + _uresLv * 0.05;
+    const spdDiv     = 1 + _urb.tower_spd + _uab.tower_spd + _uresLv * 0.05;
+    const rangeMult  = 1 + _uresLv * 0.05;
 
-    // Helper function to format stat bonus display
+    // Full buffed display stats (research + alliance + tower research)
+    const uDisplay = {
+      dmg:         (currentStats.dmg * dmgMult).toFixed(2),
+      atkSpeed:    (currentStats.atkSpeed / spdDiv).toFixed(2),
+      range:       (currentStats.range    * rangeMult).toFixed(2),
+      projectiles: currentStats.projectiles,
+    };
+
+    // Enchant bonuses scaled to match the buffed display
+    const uBonus = {
+      dmg:         enchantBonus.dmg      * dmgMult,
+      atkSpeed:    enchantBonus.atkSpeed / spdDiv,
+      range:       enchantBonus.range    * rangeMult,
+      projectiles: enchantBonus.projectiles,
+    };
+
     const formatBonus = (bonus, isTime = false, invertColor = false) => {
       if (Math.abs(bonus) < 0.01) return '';
       const sign = bonus > 0 ? '+' : '';
       const value = isTime ? bonus.toFixed(2) : Math.round(bonus * 100) / 100;
-      // invertColor: for stats where lower is better (e.g. atkSpeed cooldown),
-      // a negative bonus is actually a buff — show it green instead of red.
       const isGood = invertColor ? bonus < 0 : bonus > 0;
       const color = isGood ? '#3ecf8e' : '#f55a5a';
       return ` <span style="color:${color};">(${sign}${value}${isTime ? 's' : ''})</span>`;
@@ -1778,15 +1818,15 @@ function updateSelectedTowerDisplay() {
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
         <span style="font-size:24px;">${towerDef.icon}</span>
         <div>
-          <div style="font-weight:600;color:var(--text);">${towerDef.name} Level ${tower.level || 1}</div>
+          <div style="font-weight:600;color:var(--text);">${towerDef.name} <span class="tower-res-lv-badge">Lv ${towerResearchLevels[tower.towerId] || 0}</span></div>
           <div style="font-size:12px;color:var(--text2);">${towerDef.desc}</div>
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.6;">
-        <div>⚔️ DMG: ${formatStatVal(currentStats.dmg)}${formatBonus(enchantBonus.dmg)}</div>
-        <div>⚡ Speed: ${formatStatSpd(currentStats.atkSpeed)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
-        <div>🎯 Range: ${formatStatVal(currentStats.range)}${formatBonus(enchantBonus.range)}</div>
-        <div>🏹 Projectiles: ${Math.round(currentStats.projectiles)}${formatBonus(enchantBonus.projectiles)}</div>
+        <div>⚔️ DMG: ${uDisplay.dmg}${formatBonus(uBonus.dmg)}</div>
+        <div>⚡ Speed: ${uDisplay.atkSpeed}s${formatBonus(uBonus.atkSpeed, true, true)}</div>
+        <div>🎯 Range: ${uDisplay.range}${formatBonus(uBonus.range)}</div>
+        <div>🏹 Projectiles: ${Math.round(uDisplay.projectiles)}${formatBonus(uBonus.projectiles)}</div>
         ${enchantCount > 0 ? `<div style="margin-top:8px;color:var(--blue);">✨ ${enchantCount} Enchantments</div>` : ''}
       </div>
     `;
@@ -3132,10 +3172,10 @@ function renderArmoryGrid() {
     const slot = document.createElement('div');
     if (entry) {
       const td = TOWER_DEFS.find(t => t.id === entry.towerId);
-      const resLv = towerResearchLevels[entry.towerId] || 0;
+      const resLvBadge = towerResearchLevels[entry.towerId] || 0;
       slot.className = 'inv-slot filled tower-slot';
       slot.innerHTML = `
-        <div class="inv-slot-level">Lv${resLv}</div>
+        <div class="inv-slot-level">Lv${resLvBadge}</div>
         <div class="inv-slot-icon">${td?.icon||'🗼'}</div>
         <div class="inv-slot-name">${td?.name||'Tower'}</div>
       `;
@@ -3325,15 +3365,14 @@ function openArmorySlotModal(slotIdx) {
   const td = TOWER_DEFS.find(t => t.id === entry.towerId);
   if (!td) return;
   const { currentStats, enchantBonus } = calculateTowerStats(entry, td);
-  const trm = getTowerResearchMult(entry.towerId);
   const resLv = towerResearchLevels[entry.towerId] || 0;
   const _rb = getResearchBonuses();
   const _ab = getAllianceBuffs();
-  // Mirror makeTower formula exactly: base * (1 + research + alliance) * towerResearchMult
+  // Additive formula: base * (1 + research + alliance + towerResLv*0.05)
   const displayStats = {
-    dmg:         Math.round(currentStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg) * trm),
-    atkSpeed:    (currentStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd) / trm).toFixed(2),
-    range:       (currentStats.range * trm).toFixed(2),
+    dmg:         (currentStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg + resLv * 0.05)).toFixed(2),
+    atkSpeed:    (currentStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd + resLv * 0.05)).toFixed(2),
+    range:       (currentStats.range * (1 + resLv * 0.05)).toFixed(2),
     projectiles: currentStats.projectiles,
   };
   const disenchantRes = towerDisenchantValue(td);
@@ -3355,13 +3394,13 @@ function openArmorySlotModal(slotIdx) {
 
   const enchantCount = entry.enchantments ? entry.enchantments.length : 0;
   const enchantsList = entry.enchantments ? entry.enchantments.map(e => `<div style="font-size:11px;padding:4px 8px;background:var(--bg4);border-radius:4px;color:var(--text2);">${e.name}</div>`).join('') : '';
-  const researchBoostPct = Math.round((trm - 1) * 100);
+  const researchBoostPct = Math.round(resLv * 5);
 
   document.getElementById('item-modal-content').innerHTML = `
     <div class="bmodal-header">
       <div>
         <span class="bmodal-icon">${td.icon}</span>
-        <div class="bmodal-title">${td.name} <span style="font-size:12px;color:var(--text3)">Research Lv ${resLv}</span></div>
+        <div class="bmodal-title">${td.name} <span class="tower-res-lv-badge">Lv ${resLv}</span></div>
         <div class="bmodal-sub">${td.desc}</div>
       </div>
       <button class="bmodal-close" onclick="closeItemModal()">✕</button>
@@ -3588,21 +3627,24 @@ function renderTowerGrid() {
       return `<span class="tower-cost-chip ${ok?'ok':'bad'}">${def?.icon||''} ${v.toLocaleString()}</span>`;
     }).join('');
 
-    const trm = getTowerResearchMult(td.id);
-    const effDmg = Math.round(td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg) * trm);
-    const effSpd = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd) / trm).toFixed(2);
+    const craftResLv2 = towerResearchLevels[td.id] || 0;
+    const effDmg = (td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg + craftResLv2 * 0.05)).toFixed(2);
+    const effSpd = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd + craftResLv2 * 0.05)).toFixed(2);
     const statsHtml = `
       <span class="tower-stat">⚔️ <span>${effDmg}</span></span>
       <span class="tower-stat">⚡ <span>${effSpd}s</span></span>
-      <span class="tower-stat">📏 <span>${(td.baseStats.range * trm).toFixed(2)}</span></span>
+      <span class="tower-stat">📏 <span>${(td.baseStats.range * (1 + craftResLv2 * 0.05)).toFixed(2)}</span></span>
       <span class="tower-stat">🎯 <span>×${td.baseStats.projectiles}</span></span>
     `;
+
+    const craftResLv = towerResearchLevels[td.id] || 0;
 
     card.innerHTML = `
       <div class="tower-icon-wrap" style="background:${td.color}22;border:1px solid ${td.color}44;">${td.icon}</div>
       <div class="tower-info">
         <div class="tower-name">${td.name}
           <span class="tower-type-badge" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
+          <span class="tower-res-lv-badge">Lv ${craftResLv}</span>
         </div>
         <div class="tower-stats">${statsHtml}</div>
         <div class="tower-cost-row">${costChips}</div>
@@ -3624,11 +3666,11 @@ function openTowerModal(towerId) {
   const locked = playerLevel < td.unlockLevel;
   const _rb = getResearchBonuses();
   const _ab = getAllianceBuffs();
-  const _trm = getTowerResearchMult(td.id);
+  const _modalResLv = towerResearchLevels[td.id] || 0;
   const stats = {
-    dmg:        Math.round(td.baseStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg) * _trm),
-    atkSpeed:   (td.baseStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd) / _trm).toFixed(2),
-    range:      (td.baseStats.range * _trm).toFixed(2),
+    dmg:        (td.baseStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg + _modalResLv * 0.05)).toFixed(2),
+    atkSpeed:   (td.baseStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd + _modalResLv * 0.05)).toFixed(2),
+    range:      (td.baseStats.range * (1 + _modalResLv * 0.05)).toFixed(2),
     projectiles:td.baseStats.projectiles,
   };
   const effCost = towerEffectiveCost(td);
@@ -3650,6 +3692,7 @@ function openTowerModal(towerId) {
         <span class="bmodal-icon">${td.icon}</span>
         <div class="bmodal-title">${td.name}
           <span class="tower-type-badge" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};font-size:11px;">${td.type}</span>
+          <span class="tower-res-lv-badge">Lv ${towerResearchLevels[td.id] || 0}</span>
         </div>
         <div class="bmodal-sub">${td.desc}</div>
       </div>
@@ -4509,7 +4552,7 @@ function renderSetupArmory() {
       const div = document.createElement('div');
       div.className = 'setup-tower-slot' + (sel ? ' selected' : '');
       div.innerHTML = `
-        <div class="setup-tower-lvl">Lv${entry.level}</div>
+        <div class="setup-tower-lvl">Lv${towerResearchLevels[entry.towerId] || 0}</div>
         <div class="setup-tower-check">✓</div>
         <div class="setup-tower-icon">${td?.icon||'🗼'}</div>
         <div class="setup-tower-name">${td?.name||'Tower'}</div>
@@ -4558,30 +4601,41 @@ function showSetupTowerStats(armoryIdx) {
       ).join('')
     : '';
 
+  // Apply the same research + alliance buffs as the armory modal (additive)
+  const _setupResLv = towerResearchLevels[entry.towerId] || 0;
+  const _rb  = getResearchBonuses();
+  const _ab  = getAllianceBuffs();
+  const displayStats = {
+    dmg:         (currentStats.dmg * (1 + _rb.tower_dmg + _ab.tower_dmg + _setupResLv * 0.05)).toFixed(2),
+    atkSpeed:    (currentStats.atkSpeed / (1 + _rb.tower_spd + _ab.tower_spd + _setupResLv * 0.05)).toFixed(2),
+    range:       (currentStats.range * (1 + _setupResLv * 0.05)).toFixed(2),
+    projectiles: currentStats.projectiles,
+  };
+
   document.getElementById('setup-stats-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
       <span style="font-size:28px;line-height:1;">${td.icon}</span>
       <div>
-        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">${td.name} <span style="font-size:11px;font-weight:400;color:var(--text3);">Lv ${entry.level}</span></div>
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">${td.name} <span class="tower-res-lv-badge">Lv ${towerResearchLevels[entry.towerId] || 0}</span></div>
         <span class="setup-stats-type" style="background:${td.typeBadge.bg};color:${td.typeBadge.color};border-color:${td.typeBadge.border};">${td.type}</span>
       </div>
     </div>
     <div class="bmodal-stat-grid" style="margin-bottom:10px;">
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">⚔️ Damage</div>
-        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.dmg * 100) / 100}${formatBonus(enchantBonus.dmg)}</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${displayStats.dmg}${formatBonus(enchantBonus.dmg)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">⚡ Atk Speed</div>
-        <div class="bmodal-stat-value" style="font-size:13px;">${parseFloat(currentStats.atkSpeed).toFixed(2)}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${displayStats.atkSpeed}s${formatBonus(enchantBonus.atkSpeed, true, true)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">📏 Range</div>
-        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.range * 100) / 100}${formatBonus(enchantBonus.range)}</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${displayStats.range}${formatBonus(enchantBonus.range)}</div>
       </div>
       <div class="bmodal-stat">
         <div class="bmodal-stat-label">🎯 Projectiles</div>
-        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(currentStats.projectiles)}</div>
+        <div class="bmodal-stat-value" style="font-size:13px;">${Math.round(displayStats.projectiles)}</div>
       </div>
     </div>
     ${enchantCount > 0 ? `
@@ -4735,6 +4789,14 @@ async function startBattle() {
   })).filter(x=>x.td);
   pendingPlacingIdx = 0;
 
+  // Hide wave + speed buttons before battle-game becomes visible to avoid a flash
+  if (pendingTowersQueue.length > 0) {
+    const _wBtn = document.getElementById('hud-wave-btn');
+    const _sBtn = document.getElementById('hud-speed-btn');
+    if (_wBtn) _wBtn.style.visibility = 'hidden';
+    if (_sBtn) _sBtn.style.visibility = 'hidden';
+  }
+
   document.getElementById('battle-setup').style.display = 'none';
   document.getElementById('battle-game').style.display  = 'block';
   document.getElementById('hud-stage-name').textContent = `Stage ${stageId}`;
@@ -4762,7 +4824,7 @@ async function startBattle() {
   renderShop(); updateBattleHUD(); showShopPanel();
   placingTower = null; selectedTowerId = null;
   document.getElementById('result-overlay').style.display = 'none';
-  document.getElementById('hud-wave-count').value = '1';
+  // (hud-wave-count dropdown removed — single send-wave button now used)
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
   canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
   startBattleLoop();
@@ -4783,20 +4845,27 @@ function updatePendingTowersBar() {
   pendingTowersQueue.forEach((t, i) => {
     const chip = document.createElement('div');
     chip.className = 'pending-tower-chip' + (i === pendingPlacingIdx && placingTower ? ' active-placing' : '');
-    // Get exact stats at this tower's level
-    const stats = towerStatsAtLevel(t.td, t.level);
+    const { currentStats: pendingStats } = calculateTowerStats(t.entry, t.td);
+    const _prb = getResearchBonuses(), _pab = getAllianceBuffs();
+    const _presLv = towerResearchLevels[t.td.id] || 0;
+    const pendingDisp = {
+      dmg:      (pendingStats.dmg * (1 + _prb.tower_dmg + _pab.tower_dmg + _presLv * 0.05)).toFixed(2),
+      atkSpeed: (pendingStats.atkSpeed / (1 + _prb.tower_spd + _pab.tower_spd + _presLv * 0.05)).toFixed(2),
+      range:    (pendingStats.range * (1 + _presLv * 0.05)).toFixed(2),
+      projectiles: pendingStats.projectiles,
+    };
     const specialHtml = t.td.special
       ? `<div class="pct-special">⚡ ${t.td.special}</div>` : '';
     chip.innerHTML = `
       ${t.td.icon}
-      <span class="pending-chip-lvl">Lv${t.level}</span>
+      <span class="pending-chip-lvl">Lv${_presLv}</span>
       <div class="pending-chip-tooltip">
-        <div class="pct-name">${t.td.icon} ${t.td.name} <span style="color:var(--gold)">Lv${t.level}</span></div>
+        <div class="pct-name">${t.td.icon} ${t.td.name} <span style="color:var(--gold)">Lv${_presLv}</span></div>
         <div class="pct-stats">
-          <div class="pct-stat">⚔️ Dmg <span>${stats.dmg}</span></div>
-          <div class="pct-stat">⚡ Speed <span>${stats.atkSpeed}s</span></div>
-          <div class="pct-stat">📏 Range <span>${t.td.baseStats.range}</span></div>
-          <div class="pct-stat">🎯 Shots <span>×${t.td.baseStats.projectiles}</span></div>
+          <div class="pct-stat">⚔️ Dmg <span>${pendingDisp.dmg}</span></div>
+          <div class="pct-stat">⚡ Speed <span>${pendingDisp.atkSpeed}s</span></div>
+          <div class="pct-stat">📏 Range <span>${pendingDisp.range}</span></div>
+          <div class="pct-stat">🎯 Shots <span>×${pendingDisp.projectiles}</span></div>
         </div>
         ${specialHtml}
         <div style="font-size:9px;color:#555e80;margin-top:4px;">Click to place</div>
@@ -4825,17 +4894,20 @@ function finishPlacingPendingTower(idx) {
     startPlacingPendingTower(0);
   } else {
     document.getElementById('pending-towers-bar').style.display = 'none';
+    updateBattleHUD();
+    renderShop();
   }
   updatePendingTowersBar();
 }
 
 function resizeBattleCanvas() {
-  const canvas = document.getElementById('battle-canvas');
-  const shop   = document.getElementById('battle-shop');
-  const hud    = document.getElementById('battle-hud-top');
-  const parent = document.getElementById('battle-game');
-  canvas.width  = parent.clientWidth - shop.clientWidth;
-  canvas.height = parent.clientHeight - hud.clientHeight;
+  const canvas  = document.getElementById('battle-canvas');
+  const shop    = document.getElementById('battle-shop');
+  const hud     = document.getElementById('battle-hud-top');
+  const bar     = document.getElementById('battle-bottom-bar');
+  const parent  = document.getElementById('battle-game');
+  canvas.width  = parent.clientWidth  - shop.clientWidth;
+  canvas.height = parent.clientHeight - hud.clientHeight - (bar ? bar.clientHeight : 0);
 }
 
 function snapToGrid(x, y) {
@@ -4882,9 +4954,9 @@ function makeTower(td, level, x, y, entry) {
   const projectiles= (entry?.projectiles!== undefined) ? entry.projectiles: td.baseStats.projectiles;
   const rb = getResearchBonuses();
   const ab = getAllianceBuffs();
-  const trm = getTowerResearchMult(td.id);
+  const _makeResLv = towerResearchLevels[td.id] || 0;
   const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower');
-  const finalDmg = Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg) * trm);
+  const finalDmg = Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg + _makeResLv * 0.05));
   return {
     id: Math.random(),
     towerId: td.id,
@@ -4893,8 +4965,8 @@ function makeTower(td, level, x, y, entry) {
     r: TOWER_RADIUS_PX,
     dmg:     finalDmg,
     baseDmg: finalDmg,
-    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd) / trm * (bs?.eliteCfg?.turretSlowMult ?? 1),
-    range:    range * tileW * (1 + rb.tower_range) * trm,
+    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd + _makeResLv * 0.05) * (bs?.eliteCfg?.turretSlowMult ?? 1),
+    range:    range * tileW * (1 + rb.tower_range + _makeResLv * 0.05),
     projectiles: projectiles + (isAoeTower ? 0 : ab.extra_projectile),
     projectileSpeed: 280,
     piercing: 0,
@@ -4954,14 +5026,17 @@ function renderShop() {
   list.innerHTML = '';
   const rb = getResearchBonuses();
   const ab = getAllianceBuffs();
+  const shopBlocked = pendingTowersQueue.length > 0;
+  list.style.pointerEvents = shopBlocked ? 'none' : '';
+  list.style.opacity = shopBlocked ? '0.4' : '';
   TOWER_DEFS.forEach(td => {
     const locked = playerLevel < td.unlockLevel;
     const shopCost = Math.round(Object.values(td.cost).reduce((a,b)=>a+b,0) * 0.4);
     const canAfford = (bs?.gold||0) >= shopCost;
     const sel = placingTower?.towerId === td.id && !placingTower.fromPending;
-    const trm     = getTowerResearchMult(td.id);
-    const effDmg  = Math.round(td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg) * trm);
-    const effSpd  = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd) / trm).toFixed(2);
+    const _shopResLv = towerResearchLevels[td.id] || 0;
+    const effDmg  = (td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg + _shopResLv * 0.05)).toFixed(2);
+    const effSpd  = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd + _shopResLv * 0.05)).toFixed(2);
     const div = document.createElement('div');
     div.className = 'shop-item' + (sel?' shop-selected':'') + (locked?' shop-locked':'') + (!canAfford&&!locked?' shop-cant-afford':'');
     div.innerHTML = `
@@ -5075,13 +5150,7 @@ window.deselectTower = deselectTower;
 function startNextWave() {
   if (!bs || bs.gameOver || bs.victory) return;
   if (bs.wave >= 10) return;
-  const countEl = document.getElementById('hud-wave-count');
-  const count = parseInt(countEl?.value||'1');
-  
-  // Instantly send X waves based on the dropdown
-  for (let i = 0; i < count; i++) {
-    if (bs.wave < 10) launchWave();
-  }
+  launchWave();
 }
 
 function launchWave() {
@@ -5255,7 +5324,11 @@ function toggleSpeed() {
   if (battleSpeed === 1) battleSpeed = 2;
   else if (battleSpeed === 2) battleSpeed = 4;
   else battleSpeed = 1;
-  document.getElementById('hud-speed-btn').textContent = battleSpeed + '×';
+  const btn = document.getElementById('hud-speed-btn');
+  if (btn) {
+    const lbl = btn.querySelector('.stb-label');
+    if (lbl) lbl.textContent = battleSpeed + '× Speed';
+  }
 }
 
 let enemyIdCounter = 0;
@@ -5796,7 +5869,7 @@ function drawTower(ctx, t) {
   ctx.font = 'bold 7px Inter';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(t.level, t.x + t.r - 5, t.y - t.r + 5);
+  ctx.fillText(towerResearchLevels[t.towerId] || 0, t.x + t.r - 5, t.y - t.r + 5);
 
   ctx.restore();
 }
@@ -6281,6 +6354,23 @@ function updateBattleHUD() {
   document.getElementById('hud-lives').textContent = bs.lives;
   document.getElementById('hud-wave').textContent  = bs.wave;
   document.getElementById('hud-gold').textContent  = bs.gold;
+
+  // Wave + speed button state: hide (keep layout) while armory towers are pending placement
+  const waveBtn  = document.getElementById('hud-wave-btn');
+  const speedBtn = document.getElementById('hud-speed-btn');
+  const stillPlacing = pendingTowersQueue.length > 0;
+  if (waveBtn)  waveBtn.style.visibility  = stillPlacing ? 'hidden' : '';
+  if (speedBtn) speedBtn.style.visibility = stillPlacing ? 'hidden' : '';
+  if (waveBtn && !stillPlacing) {
+    const allDone = bs.wave >= 10;
+    waveBtn.disabled = allDone;
+    const subEl = document.getElementById('send-wave-sub');
+    if (subEl) {
+      if (allDone) subEl.textContent = 'All waves sent';
+      else subEl.textContent = 'Wave ' + (bs.wave + 1);
+    }
+  }
+
   // Only refresh shop/upgrade panel when gold actually changes
   if (bs.gold !== _lastHudGold) {
     _lastHudGold = bs.gold;
