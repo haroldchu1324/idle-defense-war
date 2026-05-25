@@ -596,6 +596,7 @@ body{height:100%;min-width:1100px;overflow:hidden;font-family:'Inter',sans-serif
   cursor:pointer;transition:border-color 0.15s,transform 0.12s,box-shadow 0.12s;
   position:relative;overflow:hidden;
   display:flex;flex-direction:column;gap:5px;
+  min-height:185px;
 }
 .rnode::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.02),transparent);pointer-events:none;}
 .rnode:hover:not(.rnode-locked):not(.rnode-researching){transform:translateY(2px);box-shadow:0 8px 20px rgba(0,0,0,0.4);}
