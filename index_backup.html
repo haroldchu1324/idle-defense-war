@@ -144,6 +144,7 @@
       <button class="nav-btn" id="nav-pvp" onclick="switchSection('pvp')">🌍<span class="nav-label">PVP</span></button>
       <button class="nav-btn" id="nav-alliance" onclick="switchSection('alliance')">🤝<span class="nav-label">Alliance</span></button>
       <button class="nav-btn" id="nav-sandbox" onclick="switchSection('sandbox')">🧪<span class="nav-label">Sandbox</span></button>
+      <button class="nav-btn" id="nav-hero" onclick="switchSection('hero')">🦸<span class="nav-label">My Hero</span></button>
     </nav>
 
     <div class="main-content">
@@ -355,6 +356,17 @@
       </div>
       <div id="section-alliance" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div id="al-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;"></div>
+      </div>
+      <div id="section-hero" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div class="campaign-header">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div class="campaign-stage-label">🦸 My Hero</div>
+              <div class="campaign-stage-sub" style="margin-top:6px;">Your hero's stats, abilities, and progression.</div>
+            </div>
+          </div>
+        </div>
+        <div id="hero-content" style="flex:1;overflow-y:auto;padding:1rem;"></div>
       </div>
       <div id="section-sandbox" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div class="campaign-header">

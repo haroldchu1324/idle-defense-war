@@ -356,6 +356,7 @@ function showGame() {
   sl.classList.remove('visible'); g.style.display='flex'; g.offsetHeight;
   setTimeout(()=>{ sl.style.display='none'; g.classList.add('visible'); }, 300);
   hideAuthLayer();
+  loadHeroState(); // load persisted hero selection
   // Always start on Resources/Production tab on login
   switchSection('base');
   switchBaseTab('resources');
@@ -4940,6 +4941,7 @@ async function startBattle() {
     bs.eliteCfg = eliteCfg;
   }
 
+  spawnHero(); // spawn hero companion if one is selected
   renderShop(); updateBattleHUD(); showShopPanel();
   placingTower = null; selectedTowerId = null;
   document.getElementById('result-overlay').style.display = 'none';
@@ -5495,6 +5497,471 @@ const ASCEND_DEFS = {
   }
 };
 
+// ── HERO SYSTEM ──────────────────────────────────────────────────────────────
+
+const HERO_DEFS = {
+  warlord: {
+    name: 'Warlord', icon: '⚔️', color: '#e05030',
+    hp: 500, atk: 35, atkSpeed: 1500, range: 1.4,
+    positioning: 'front',
+    passive: 'Iron Skin: Takes 30% less damage from enemies.',
+    abilities: [
+      { id: 'shield_bash', name: 'Shield Bash', icon: '🛡️', energy: 25, cooldown: 8000,
+        desc: 'Stuns nearest enemy for 1.5s and deals 2× attack damage.' },
+      { id: 'war_cry', name: 'War Cry', icon: '📯', energy: 30, cooldown: 15000,
+        desc: 'Boosts all tower attack speed by 20% for 5s. Auto-triggers below 30% HP.' },
+    ],
+    ultimate: { id: 'berserker', name: 'Berserker Rage', icon: '🔥', energy: 80, cooldown: 45000,
+      desc: 'Enter a rage for 8s: 3× damage, 50% faster attacks.' }
+  },
+  sentinel: {
+    name: 'Sentinel', icon: '🏹', color: '#4090e0',
+    hp: 300, atk: 50, atkSpeed: 2000, range: 4.0,
+    positioning: 'back',
+    passive: 'Headshot: 15% chance to critically strike for 3× damage.',
+    abilities: [
+      { id: 'piercing_shot', name: 'Piercing Shot', icon: '🎯', energy: 20, cooldown: 8000,
+        desc: 'Fires a bolt that pierces all enemies in a line for full damage.' },
+      { id: 'eagle_eye', name: 'Eagle Eye', icon: '👁️', energy: 30, cooldown: 12000,
+        desc: 'Marks all enemies in range — they take +35% damage for 5s.' },
+    ],
+    ultimate: { id: 'rain_of_arrows', name: 'Rain of Arrows', icon: '🌧️', energy: 80, cooldown: 45000,
+      desc: 'Rains arrows on all enemies in range for 3s, dealing rapid hits.' }
+  },
+  shaman: {
+    name: 'Shaman', icon: '🌿', color: '#40c070',
+    hp: 280, atk: 0, atkSpeed: 0, range: 3.0,
+    positioning: 'center',
+    passive: 'Mending Aura: Towers within range attack 12% faster.',
+    abilities: [
+      { id: 'hex', name: 'Hex', icon: '🔮', energy: 25, cooldown: 12000,
+        desc: 'Curses the strongest enemy in range: slows 50% for 4s.' },
+    ],
+    ultimate: { id: 'ancestral_wrath', name: 'Ancestral Wrath', icon: '⚡', energy: 80, cooldown: 45000,
+      desc: 'Enemies in range take 3× damage for 6s.' }
+  },
+  necromancer: {
+    name: 'Necromancer', icon: '💀', color: '#9040c0',
+    hp: 380, atk: 22, atkSpeed: 2500, range: 2.5,
+    positioning: 'mid',
+    passive: 'Raise Dead: 25% chance on kill to raise a skeleton ally. Soul Drain heals 5% HP per kill.',
+    abilities: [],
+    ultimate: { id: 'army_of_darkness', name: 'Army of Darkness', icon: '🪦', energy: 80, cooldown: 30000,
+      desc: 'Instantly raise up to 5 powerful skeleton allies for 12s.' }
+  }
+};
+
+let heroState = null;
+
+function loadHeroState() {
+  try { heroState = JSON.parse(localStorage.getItem('idw_hero_state')) || null; }
+  catch(e) { heroState = null; }
+}
+
+function saveHeroState() {
+  if (heroState) localStorage.setItem('idw_hero_state', JSON.stringify(heroState));
+}
+
+function selectHero(heroId) {
+  if (!HERO_DEFS[heroId]) return;
+  heroState = { heroId };
+  saveHeroState();
+  buildHeroPanel();
+}
+
+function _heroHexToRgb(hex) {
+  return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+}
+
+function getHeroSpawnPosition() {
+  const hd = HERO_DEFS[heroState.heroId];
+  const wp = bs.waypoints;
+  const len = wp.length;
+  let wpIdx;
+  if      (hd.positioning === 'front')  wpIdx = Math.round(len * 0.75);
+  else if (hd.positioning === 'back')   wpIdx = Math.round(len * 0.15);
+  else if (hd.positioning === 'center') wpIdx = Math.round(len * 0.5);
+  else                                  wpIdx = Math.round(len * 0.35);
+  wpIdx = Math.max(0, Math.min(wpIdx, len - 2));
+  const base = wp[wpIdx];
+  const next = wp[wpIdx + 1];
+  const dx = next.x - base.x, dy = next.y - base.y;
+  const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+  const px = -dy/d, py = dx/d; // perpendicular to path direction
+  const offset = bs.tw * 1.5;
+  return {
+    x: Math.max(bs.tw * 0.5, Math.min(bs.tw  * (bs.COLS - 0.5), base.x + px * offset)),
+    y: Math.max(bs.th * 0.5, Math.min(bs.th * (bs.ROWS - 0.5), base.y + py * offset)),
+  };
+}
+
+function spawnHero() {
+  if (!heroState || !HERO_DEFS[heroState.heroId]) { bs.hero = null; return; }
+  const hd  = HERO_DEFS[heroState.heroId];
+  const pos = getHeroSpawnPosition();
+  bs.hero = {
+    heroId: heroState.heroId, hd,
+    x: pos.x, y: pos.y,
+    hp: hd.hp, maxHp: hd.hp,
+    energy: 0, maxEnergy: 100,
+    atkCooldown: 0, abilityCooldowns: {}, ultCooldown: 0,
+    isDown: false, downTimer: 0,
+    skeletons: [],
+    berserkerTimer: 0, warCryTimer: 0,
+    ancestralWrathTimer: 0,
+    rainArrowTimer: 0, rainArrowTick: 0,
+    dmgFlashTimer: 0, size: 18,
+    _spawnAnim: 400, _spawnAnimDur: 400,
+  };
+}
+
+function updateHero(dt) {
+  const h = bs.hero;
+  if (!h) return;
+  const dtMs = dt * 1000;
+
+  // Spawn animation
+  if (h._spawnAnim > 0) { h._spawnAnim = Math.max(0, h._spawnAnim - dtMs); return; }
+
+  // Tick all cooldown timers
+  if (h.berserkerTimer      > 0) h.berserkerTimer      -= dtMs;
+  if (h.warCryTimer         > 0) h.warCryTimer         -= dtMs;
+  if (h.ancestralWrathTimer > 0) h.ancestralWrathTimer -= dtMs;
+  if (h.rainArrowTimer      > 0) h.rainArrowTimer      -= dtMs;
+  if (h.dmgFlashTimer       > 0) h.dmgFlashTimer       -= dtMs;
+  if (h.atkCooldown         > 0) h.atkCooldown         -= dtMs;
+  if (h.ultCooldown         > 0) h.ultCooldown         -= dtMs;
+  for (const k in h.abilityCooldowns) {
+    if (h.abilityCooldowns[k] > 0) h.abilityCooldowns[k] -= dtMs;
+  }
+
+  // Downed — revive after 10s with 25% HP
+  if (h.isDown) {
+    h.downTimer -= dtMs;
+    if (h.downTimer <= 0) { h.isDown = false; h.hp = Math.round(h.maxHp * 0.25); }
+    updateHeroHUD(); return;
+  }
+
+  const hd    = h.hd;
+  const rangeR = hd.range * bs.tw;
+  const enemies = bs.enemies.filter(e => !e.isDead && !e.isReached);
+
+  // Tick Eagle Eye / Hex markers on enemies
+  enemies.forEach(e => {
+    if ((e.heroEagleEyeTimer || 0) > 0) {
+      e.heroEagleEyeTimer -= dtMs;
+      if (e.heroEagleEyeTimer <= 0) { e.heroEagleEye = false; e.heroEagleEyeTimer = 0; }
+    }
+    if ((e.hexTimer || 0) > 0) e.hexTimer -= dtMs;
+  });
+
+  // Take damage from enemies physically overlapping the hero
+  enemies.forEach(e => {
+    if (dist(h.x, h.y, e.x, e.y) < e.size + h.size) {
+      let dmg = Math.max(0.5, Math.min(25, e.maxHp / 100)) * dt;
+      if (h.heroId === 'warlord') dmg *= 0.7; // Iron Skin passive
+      h.hp -= dmg;
+      h.dmgFlashTimer = 150;
+    }
+  });
+
+  if (h.hp <= 0) {
+    h.isDown = true; h.hp = 0; h.downTimer = 10000;
+    updateHeroHUD(); return;
+  }
+
+  const inRange = enemies.filter(e => dist(h.x, h.y, e.x, e.y) <= rangeR);
+
+  // Rain of Arrows — rapid hits every 0.2s to all in range
+  if (h.rainArrowTimer > 0) {
+    h.rainArrowTick = (h.rainArrowTick || 0) - dtMs;
+    if (h.rainArrowTick <= 0) {
+      h.rainArrowTick = 200;
+      inRange.forEach(e => {
+        applyDmgToEnemy(e, Math.round(hd.atk * 0.6));
+        if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+      });
+    }
+  }
+
+  // Auto-attack: target furthest-along-path enemy in range
+  if (hd.atk > 0 && h.atkCooldown <= 0 && inRange.length > 0) {
+    inRange.sort((a,b) => b.dist - a.dist);
+    const target = inRange[0];
+    let dmg = hd.atk;
+    if (h.berserkerTimer > 0) dmg *= 3; // Berserker Rage
+    if (h.heroId === 'sentinel' && Math.random() < 0.15) dmg *= 3; // Headshot
+    if (target.heroEagleEye && (target.heroEagleEyeTimer || 0) > 0) dmg = Math.round(dmg * 1.35);
+    applyDmgToEnemy(target, Math.round(dmg));
+    if (target.hp <= 0 && !target.isDead) killEnemy(target, null);
+    h.energy = Math.min(h.maxEnergy, h.energy + 2);
+    h.atkCooldown = h.berserkerTimer > 0 ? hd.atkSpeed * 0.5 : hd.atkSpeed;
+  }
+
+  // Auto-trigger abilities when cooldown ready + enough energy
+  hd.abilities.forEach(ab => {
+    if ((h.abilityCooldowns[ab.id] || 0) > 0) return;
+    if (h.energy < ab.energy) return;
+    if (inRange.length === 0 && ab.id !== 'war_cry') return;
+    h.energy -= ab.energy;
+    h.abilityCooldowns[ab.id] = ab.cooldown;
+
+    if (ab.id === 'shield_bash') {
+      const t = inRange[0];
+      if (t) { applyDmgToEnemy(t, Math.round(hd.atk * 2)); t.staggerTimer = 1500; if (t.hp<=0&&!t.isDead) killEnemy(t,null); }
+    } else if (ab.id === 'war_cry') {
+      h.warCryTimer = 5000;
+    } else if (ab.id === 'piercing_shot') {
+      inRange.sort((a,b) => b.dist - a.dist);
+      const first = inRange[0];
+      if (first) {
+        const ldx = first.x - h.x, ldy = first.y - h.y;
+        const ld  = Math.sqrt(ldx*ldx + ldy*ldy) || 1;
+        const ndx = ldx/ld, ndy = ldy/ld;
+        inRange.forEach(e => {
+          const ex = e.x - h.x, ey = e.y - h.y;
+          const t = ex*ndx + ey*ndy;
+          if (t < 0 || t > rangeR) return;
+          const cx = ex - t*ndx, cy = ey - t*ndy;
+          if (Math.sqrt(cx*cx + cy*cy) < e.size * 2) {
+            applyDmgToEnemy(e, Math.round(hd.atk * 1.5));
+            if (e.hp<=0&&!e.isDead) killEnemy(e,null);
+          }
+        });
+      }
+    } else if (ab.id === 'eagle_eye') {
+      inRange.forEach(e => { e.heroEagleEye = true; e.heroEagleEyeTimer = 5000; });
+    } else if (ab.id === 'hex') {
+      inRange.sort((a,b) => b.hp - a.hp); // target strongest
+      const t = inRange[0];
+      if (t) { t.hexTimer = 4000; t.alSlowTimer = Math.max(t.alSlowTimer||0, 4000); t.alSlowPct = Math.max(t.alSlowPct||0, 0.5); }
+    }
+  });
+
+  // Warlord: auto-trigger War Cry when below 30% HP
+  if (h.heroId === 'warlord' && h.hp < h.maxHp * 0.3) {
+    const wcAb = hd.abilities.find(a => a.id === 'war_cry');
+    if (wcAb && (h.abilityCooldowns['war_cry'] || 0) <= 0 && h.energy >= wcAb.energy) {
+      h.energy -= wcAb.energy;
+      h.abilityCooldowns['war_cry'] = wcAb.cooldown;
+      h.warCryTimer = 5000;
+    }
+  }
+
+  // Ultimate: auto-trigger when energy full and cooldown ready
+  const ult = hd.ultimate;
+  if (ult && h.ultCooldown <= 0 && h.energy >= ult.energy) {
+    triggerHeroUltimate(h);
+  }
+
+  _updateHeroSkeletons(dt, h);
+  updateHeroHUD();
+}
+
+function triggerHeroUltimate(h) {
+  const ult = h.hd.ultimate;
+  if (!ult) return;
+  h.energy -= ult.energy;
+  h.ultCooldown = ult.cooldown;
+  if (ult.id === 'berserker') {
+    h.berserkerTimer = 8000;
+  } else if (ult.id === 'rain_of_arrows') {
+    h.rainArrowTimer = 3000; h.rainArrowTick = 0;
+  } else if (ult.id === 'ancestral_wrath') {
+    h.ancestralWrathTimer = 6000;
+  } else if (ult.id === 'army_of_darkness') {
+    if (!h.skeletons) h.skeletons = [];
+    // Raise dead enemies nearby, fill remainder with fresh ones
+    const dead = bs.enemies.filter(e => e.isDead).slice(0, 5);
+    const positions = dead.map(e => ({x:e.x, y:e.y}));
+    while (positions.length < 3) {
+      positions.push({ x: h.x+(Math.random()-0.5)*bs.tw*2, y: h.y+(Math.random()-0.5)*bs.tw*2 });
+    }
+    positions.slice(0,5).forEach(p => {
+      h.skeletons.push({ x:p.x, y:p.y, hp:120, maxHp:120, size:12,
+        dmg:Math.round(h.hd.atk*2), atkSpeed:1200, cooldown:0, timer:12000 });
+    });
+  }
+}
+
+function _updateHeroSkeletons(dt, h) {
+  if (!h.skeletons || !h.skeletons.length) return;
+  const dtMs = dt * 1000;
+  h.skeletons = h.skeletons.filter(sk => {
+    sk.timer -= dtMs;
+    if (sk.timer <= 0) return false;
+    sk.cooldown = (sk.cooldown||0) - dtMs;
+    const alive = bs.enemies.filter(e => !e.isDead && !e.isReached);
+    if (!alive.length) return true;
+    let nearest = null, nearestD = Infinity;
+    alive.forEach(e => { const d=dist(sk.x,sk.y,e.x,e.y); if(d<nearestD){nearestD=d;nearest=e;} });
+    if (!nearest) return true;
+    const dx=nearest.x-sk.x, dy=nearest.y-sk.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+    if (d > nearest.size + sk.size) {
+      sk.x += (dx/d)*60*dt; sk.y += (dy/d)*60*dt;
+    } else if (sk.cooldown <= 0) {
+      applyDmgToEnemy(nearest, sk.dmg);
+      if (nearest.hp<=0&&!nearest.isDead) killEnemy(nearest,null);
+      sk.cooldown = sk.atkSpeed;
+    }
+    return true;
+  });
+}
+
+function drawHero(ctx) {
+  const h = bs.hero;
+  if (!h) return;
+
+  // Skeletons drawn first (behind hero)
+  _drawHeroSkeletons(ctx, h);
+
+  const spawnP = h._spawnAnimDur > 0 ? Math.min(1, 1 - h._spawnAnim/h._spawnAnimDur) : 1;
+  const scale  = 0.3 + 0.7 * spawnP;
+  const alpha  = (h.isDown ? 0.3 : h.dmgFlashTimer > 0 ? 0.55 : 1.0) * spawnP;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(h.x, h.y);
+  ctx.scale(scale, scale);
+
+  const hd = h.hd;
+
+  // Shaman aura range indicator
+  if (h.heroId === 'shaman') {
+    ctx.beginPath();
+    ctx.arc(0, 0, hd.range * bs.tw / scale, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(64,192,112,0.2)';
+    ctx.lineWidth = 1.5 / scale;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Active ultimate aura
+  if (h.berserkerTimer > 0 || h.ancestralWrathTimer > 0) {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+    const auC = h.berserkerTimer > 0
+      ? `rgba(255,100,30,${0.35*pulse})`
+      : `rgba(80,200,255,${0.35*pulse})`;
+    const g2 = ctx.createRadialGradient(0,0,h.size*0.5,0,0,h.size*3);
+    g2.addColorStop(0, auC); g2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(0,0,h.size*3,0,Math.PI*2);
+    ctx.fillStyle = g2; ctx.fill();
+  }
+
+  // Hero body
+  ctx.beginPath(); ctx.arc(0,0,h.size,0,Math.PI*2);
+  ctx.fillStyle   = h.isDown ? '#444' : hd.color; ctx.fill();
+  ctx.strokeStyle = h.isDown ? '#666' : 'rgba(255,255,255,0.75)';
+  ctx.lineWidth   = 2; ctx.stroke();
+
+  // Icon
+  ctx.font = `${Math.round(h.size * 1.1)}px serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = Math.max(0.25, alpha);
+  ctx.fillText(hd.icon, 0, 1);
+
+  // HP bar
+  const bW = h.size * 2.8, bY = -(h.size + 11);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(-bW/2, bY, bW, 5);
+  const hpR = Math.max(0, h.hp / h.maxHp);
+  ctx.fillStyle = hpR > 0.5 ? '#44dd44' : hpR > 0.25 ? '#ffaa44' : '#ff4444';
+  ctx.fillRect(-bW/2, bY, bW*hpR, 5);
+
+  // Energy bar
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(-bW/2, bY-6, bW, 4);
+  ctx.fillStyle = '#a060f0';
+  ctx.fillRect(-bW/2, bY-6, bW*(h.energy/h.maxEnergy), 4);
+
+  // Downed: show revive countdown
+  if (h.isDown) {
+    ctx.font = `bold ${Math.round(h.size*0.75)}px Inter,sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#cccccc';
+    ctx.fillText(`${Math.ceil(h.downTimer/1000)}s`, 0, 0);
+  }
+
+  ctx.restore();
+  ctx.beginPath(); // clear any lingering arc path
+}
+
+function _drawHeroSkeletons(ctx, h) {
+  if (!h.skeletons || !h.skeletons.length) return;
+  h.skeletons.forEach(sk => {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, sk.timer / 1500);
+    ctx.translate(sk.x, sk.y);
+    ctx.beginPath(); ctx.arc(0,0,sk.size,0,Math.PI*2);
+    ctx.fillStyle = '#5030a0'; ctx.fill();
+    ctx.strokeStyle = 'rgba(180,120,255,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = `${sk.size * 1.1}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('💀', 0, 1);
+    ctx.restore();
+    ctx.beginPath();
+  });
+}
+
+function updateHeroHUD() {
+  const w = document.getElementById('hud-hero-widget');
+  if (!w) return;
+  const h = bs?.hero;
+  if (!h) { w.style.display = 'none'; return; }
+  w.style.display = 'flex';
+  const iconEl = document.getElementById('hud-hero-icon-wd');
+  const hpFill = document.getElementById('hud-hero-hp-fill');
+  const enFill = document.getElementById('hud-hero-en-fill');
+  const statEl = document.getElementById('hud-hero-status');
+  if (iconEl) iconEl.textContent = h.hd.icon;
+  if (hpFill) hpFill.style.width = `${Math.max(0,(h.hp/h.maxHp)*100).toFixed(1)}%`;
+  if (enFill) enFill.style.width = `${((h.energy/h.maxEnergy)*100).toFixed(1)}%`;
+  if (statEl) {
+    if      (h.isDown)                statEl.textContent = `💫${Math.ceil(h.downTimer/1000)}s`;
+    else if (h.berserkerTimer      > 0) statEl.textContent = '🔥';
+    else if (h.ancestralWrathTimer > 0) statEl.textContent = '⚡';
+    else if (h.warCryTimer         > 0) statEl.textContent = '📯';
+    else                               statEl.textContent = '';
+  }
+}
+
+function buildHeroPanel() {
+  const el = document.getElementById('hero-content');
+  if (!el) return;
+  if (!heroState) loadHeroState();
+  const selId = heroState?.heroId;
+
+  let html = `<div style="margin-bottom:1.25rem;color:#8890b0;font-size:13px;text-align:center;">${
+    selId ? 'Your hero joins every battle automatically. Click to change.' : '👆 Select a hero class to bring them into battle.'
+  }</div>`;
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;max-width:620px;margin:0 auto;">';
+
+  Object.entries(HERO_DEFS).forEach(([id, hd]) => {
+    const isSel = id === selId;
+    const rgb   = _heroHexToRgb(hd.color);
+    const role  = hd.positioning === 'front' ? 'Frontline' : hd.positioning === 'back' ? 'Ranged' : hd.positioning === 'center' ? 'Support' : 'Mid-range';
+    html += `
+      <div onclick="selectHero('${id}')" style="cursor:pointer;background:${isSel?`rgba(${rgb},0.13)`:'rgba(255,255,255,0.04)'};border:2px solid ${isSel?hd.color:'rgba(255,255,255,0.1)'};border-radius:12px;padding:1rem;transition:border-color 0.15s;">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem;">
+          <span style="font-size:2rem;">${hd.icon}</span>
+          <div style="flex:1;">
+            <div style="font-size:0.95rem;font-weight:700;color:#e4e8ff;">${hd.name}</div>
+            <div style="font-size:11px;color:#6870a0;">${role}</div>
+          </div>
+          ${isSel?`<span style="color:${hd.color};font-size:11px;font-weight:700;">✓ ACTIVE</span>`:''}
+        </div>
+        <div style="font-size:11px;color:#7080a0;margin-bottom:0.5rem;">❤️ ${hd.hp} HP &nbsp;⚔️ ${hd.atk||'—'} ATK &nbsp;📏 ${hd.range}t range</div>
+        <div style="font-size:11px;color:#a0c0e0;margin-bottom:0.5rem;line-height:1.5;"><span style="color:#f0c040;font-weight:600;">Passive:</span> ${hd.passive}</div>
+        <div style="font-size:11px;color:#9090c0;line-height:1.5;">${[...hd.abilities, hd.ultimate].map(ab=>`<div style="margin-bottom:2px;"><span style="color:#c0a0f0;">${ab.icon} ${ab.name}</span>: ${ab.desc}</div>`).join('')}</div>
+      </div>`;
+  });
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── END HERO SYSTEM ──────────────────────────────────────────────────────────
+
 const UPGRADE_PATHS = [
   {
     key:'range', icon:'📏', name:'Extended Range',
@@ -5964,7 +6431,7 @@ function startBattleLoop() {
       bs.lastTime = now;
       const dt = rawDt * battleSpeed;
       updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); checkWaveEnd();
+      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateHero(dt); checkWaveEnd();
     }
     // Always draw so the canvas stays live during the victory/defeat delay window
     if (bs) drawBattle();
@@ -5983,7 +6450,7 @@ function startBattleLoop() {
     bs.lastTime = now;
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-    updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); checkWaveEnd();
+    updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateHero(dt); checkWaveEnd();
   }, 50); // 20fps keepalive — fast enough for 4x speed in background
 }
 function stopBattleLoop() {
@@ -6201,6 +6668,15 @@ function updateTowers(dt) {
     }
 
     t.cooldown -= dt;
+    // Hero passive effects on tower cooldown
+    if (bs.hero && !bs.hero.isDown) {
+      // Shaman Mending Aura: towers in range attack 12% faster
+      if (bs.hero.heroId === 'shaman' && dist(t.x,t.y,bs.hero.x,bs.hero.y) <= bs.hero.hd.range * bs.tw)
+        t.cooldown -= dt * 0.12;
+      // Warlord War Cry: all towers attack 20% faster for 5s
+      if (bs.hero.warCryTimer > 0)
+        t.cooldown -= dt * 0.20;
+    }
     if (t.cooldown > 0) return;
 
     // Find enemies in range then sort by targeting mode
@@ -6684,6 +7160,10 @@ function updateProjectiles(dt) {
 
 function applyDmgToEnemy(e, dmg) {
   const reduce = bs.eliteCfg?.dmgReduce ?? 0;
+  // Shaman Ancestral Wrath: enemies in hero's range take 3× damage
+  if ((bs.hero?.ancestralWrathTimer || 0) > 0 &&
+      dist(e.x, e.y, bs.hero.x, bs.hero.y) <= bs.hero.hd.range * bs.tw)
+    dmg = Math.round(dmg * 3);
   e.hp -= reduce > 0 ? Math.max(1, Math.round(dmg * (1 - reduce))) : dmg;
 }
 
@@ -6708,6 +7188,18 @@ function killEnemy(e, tower) {
   }
   updateBattleHUD();
   renderShop();
+  // Hero: gain energy on kill; Necromancer Raise Dead + Soul Drain
+  if (bs.hero && !bs.hero.isDown) {
+    bs.hero.energy = Math.min(bs.hero.maxEnergy, bs.hero.energy + 3);
+    if (bs.hero.heroId === 'necromancer') {
+      bs.hero.hp = Math.min(bs.hero.maxHp, bs.hero.hp + Math.round(bs.hero.maxHp * 0.05)); // Soul Drain
+      if (Math.random() < 0.25) { // Raise Dead
+        if (!bs.hero.skeletons) bs.hero.skeletons = [];
+        bs.hero.skeletons.push({ x:e.x, y:e.y, hp:50, maxHp:50, size:10,
+          dmg: Math.round(bs.hero.hd.atk * 1.5), atkSpeed:1500, cooldown:0, timer:20000 });
+      }
+    }
+  }
 }
 
 function updateExplosions(dt) {
@@ -6820,6 +7312,7 @@ function drawBattle() {
   drawWitchSummonFx(ctx);
   bs.enemies.filter(e => !ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
   bs.enemies.filter(e =>  ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
+  if (bs.hero) drawHero(ctx);
   bs.projectiles.forEach(p => drawProjectile(ctx, p));
   if (bs.explosions) bs.explosions.forEach(ex => drawExplosion(ctx, ex));
   if (placingTower) drawPlacementPreview(ctx);
@@ -10093,6 +10586,9 @@ function switchSection(name){
 
   // Build sandbox map when switching to it
   if (name === 'sandbox') buildSandboxMap();
+
+  // Build hero panel when switching to it
+  if (name === 'hero') buildHeroPanel();
 
   // Init PVP map when switching to it
   if(name === 'pvp') {
