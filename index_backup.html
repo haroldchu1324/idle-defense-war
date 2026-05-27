@@ -143,6 +143,7 @@
       <button class="nav-btn" id="nav-campaign" onclick="switchSection('campaign')">⚔️<span class="nav-label">Camp</span></button>
       <button class="nav-btn" id="nav-pvp" onclick="switchSection('pvp')">🌍<span class="nav-label">PVP</span></button>
       <button class="nav-btn" id="nav-alliance" onclick="switchSection('alliance')">🤝<span class="nav-label">Alliance</span></button>
+      <button class="nav-btn" id="nav-sandbox" onclick="switchSection('sandbox')">🧪<span class="nav-label">Sandbox</span></button>
     </nav>
 
     <div class="main-content">
@@ -355,6 +356,19 @@
       <div id="section-alliance" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div id="al-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;"></div>
       </div>
+      <div id="section-sandbox" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div class="campaign-header">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div class="campaign-stage-label">🧪 Sandbox</div>
+              <div class="campaign-stage-sub" style="margin-top:6px;">40 stages · Start with 💰100,000 gold · Square arena · No armory required</div>
+            </div>
+          </div>
+        </div>
+        <div class="campaign-map-wrap">
+          <div class="campaign-map" id="sandbox-map"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -451,50 +465,58 @@
   </div>
 
   <div id="battle-game" style="display:none;width:100%;height:100%;position:relative;">
+
+    <!-- ── Top HUD ── -->
     <div class="battle-hud-top" id="battle-hud-top">
       <div class="hud-left">
-        <button class="hud-btn" onclick="exitBattle()">✕ Exit</button>
-        <div class="hud-stat">❤️ <span id="hud-lives">20</span></div>
-        <div class="hud-stat">🌊 <span id="hud-wave">0</span>/10</div>
+        <button class="hud-exit-btn" onclick="exitBattle()">✕ Exit</button>
+        <div class="hud-pill"><span class="hud-pill-icon">❤️</span><span id="hud-lives">20</span></div>
+        <div class="hud-pill"><span class="hud-pill-icon">🌊</span><span id="hud-wave">0</span><span class="hud-pill-dim">/10</span></div>
       </div>
       <div class="hud-center">
-        <div class="hud-stage-name" id="hud-stage-name">Stage 1-1</div>
+        <div class="hud-gold-badge">💰 <span id="hud-gold">0</span></div>
       </div>
       <div class="hud-right">
-        <div class="hud-stat">💰 <span id="hud-gold">0</span></div>
-        <div class="hud-wave-controls">
-          <button class="hud-btn hud-wave-btn" id="hud-wave-btn" onclick="startNextWave()">▶ Send</button>
-          <select class="hud-wave-select" id="hud-wave-count" title="Waves to send">
-            <option value="1">1 wave</option>
-            <option value="2">2 waves</option>
-            <option value="3">3 waves</option>
-            <option value="5">5 waves</option>
-            <option value="99">All waves</option>
-          </select>
-        </div>
-        <button class="hud-btn" id="hud-speed-btn" onclick="toggleSpeed()">1×</button>
+        <div class="hud-stage-pill" id="hud-stage-name">Stage 1-1</div>
       </div>
     </div>
+
+    <!-- ── Canvas ── -->
     <canvas id="battle-canvas"></canvas>
+
+    <!-- ── Right panel: shop + upgrade ── -->
     <div class="battle-shop" id="battle-shop">
       <div id="shop-panel">
-        <div class="shop-tabs-bar">
-          <button class="shop-tab active" id="shoptab-towers" onclick="switchShopTab('towers')" style="width: 100%;">🏪 Towers Shop</button>
-        </div>
-        <div class="shop-tab-panel active" id="shopview-towers">
-          <div class="shop-list" id="shop-list"></div>
-        </div>
+        <div class="shop-header-bar">🏪 TOWER SHOP</div>
+        <div class="shop-list" id="shop-list"></div>
       </div>
       <div id="upgrade-panel" style="display:none;">
         <div class="upg-panel-header">
           <span id="upg-panel-title">🏹 Archer Post</span>
-          <button class="shop-tab" onclick="deselectTower()" style="padding:4px 10px;font-size:11px;">✕ Close</button>
+          <button class="upg-close-btn" onclick="deselectTower()">✕</button>
         </div>
         <div class="upg-panel-stats" id="upg-panel-stats"></div>
         <div class="upg-paths" id="upg-paths"></div>
       </div>
     </div>
-    <div class="place-hint" id="place-hint" style="display:none;">Left-click to place · Right-click to cancel</div>
+
+    <!-- ── Bottom action bar ── -->
+    <div class="battle-bottom-bar">
+      <button class="send-wave-btn" id="hud-wave-btn" onclick="startNextWave()">
+        <span class="swb-icon">▶</span>
+        <div class="swb-text">
+          <span class="swb-label">SEND WAVE</span>
+          <span class="swb-sub" id="send-wave-sub">Wave 1</span>
+        </div>
+      </button>
+      <button class="speed-toggle-btn" id="hud-speed-btn" onclick="toggleSpeed()">
+        <span class="stb-icon">⏩</span>
+        <span class="stb-label">1× Speed</span>
+      </button>
+    </div>
+
+    <!-- ── Overlays ── -->
+    <div class="place-hint" id="place-hint" style="display:none;">Click to place · Right-click to cancel</div>
     <div class="pending-towers-bar" id="pending-towers-bar" style="display:none;">
       <div class="pending-towers-label">📦 Place your towers:</div>
       <div class="pending-towers-list" id="pending-towers-list"></div>

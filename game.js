@@ -19,6 +19,29 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
 // ═══════════════════════════════════════════════
 let currentBattleId = null;
 
+// ═══════════════════════════════════════════════
+// SPRITE ANIMATION ASSETS
+// ═══════════════════════════════════════════════
+const spriteAssets = {};
+
+function loadSpriteAsset(name, path, frameCount = 8, frameWidth = 200, frameHeight = 200) {
+  const img = new Image();
+  img.src = path;
+  spriteAssets[name] = {
+    image: img,
+    frameCount: frameCount,
+    frameWidth: frameWidth,
+    frameHeight: frameHeight,
+    isLoaded: false
+  };
+  img.onload = () => { spriteAssets[name].isLoaded = true; };
+  img.onerror = () => { console.error(`Failed to load sprite: ${path}`); };
+  return img;
+}
+
+// Load witch sprite sheet (1600×200px, 8 frames of 200×200)
+loadSpriteAsset('witch', 'assets/sprites/monsters/witch.png', 8, 200, 200);
+
 async function serverRpc(name, args = {}) {
   const timeout = new Promise((_, rej) =>
     setTimeout(() => rej(new Error(`RPC timeout: ${name}`)), 15000)
@@ -2073,18 +2096,19 @@ async function collectAll(){
 
   // Show what was collected, warn about caps
   const parts = [];
-  let anyCapped = false;
+  const cappedParts = [];
   RESOURCE_DEFS.forEach(r => {
     const gained = (resources[r.id]||0) - (before[r.id]||0);
     if(gained > 0) parts.push(`${r.icon} +${fmtCompact(gained)}`);
     const cap = totalCapacity(r.id);
     if((resources[r.id]||0) >= cap) {
-      anyCapped = true;
       showCapWarning(r);
+      cappedParts.push(`${r.icon} ${r.name}`);
     }
   });
-  if(parts.length) showToast(parts.join('  '));
-  if(anyCapped) showToast('⚠️ Some resources are at capacity — upgrade your Silo!');
+  const collectedLine = parts.length ? parts.join('  ') : '📥 Nothing collected';
+  const capLine = cappedParts.length ? `⚠️ ${cappedParts.join(', ')} full — excess stays in nodes` : '';
+  showToast(capLine ? `${collectedLine}<br><small style="opacity:0.8">${capLine}</small>` : collectedLine);
 }
 
 function showCapWarning(r) {
@@ -2258,7 +2282,22 @@ async function unlockNode(resId,tierIdx,event){
 }
 
 async function collectNode(resId,tierIdx){
-  try { await serverRpc('idw_collect_resource', {p_res_id:resId, p_tier_idx:tierIdx}); await refreshFromServer(); showToast('Resources collected!'); }
+  const before = resources[resId] || 0;
+  try {
+    await serverRpc('idw_collect_resource', {p_res_id:resId, p_tier_idx:tierIdx});
+    await refreshFromServer();
+    const r = RESOURCE_DEFS.find(x => x.id === resId);
+    const gained = (resources[resId] || 0) - before;
+    const cap = totalCapacity(resId);
+    const cur = resources[resId] || 0;
+    const gainedStr = gained > 0 ? `${r?.icon || ''} +${fmtCompact(gained)}` : '📥 Nothing collected';
+    if(r && cur >= cap) {
+      showCapWarning(r);
+      showToast(`${gainedStr}<br><small style="opacity:0.8">⚠️ ${r.icon} ${r.name} is full — excess stays in the node</small>`);
+    } else {
+      showToast(gainedStr);
+    }
+  }
   catch(e){ /* toast shown by serverRpc */ }
 }
 
@@ -4046,6 +4085,36 @@ function switchCampaignWorld(world) {
   campCurrentWorld=world; campSelectedStage=null; buildCampaignMap(); updateCampaignInfo();
 }
 
+// ── SANDBOX ──
+const SANDBOX_DIFF_ICONS = ['🔱','💀','💀','🌑','🌑'];
+const SANDBOX_DIFF_LABELS = ['10-5','10-6','10-7','10-8','10-9'];
+
+function buildSandboxMap() {
+  const map = document.getElementById('sandbox-map');
+  if (!map) return;
+  let html = '<div class="sandbox-grid">';
+  for (let i = 1; i <= 50; i++) {
+    const diffIdx = Math.min(Math.floor((i - 1) / 10), 4);
+    const icon = SANDBOX_DIFF_ICONS[diffIdx];
+    const diffLabel = SANDBOX_DIFF_LABELS[diffIdx];
+    html += `<button class="sandbox-stage-btn" onclick="startSandboxBattle('sandbox-${i}')" title="Difficulty: ${diffLabel}">
+      <div class="sandbox-stage-icon">${icon}</div>
+      <div class="sandbox-stage-num">Stage ${i}</div>
+    </button>`;
+  }
+  html += '</div>';
+  map.innerHTML = html;
+}
+
+function startSandboxBattle(stageId) {
+  battleSetupStageId = stageId;
+  battleSelectedTowers = [];
+  pendingTowersQueue = [];
+  pendingPlacingIdx = 0;
+  document.getElementById('battle-screen').style.display = 'flex';
+  startBattle();
+}
+
 function buildCampaignMap() {
   const map = document.getElementById('campaign-map');
   if (!map) return;
@@ -4181,6 +4250,7 @@ const MAP_DEFS = {
   'ocean':    { name:'Sea Cliffs',       bg:'#050f1a', pathColor:'#206080', pathWidth:0.85, waypoints:[[0,2],[3,2],[3,5],[1,5],[1,8],[4,8],[4,6],[6,6],[6,1],[8,1],[8,4],[10,4],[10,8],[12,8],[12,5],[14,5],[14,2],[16,2],[16,6],[18,6],[18,3],[20,3]] },
   'citadel':  { name:'Dark Citadel',     bg:'#0a0a12', pathColor:'#404050', pathWidth:0.85, waypoints:[[0,5],[2,5],[2,2],[5,2],[5,4],[3,4],[3,7],[6,7],[6,5],[8,5],[8,1],[10,1],[10,4],[12,4],[12,8],[14,8],[14,5],[16,5],[16,2],[18,2],[18,6],[19,6]] },
   'hellgate': { name:'Hellgate',         bg:'#100005', pathColor:'#801010', pathWidth:0.85, waypoints:[[0,4],[2,4],[2,1],[4,1],[4,6],[6,6],[6,3],[8,3],[8,7],[10,7],[10,2],[12,2],[12,5],[14,5],[14,8],[16,8],[16,4],[18,4],[18,1],[20,1],[20,5],[19,5]] },
+  'sandbox':  { name:'Sandbox Arena',   bg:'#0d0d1a', pathColor:'#5050c0', pathWidth:0.9,  waypoints:[[11,0],[11,2],[15,2],[15,8],[7,8],[7,2],[11,2],[11,10]] },
 };
 
 const WORLD_MAPS = ['forest','canyon','swamp','volcano','tundra','desert','ruins','ocean','citadel','hellgate'];
@@ -4188,6 +4258,9 @@ const WORLD_NAMES = ['🌲 Goblin Forest','🏔️ Stone Canyon','🌿 Dark Swam
 
 const STAGE_MAP = {};
 for (let w=1;w<=10;w++) for (let s=1;s<=10;s++) STAGE_MAP[`${w}-${s}`] = WORLD_MAPS[w-1];
+for (let i=1;i<=50;i++) STAGE_MAP[`sandbox-${i}`] = 'sandbox';
+
+const ENEMY_TIER = { red:1, blue:2, green:3, yellow:4, pink:5, black:6, purple:7, white:8, boss:9, witch:10 };
 
 const ENEMY_TYPES = {
   red:    { name:'Red Crawler',    color:'#e03030', size:9,  hp:30,  speed:51,  reward:1, spawnOnDeath:null },
@@ -4199,10 +4272,19 @@ const ENEMY_TYPES = {
   purple: { name:'Purple Mage',   color:'#8030c0', size:12, hp:120, speed:64,  reward:10,spawnOnDeath:{ type:'pink',  count:2 } },
   white:  { name:'White Ghost',   color:'#c0c0e0', size:11, hp:120, speed:90,  reward:9, spawnOnDeath:{ type:'blue',  count:4 } },
   boss:   { name:'Dragon Boss',   color:'#c01010', size:22, hp:800, speed:19,  reward:50,spawnOnDeath:{ type:'black', count:3 } },
+  witch:  { name:'Witch',         color:'#a030a0', size:26, hp:1000,speed:30,  reward:40,spawnOnDeath:null, isElite:true },
 };
 
 function getWaveConfig(stageId, wave) {
   if (stageId.startsWith('elite:')) stageId = stageId.slice(6);
+  // Sandbox stages: stages 1-10 → 10-5, 11-20 → 10-6, 21-30 → 10-7, 31-40 → 10-8, 41-50 → 10-9
+  if (stageId.startsWith('sandbox-')) {
+    const n = parseInt(stageId.split('-')[1]);
+    const SANDBOX_DIFFS = ['10-5','10-6','10-7','10-8','10-9'];
+    const diffId = SANDBOX_DIFFS[Math.min(Math.floor((n - 1) / 10), 4)];
+    const diffIdx = CAMPAIGN_STAGES.findIndex(s => s.id === diffId);
+    return getWaveConfigByIndex(diffIdx, wave, stageId); // Pass original stageId for special case checks
+  }
   // PVP stages use difficulty level directly
   if (stageId.startsWith('pvp-')) {
     const diff = parseInt(stageId.split('-')[1]) || 1;
@@ -4215,6 +4297,28 @@ function getWaveConfig(stageId, wave) {
 }
 
 function getWaveConfigByIndex(stageIdx, wave, stageId) {
+
+  // ── Special spawn: Witch on sandbox-1 wave 1 ──
+  if (stageId === 'sandbox-1' && wave === 1) {
+    function scaleEnemy(typeKey, count) {
+      const t = ENEMY_TYPES[typeKey];
+      return {
+        type: typeKey, count: Math.max(1, count),
+        hp:    t.hp,
+        speed: t.speed,
+        reward: t.reward,
+        size:  t.size, color: t.color,
+        spawnOnDeath: t.spawnOnDeath,
+      };
+    }
+    // Get the normal 10-5 wave 1 enemies and add witch at the beginning
+    const sandboxNum = parseInt(stageId.split('-')[1]);
+    const SANDBOX_DIFFS = ['10-5','10-6','10-7','10-8','10-9'];
+    const diffId = SANDBOX_DIFFS[Math.min(Math.floor((sandboxNum - 1) / 10), 4)];
+    const diffIdx = CAMPAIGN_STAGES.findIndex(s => s.id === diffId);
+    const normalWave = getWaveConfigByIndex(diffIdx, wave, diffId);
+    return { enemies: [ scaleEnemy('witch', 1), ...normalWave.enemies ] };
+  }
 
   // ── Tier progression ──
   // 1-1, 1-2, 1-3 → pool: red, blue, green  (green is highest)
@@ -4252,8 +4356,8 @@ function getWaveConfigByIndex(stageIdx, wave, stageId) {
     };
   }
 
-  // ── Boss stage 1-10 or pvp difficulty 10 ──
-  if (stageId === '1-10' || (stageId.startsWith('pvp-') && stageIdx >= 9)) {
+  // ── Boss stage (any X-10) or pvp difficulty 10 ──
+  if (stageId.endsWith('-10') || (stageId.startsWith('pvp-') && stageIdx >= 9)) {
     if (wave === 10) return { enemies: [ scaleEnemy('boss', 1), scaleEnemy('black', 4) ] };
     if (wave >= 8)   return { enemies: [ scaleEnemy('purple', 2), scaleEnemy('black', 3) ] };
     if (wave >= 6)   return { enemies: [ scaleEnemy('pink', 2), scaleEnemy('yellow', 3) ] };
@@ -4673,6 +4777,12 @@ function closeBattleScreen(goToNextStage) {
   selectedTowerId = null;
   _lastHudGold = -1;
 
+  // Sandbox battles return to the sandbox map
+  if (battleSetupStageId?.startsWith('sandbox-')) {
+    switchSection('sandbox');
+    return;
+  }
+
   // PVP battles return to the PVP map
   if (battleSetupStageId?.startsWith('pvp-')) {
     if (pvpPendingTile) {
@@ -4726,12 +4836,16 @@ async function startBattle() {
   const stageId = battleSetupStageId;
   const isPvpBattle = stageId.startsWith('pvp-');
   const isEliteBattleB = stageId.startsWith('elite:');
+  const isSandboxBattle = stageId.startsWith('sandbox-');
   const baseStageIdB = isEliteBattleB ? stageId.slice(6) : stageId;
-  const mapKey  = isPvpBattle ? 'forest' : (STAGE_MAP[baseStageIdB] || 'forest');
+  const mapKey  = isSandboxBattle ? 'sandbox' : isPvpBattle ? 'forest' : (STAGE_MAP[baseStageIdB] || 'forest');
   const mapDef  = MAP_DEFS[mapKey];
 
   let serverBattle;
-  if (isPvpBattle) {
+  if (isSandboxBattle) {
+    serverBattle = { battleId: null, consumedTowers: [] };
+    currentBattleId = null;
+  } else if (isPvpBattle) {
     // Lock the tile as under attack now that the battle is actually starting
     if (pvpPendingTile) {
       try {
@@ -4799,7 +4913,12 @@ async function startBattle() {
 
   document.getElementById('battle-setup').style.display = 'none';
   document.getElementById('battle-game').style.display  = 'block';
-  document.getElementById('hud-stage-name').textContent = `Stage ${stageId}`;
+  if (isSandboxBattle) {
+    const sbNum = parseInt(stageId.split('-')[1]);
+    document.getElementById('hud-stage-name').textContent = `🧪 Sandbox ${sbNum}`;
+  } else {
+    document.getElementById('hud-stage-name').textContent = `Stage ${stageId}`;
+  }
 
   resizeBattleCanvas();
   const canvas = document.getElementById('battle-canvas');
@@ -4809,9 +4928,9 @@ async function startBattle() {
   const pixelWaypoints = mapDef.waypoints.map(([c,r]) => ({x: c * tw + tw/2, y: r * th + th/2}));
 
   bs = {stageId, mapKey, mapDef, tw, th, COLS, ROWS, waypoints: pixelWaypoints,
-    towers: [], enemies: [], projectiles: [], explosions: [],
-    gold: 200 + getResearchBonuses().start_gold,
-    lives: 20 + getResearchBonuses().start_lives,
+    towers: [], enemies: [], projectiles: [], explosions: [], groundEffects: [],
+    gold: isSandboxBattle ? 100000 : (200 + getResearchBonuses().start_gold),
+    lives: isSandboxBattle ? 10000 : (20 + getResearchBonuses().start_lives),
     wave: 0, wavesQueued: 0, waveActive: false, waveEnemiesLeft: 0, waveSpawnQueue: [],
     spawnTimer: 0, gameOver: false, victory: false, lastTime: null};
 
@@ -4957,6 +5076,7 @@ function makeTower(td, level, x, y, entry) {
   const _makeResLv = towerResearchLevels[td.id] || 0;
   const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower');
   const finalDmg = Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg + _makeResLv * 0.05));
+  const finalAtkSpeed = atkSpeed / (1 + rb.tower_spd + ab.tower_spd + _makeResLv * 0.05) * (bs?.eliteCfg?.turretSlowMult ?? 1);
   return {
     id: Math.random(),
     towerId: td.id,
@@ -4965,10 +5085,11 @@ function makeTower(td, level, x, y, entry) {
     r: TOWER_RADIUS_PX,
     dmg:     finalDmg,
     baseDmg: finalDmg,
-    atkSpeed: atkSpeed / (1 + rb.tower_spd + ab.tower_spd + _makeResLv * 0.05) * (bs?.eliteCfg?.turretSlowMult ?? 1),
+    atkSpeed: finalAtkSpeed,
+    _baseAtkSpeed: finalAtkSpeed,
     range:    range * tileW * (1 + rb.tower_range + _makeResLv * 0.05),
     projectiles: projectiles + (isAoeTower ? 0 : ab.extra_projectile),
-    projectileSpeed: 280,
+    projectileSpeed: 560,
     piercing: 0,
     special: td.id,
     cooldown: 0,
@@ -5175,6 +5296,205 @@ function launchWave() {
 }
 
 // ── UPGRADE PANEL ──
+// Ascension definitions — keyed by towerId then upgrade path index (0=range,1=speed,2=damage)
+const ASCEND_DEFS = {
+  archer: {
+    0: {
+      name: 'Piercing Bolt',
+      icon: '🏹',
+      desc: 'Fires a fast laser that pierces up to 5 enemies per shot. Slightly slower fire rate.',
+      apply(tower) {
+        tower._ascendAtkMult = 1.2;
+        tower.atkSpeed *= 1.2;
+        tower.ascendPierceTravel = 5;
+        tower.projectileSpeed = 1500;
+      }
+    },
+    1: {
+      name: 'Rapid Barrage',
+      icon: '⚡',
+      desc: 'Triples attack speed, halves damage. Every 3rd hit chains to 2 nearby enemies.',
+      apply(tower) {
+        tower.dmg = Math.round(tower.dmg * 0.5);
+        tower.baseDmg = Math.round(tower.baseDmg * 0.5);
+        tower._ascendAtkMult = 1 / 3;
+        tower.atkSpeed *= 1 / 3;
+        tower.ascendChainCount = 0;
+      }
+    },
+    2: {
+      name: 'Tier Slayer',
+      icon: '⚔️',
+      desc: '+10 damage per enemy tier. Overflow damage carries to spawned enemies.',
+      apply(tower) {
+        tower.ascendTierDmg = true;
+      }
+    }
+  },
+  catapult: {
+    0: {
+      name: 'Siege Meteor',
+      icon: '🌋',
+      desc: 'Launches slow meteor shots that leave burning craters for 2s. Enemies near the center are slowed and children spawn burning.',
+      apply(tower) {
+        tower.ascendSiegeMeteor = true;
+        tower.projectileSpeed = 240;
+        tower._ascendAtkMult = 0.5;
+        tower.atkSpeed *= 0.5;
+      }
+    },
+    1: {
+      name: 'Bombardment Engine',
+      icon: '💣',
+      desc: 'Rapid fire. Every 5th shot is a Cluster Shell that splits into 4 mini-explosions devastating grouped enemies.',
+      apply(tower) {
+        tower._ascendAtkMult = 0.45;
+        tower.atkSpeed *= 0.45;
+        tower.ascendBombardment = true;
+        tower.ascendShotCount = 0;
+      }
+    },
+    2: {
+      name: 'Earthshatter',
+      icon: '💥',
+      desc: 'Fires a missile that deals 2x damage on impact to up to 10 nearby enemies. 3x damage to elite enemies.',
+      apply(tower) {
+        tower.ascendEarthshatter = true;
+      }
+    }
+  },
+  crossbow: {
+    0: {
+      name: 'Ricochet Array',
+      icon: '↩️',
+      desc: 'Bolts ricochet up to 2 times. Each bounce gains +10% crit chance and chains through spawned children.',
+      apply(tower) {
+        tower.ascendRicochet = true;
+      }
+    },
+    1: {
+      name: 'Storm Repeater',
+      icon: '🌪️',
+      desc: 'Extremely rapid bolts. Turret counter reaches 30 after 30 hits. Fires 10 bolts in all directions at max range.',
+      apply(tower) {
+        tower.dmg = Math.round(tower.dmg * 0.5);
+        tower.baseDmg = Math.round(tower.baseDmg * 0.5);
+        tower._ascendAtkMult = 1 / 3;
+        tower.atkSpeed *= 1 / 3;
+        tower.projectiles = Math.min((tower.projectiles || 1) + 1, 3);
+        tower.ascendStormRepeater = true;
+        tower.ascendStormCount = 0; // Counter for next burst
+      }
+    },
+    2: {
+      name: 'Heavy Ballista',
+      icon: '🏹',
+      desc: 'Giant piercing bolt that travels through all enemies in a line. Stuns each enemy hit for 2s (3s cooldown after stun ends). Stunned enemies take +20% damage.',
+      apply(tower) {
+        tower.ascendHeavyBallista = true;
+        tower.projectileSpeed = 1200; // ~7.5x faster
+        tower.projectiles = 1; // Only fires 1 projectile
+      }
+    }
+  },
+  ice_tower: {
+    0: {
+      name: 'Frozen Domain',
+      icon: '❄️',
+      desc: 'Passive frost aura builds Frostbite stacks on nearby enemies, amplifying all slows. Child enemies inherit partial Frostbite.',
+      apply(tower) {
+        tower.ascendFrozenDomain = true;
+      }
+    },
+    1: {
+      name: 'Blizzard Spire',
+      icon: '🌨️',
+      desc: 'Double attack speed. Freezing an enemy triggers an Ice Nova that spreads freeze buildup to nearby enemies.',
+      apply(tower) {
+        tower._ascendAtkMult = 0.5;
+        tower.atkSpeed *= 0.5;
+        tower.ascendBlizzardSpire = true;
+        tower.ascendIceNovaCooldown = 0;
+      }
+    },
+    2: {
+      name: 'Shatterfrost',
+      icon: '🧊',
+      desc: 'Frozen enemies below 30% HP are instantly shattered, launching ice shards at nearby foes. Spawned children emerge at half HP.',
+      apply(tower) {
+        tower.ascendShatterfrost = true;
+      }
+    }
+  },
+  sniper: {
+    0: {
+      name: 'Watchtower',
+      icon: '🔭',
+      desc: 'Global range. Periodically marks the highest-threat enemy — marked targets take 35% more damage from all towers.',
+      apply(tower) {
+        tower._ascendRangeMult = 2;
+        tower.range *= 2;
+        tower.ascendWatchtower = true;
+        tower.ascendMarkTimer = 0;
+      }
+    },
+    1: {
+      name: 'Deadeye',
+      icon: '🎯',
+      desc: 'Double attack speed. Kills instantly refund cooldown and grant a 3s kill-streak speed boost. Children are immediately retargeted.',
+      apply(tower) {
+        tower._ascendAtkMult = 0.5;
+        tower.atkSpeed *= 0.5;
+        tower.ascendDeadeyeCount = tower.ascendDeadeyeCount || 0;
+        tower.ascendConsecHits = 0;
+        tower.ascendKillStreakTimer = 0;
+      }
+    },
+    2: {
+      name: 'Railgun',
+      icon: '⚡',
+      desc: 'High-velocity beam pierces all enemies. Damage amplifies +30% per enemy pierced. Leaves an ionized trail that damages crossers.',
+      apply(tower) {
+        tower.ascendRailgun = true;
+        tower.projectileSpeed = 2000;
+      }
+    }
+  },
+  inferno: {
+    0: {
+      name: 'Volcanic Rift',
+      icon: '🌋',
+      desc: 'Range ×1.5. Attacks create expanding lava pools. Enemies inside gain stacking burns. Children spawn at max burn stacks.',
+      apply(tower) {
+        tower._ascendRangeMult = 1.5;
+        tower.range *= 1.5;
+        tower.ascendVolcanicRift = true;
+      }
+    },
+    1: {
+      name: 'Hellstorm',
+      icon: '🔥',
+      desc: 'Double speed, hits 12 enemies. Burns spread on kill. Enemies at max burn stacks violently ignite, releasing fire waves.',
+      apply(tower) {
+        tower._ascendAtkMult = 0.5;
+        tower.atkSpeed *= 0.5;
+        tower.ascendHellstorm = true;
+      }
+    },
+    2: {
+      name: 'Supernova Core',
+      icon: '💫',
+      desc: 'Builds Heat from burning enemies. At max Heat the next attack triggers a Supernova — massive explosion scaling with burn count.',
+      apply(tower) {
+        tower.ascendSupernova = true;
+        tower.ascendHeat = 0;
+        tower.ascendSupernovaReady = false;
+        tower.ascendHeatTimer = 0;
+      }
+    }
+  }
+};
+
 const UPGRADE_PATHS = [
   {
     key:'range', icon:'📏', name:'Extended Range',
@@ -5192,7 +5512,7 @@ const UPGRADE_PATHS = [
       { desc:'Speed +30%',    cost:160 },
       { desc:'Speed +50%',    cost:280 },
     ],
-    apply(t, lvl) { t.atkSpeed = parseFloat(towerStatsAtLevel(t.td,t.level).atkSpeed) * (1 - lvl*0.15); }
+    apply(t, lvl) { t.atkSpeed = (t._baseAtkSpeed ?? parseFloat(towerStatsAtLevel(t.td,t.level).atkSpeed)) * (1 - lvl*0.15); }
   },
   {
     key:'damage', icon:'⚔️', name:'Damage',
@@ -5210,12 +5530,12 @@ const UPGRADE_PATHS = [
 function renderUpgradePanel(tower) {
   if (!tower) return;
   const stats = { dmg:tower.dmg, atkSpeed:tower.atkSpeed.toFixed(2), range:Math.round(tower.range), proj:tower.projectiles };
-  document.getElementById('upg-panel-title').textContent = `${tower.td.icon} ${tower.td.name}`;
+  document.getElementById('upg-panel-title').textContent = `${tower.td.icon} ${tower.td.name}${tower.ascended ? ' ✨' : ''}`;
   document.getElementById('upg-panel-stats').innerHTML = `
     <div class="upg-stat-row"><span class="upg-stat-label">⚔️ Damage</span><span class="upg-stat-val">${stats.dmg}</span></div>
     <div class="upg-stat-row"><span class="upg-stat-label">⚡ Atk Speed</span><span class="upg-stat-val">${stats.atkSpeed}s</span></div>
     <div class="upg-stat-row"><span class="upg-stat-label">📏 Range</span><span class="upg-stat-val">${stats.range}px</span></div>
-    <div class="upg-stat-row"><span class="upg-stat-label">🎯 Projectiles</span><span class="upg-stat-val">×${stats.proj}${tower.piercing?` +${tower.piercing} pierce`:''}</span></div>
+    <div class="upg-stat-row"><span class="upg-stat-label">🎯 Projectiles</span><span class="upg-stat-val">×${stats.proj}${tower.piercing?` +${tower.piercing} pierce`:''}${tower.ascendPierce?` · pierce×${tower.ascendPierce}`:''}</span></div>
     ${tower.td.special ? `<div class="upg-stat-row"><span class="upg-stat-label" style="color:#f0a040;">✨ Special</span><span class="upg-stat-val" style="font-size:9px;color:#8890b0;">${tower.td.special.slice(0,30)}</span></div>` : ''}
   `;
 
@@ -5255,31 +5575,61 @@ function renderUpgradePanel(tower) {
 
   UPGRADE_PATHS.forEach((path, pi) => {
     const currentLvl = tower.upgrades[pi];
-    const maxLvl = path.levels.length;
-    const nextLvl = path.levels[currentLvl];
-    const canAfford = nextLvl && (bs?.gold||0) >= nextLvl.cost;
+    const ascendDef = ASCEND_DEFS[tower.towerId]?.[pi];
+    const anyOtherAscendAtMax = tower.upgrades.some((lvl, i) =>
+      i !== pi && ASCEND_DEFS[tower.towerId]?.[i] && lvl >= UPGRADE_PATHS[i].levels.length
+    );
+    const regularMax = ascendDef && !anyOtherAscendAtMax ? path.levels.length : 2;
 
-    const pips = Array.from({length: maxLvl}).map((_,i) => {
-      const cls = i < currentLvl ? 'done' : '';
-      return `<div class="upg-pip ${cls}"></div>`;
+    const pips = Array.from({length: 3}).map((_,i) => {
+      if (i < currentLvl) return `<div class="upg-pip done"></div>`;
+      if (!ascendDef && i >= regularMax) return `<div class="upg-pip locked-pip"></div>`;
+      return `<div class="upg-pip"></div>`;
     }).join('');
 
+    let actionHTML;
+    if (currentLvl < regularMax) {
+      const nextLvl = path.levels[currentLvl];
+      const canAfford = (bs?.gold||0) >= nextLvl.cost;
+      actionHTML = `
+        <div class="upg-path-desc">${nextLvl.desc}</div>
+        <button class="upg-path-btn" ${!canAfford?'disabled':''} onclick="applyTowerUpgrade('${tower.id}',${pi})">
+          Upgrade · 💰${nextLvl.cost}
+        </button>
+        <div class="upg-path-cost">${canAfford ? 'Can afford' : `Need ${nextLvl.cost - (bs?.gold||0)} more gold`}</div>
+      `;
+    } else if (ascendDef && tower.ascended && tower.ascendPath === pi) {
+      actionHTML = `
+        <div class="upg-path-desc" style="color:#f0c040;">${ascendDef.desc}</div>
+        <div class="upg-path-cost" style="color:#f0c040;">✨ Ascended</div>
+      `;
+    } else if (ascendDef && !tower.ascended && currentLvl >= path.levels.length) {
+      const canAfford = (bs?.gold||0) >= 100;
+      actionHTML = `
+        <div class="upg-path-desc" style="color:#c0a040;">${ascendDef.desc}</div>
+        <button class="upg-ascend-btn" ${!canAfford?'disabled':''} onclick="applyAscension('${tower.id}',${pi})">✨ ${ascendDef.name} · 💰100</button>
+        <div class="upg-path-cost upg-ascend-cost">${canAfford ? 'Can afford' : `Need ${100 - (bs?.gold||0)} more gold`}</div>
+      `;
+    } else {
+      actionHTML = `<div class="upg-path-cost" style="color:#3ecf8e;">✅ Max level reached</div>`;
+    }
+
+    const isAscendReady = ascendDef && currentLvl >= path.levels.length && !tower.ascended;
     const pathEl = document.createElement('div');
-    pathEl.className = 'upg-path';
+    pathEl.className = `upg-path${isAscendReady ? ' upg-path-ascendable' : ''}`;
     pathEl.innerHTML = `
       <div class="upg-path-title">${path.icon} ${path.name}</div>
-      <div class="upg-path-desc">${nextLvl ? nextLvl.desc : '✅ Maxed'}</div>
       <div class="upg-path-progress">${pips}</div>
-      ${nextLvl
-        ? `<button class="upg-path-btn" ${!canAfford?'disabled':''} onclick="applyTowerUpgrade('${tower.id}',${pi})">
-            Upgrade · 💰${nextLvl.cost}
-           </button>
-           <div class="upg-path-cost">${canAfford ? 'Can afford' : `Need ${nextLvl.cost - (bs?.gold||0)} more gold`}</div>`
-        : `<div class="upg-path-cost" style="color:#3ecf8e;">✅ Max level reached</div>`
-      }
+      ${actionHTML}
     `;
     paths.appendChild(pathEl);
   });
+
+  // Remove tower button
+  const removeEl = document.createElement('div');
+  removeEl.style.cssText = 'margin-top:10px;';
+  removeEl.innerHTML = `<button class="upg-remove-btn" onclick="removeTowerById('${tower.id}')">🗑️ Remove Tower</button>`;
+  paths.appendChild(removeEl);
 }
 
 function applyTowerUpgrade(towerId, pathIdx) {
@@ -5288,14 +5638,46 @@ function applyTowerUpgrade(towerId, pathIdx) {
   if (!tower) return;
   const path = UPGRADE_PATHS[pathIdx];
   const currentLvl = tower.upgrades[pathIdx];
-  if (currentLvl >= path.levels.length) return;
+  const isAscendPath = !!ASCEND_DEFS[tower.towerId]?.[pathIdx];
+  const anyOtherAscendAtMax = tower.upgrades.some((lvl, i) =>
+    i !== pathIdx && ASCEND_DEFS[tower.towerId]?.[i] && lvl >= UPGRADE_PATHS[i].levels.length
+  );
+  const maxAllowed = isAscendPath && !anyOtherAscendAtMax ? path.levels.length : 2;
+  if (currentLvl >= maxAllowed) return;
   const cost = path.levels[currentLvl].cost;
   if ((bs.gold||0) < cost) { showToast('Not enough gold!'); return; }
   bs.gold -= cost;
   tower.upgrades[pathIdx]++;
   UPGRADE_PATHS.forEach((p, i) => { for (let l=1; l<=tower.upgrades[i]; l++) p.apply(tower, l); });
+  if (tower._ascendAtkMult !== undefined) tower.atkSpeed *= tower._ascendAtkMult;
+  if (tower._ascendRangeMult !== undefined) tower.range *= tower._ascendRangeMult;
   renderUpgradePanel(tower);
   updateBattleHUD();
+}
+
+function applyAscension(towerId, pathIdx) {
+  if (!bs) return;
+  const tower = bs.towers.find(t => String(t.id) === String(towerId));
+  if (!tower || tower.ascended) return;
+  const def = ASCEND_DEFS[tower.towerId]?.[pathIdx];
+  if (!def) return;
+  if ((bs.gold||0) < 100) { showToast('Not enough gold!'); return; }
+  bs.gold -= 100;
+  tower.ascended = true;
+  tower.ascendPath = pathIdx;
+  def.apply(tower);
+  updateBattleHUD();
+  renderUpgradePanel(tower);
+}
+
+function removeTowerById(towerId) {
+  if (!bs) return;
+  const idx = bs.towers.findIndex(t => String(t.id) === String(towerId));
+  if (idx === -1) return;
+  bs.towers.splice(idx, 1);
+  selectedTowerId = null;
+  document.getElementById('upgrade-panel').style.display = 'none';
+  document.getElementById('shop-panel').style.display = 'flex';
 }
 
 // Patch affordability display in-place without rebuilding the panel.
@@ -5310,13 +5692,24 @@ function refreshUpgradePanelAffordability() {
     const el = pathEls[pi];
     if (!el) return;
     const currentLvl = tower.upgrades[pi];
-    const nextLvl = path.levels[currentLvl];
-    if (!nextLvl) return; // already maxed
-    const canAfford = (bs.gold || 0) >= nextLvl.cost;
-    const btn = el.querySelector('.upg-path-btn');
-    const costEl = el.querySelector('.upg-path-cost');
-    if (btn) btn.disabled = !canAfford;
-    if (costEl) costEl.textContent = canAfford ? 'Can afford' : `Need ${nextLvl.cost - (bs.gold || 0)} more gold`;
+    // Regular upgrade button
+    if (currentLvl < 2) {
+      const nextLvl = path.levels[currentLvl];
+      if (!nextLvl) return;
+      const canAfford = (bs.gold || 0) >= nextLvl.cost;
+      const btn = el.querySelector('.upg-path-btn');
+      const costEl = el.querySelector('.upg-path-cost');
+      if (btn) btn.disabled = !canAfford;
+      if (costEl) costEl.textContent = canAfford ? 'Can afford' : `Need ${nextLvl.cost - (bs.gold || 0)} more gold`;
+    }
+    // Ascend button affordability
+    const ascendBtn = el.querySelector('.upg-ascend-btn');
+    if (ascendBtn && !tower.ascended) {
+      const canAfford = (bs.gold || 0) >= 100;
+      ascendBtn.disabled = !canAfford;
+      const costEl = el.querySelector('.upg-ascend-cost');
+      if (costEl) costEl.textContent = canAfford ? 'Can afford' : `Need ${100 - (bs.gold || 0)} more gold`;
+    }
   });
 }
 
@@ -5336,7 +5729,7 @@ function spawnEnemy(template) {
   const wp = bs.waypoints;
   const mobHpMult = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
   const spawnHp = Math.max(1, Math.round(template.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1)));
-  return {
+  const enemy = {
     id: ++enemyIdCounter,
     type: template.type,
     waveNum: template.waveNum || bs.wave,
@@ -5355,6 +5748,15 @@ function spawnEnemy(template) {
     isDead: false,
     isReached: false,
   };
+
+  // Sprite animation properties for witch
+  if (template.type === 'witch') {
+    enemy.spriteFrame = 0;
+    enemy.spriteFrameCounter = 0;
+    enemy.spriteSpeed = 0.08; // slow animation (8% speed per frame, so ~12-13 frames per cycle)
+  }
+
+  return enemy;
 }
 
 function spawnChildEnemy(parent, typeKey, count) {
@@ -5364,14 +5766,22 @@ function spawnChildEnemy(parent, typeKey, count) {
   const t = ENEMY_TYPES[typeKey];
   if (!t) return;
   const mobHpMult = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
-  const spawnHp = Math.max(1, Math.round(t.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1)));
+  const baseSpawnHp = Math.max(1, Math.round(t.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1)));
+
+  // Status inheritance
+  const inheritBurn      = (parent.burnStacks || 0) > 0;
+  const inheritFrostbite = (parent.frostbiteStacks || 0) > 0;
+  const inLava           = !!(parent._inLava);
+  const shatterSpawn     = !!(parent._shatterSpawn);
+
   for (let i = 0; i < count; i++) {
-    bs.enemies.push({
+    const childHp = shatterSpawn ? Math.max(1, Math.round(baseSpawnHp * 0.5)) : baseSpawnHp;
+    const child = {
       id: ++enemyIdCounter,
       type: typeKey,
       waveNum: parent.waveNum,
       x: parent.x, y: parent.y,
-      hp: spawnHp, maxHp: spawnHp,
+      hp: childHp, maxHp: childHp,
       speed: t.speed * (bs.eliteCfg?.speedMult ?? 1),
       reward: Math.max(1, Math.round(t.reward * 0.5)),
       size: t.size,
@@ -5379,17 +5789,32 @@ function spawnChildEnemy(parent, typeKey, count) {
       spawnOnDeath: t.spawnOnDeath || null,
       wpIdx: parent.wpIdx,
       dist: parent.dist,
-      slowTimer: 0,
+      slowTimer:   0,
       alSlowTimer: 0,
-      alSlowPct: 0,
+      alSlowPct:   0,
       isDead: false,
       isReached: false,
-    });
+    };
+    // Inherit partial frostbite from parent (Frozen Domain)
+    if (inheritFrostbite) {
+      child.frostbiteStacks = Math.max(1, Math.floor((parent.frostbiteStacks || 0) / 2));
+      child.frostbiteTimer  = 2000;
+    }
+    // Inherit burn if parent was burning (Volcanic Rift: inside lava = max stacks)
+    if (inLava) {
+      child.burnStacks = 8; child.burnTimer = 4000;
+    } else if (inheritBurn) {
+      child.burnStacks = Math.max(1, Math.floor((parent.burnStacks || 0) / 2));
+      child.burnTimer  = 2000;
+    }
+    // Children spawned inside craters start slowed
+    if (parent.slowTimer > 0) child.slowTimer = Math.round(parent.slowTimer * 0.5);
+    bs.enemies.push(child);
   }
 }
 
 function makeProjectile(tower, target, dmg) {
-  return {
+  const p = {
     id: Math.random(),
     x: tower.x, y: tower.y,
     tx: target.id,
@@ -5401,10 +5826,105 @@ function makeProjectile(tower, target, dmg) {
     radius: tower.towerId === 'catapult' ? 6 : 4,
     piercing: tower.piercing || 0,
     maxAoeTargets: tower.td.maxAoeTargets || 99,
-    towerType: tower.towerId, // Add tower type for projectile rendering
-    vx: 0, vy: 0, // Will be set during movement
+    towerType: tower.towerId,
+    srcTowerId: tower.id,
+    vx: 0, vy: 0,
     _done: false,
   };
+  if (tower.ascendChainCount !== undefined) {
+    p.ascendChain = true;
+    p.originTowerId = tower.id;
+  }
+  if (tower.ascendTierDmg) p.ascendTierDmg = true;
+
+  if (tower.ascendPierceTravel > 0) {
+    const dx = target.x - tower.x, dy = target.y - tower.y;
+    const d = Math.sqrt(dx*dx + dy*dy) || 1;
+    p.pierceTravel = true;
+    p.pierce = tower.ascendPierceTravel;
+    p.pierceHit = new Set();
+    p.maxRange = tower.range;
+    p.ox = tower.x; p.oy = tower.y;
+    p.pdx = dx/d; p.pdy = dy/d;
+  }
+  // Railgun: pierce-travel beam through all enemies in range
+  if (tower.ascendRailgun) {
+    const dx = target.x - tower.x, dy = target.y - tower.y;
+    const d = Math.sqrt(dx*dx + dy*dy) || 1;
+    p.pierceTravel = true;
+    p.pierce = 99;
+    p.pierceHit = new Set();
+    p.maxRange = tower.range;
+    p.ox = tower.x; p.oy = tower.y;
+    p.pdx = dx/d; p.pdy = dy/d;
+    p.ascendRailgun = true;
+    p.railgunPierceCount = 0;
+  }
+  // Catapult ascensions
+  if (tower.ascendSiegeMeteor)  p.ascendSiegeMeteor  = true;
+  if (tower.ascendEarthshatter) p.ascendEarthshatter = true;
+  // Bombardment Engine: every 5th shot is a cluster shell
+  if (tower.ascendBombardment) {
+    tower.ascendShotCount = (tower.ascendShotCount || 0) + 1;
+    if (tower.ascendShotCount % 5 === 0) p.isClusterShell = true;
+  }
+  // Crossbow ascensions
+  if (tower.ascendRicochet) {
+    p.ascendRicochet = true;
+    p.bounceCount = 0;
+    p.bounceHit = new Set([target.id]);
+    p.ricochetCrit = 0;
+  }
+  if (tower.ascendStormRepeater) p.ascendStormRepeater = true;
+  if (tower.ascendHeavyBallista) {
+    // Heavy Ballista: pierce-travel through enemies in a line
+    const dx = target.x - tower.x, dy = target.y - tower.y;
+    const d = Math.sqrt(dx*dx + dy*dy) || 1;
+    p.pierceTravel = true;
+    p.pierce = 99;
+    p.pierceHit = new Set();
+    p.maxRange = tower.range;
+    p.ox = tower.x; p.oy = tower.y;
+    p.pdx = dx/d; p.pdy = dy/d;
+    p.ascendHeavyBallista = true;
+    p.ballistaPierceCount = 0;
+  }
+  // Frost Spire ascensions
+  if (tower.ascendBlizzardSpire) p.ascendBlizzardSpire = true;
+  if (tower.ascendShatterfrost)  p.ascendShatterfrost  = true;
+  // Sniper Deadeye: every 5th shot is a headshot
+  if (tower.ascendDeadeyeCount !== undefined) {
+    tower.ascendDeadeyeCount++;
+    if (tower.ascendDeadeyeCount % 5 === 0) p.ascendDeadeyeShot = true;
+  }
+  return p;
+}
+
+// Process delayed cluster shell explosions (individual mini-explosions)
+function updateDelayedClusterShells(dt) {
+  if (!bs.delayedClusterShells) return;
+  bs.delayedClusterShells.forEach(cs => { cs.age += dt; });
+  bs.delayedClusterShells = bs.delayedClusterShells.filter(cs => {
+    if (cs.age >= cs.delay) {
+      // Trigger individual mini-explosion
+      const mx = cs.x + cs.ox * bs.tw * 0.7, my = cs.y + cs.oy * bs.tw * 0.7;
+      const miniR = bs.tw * 0.65;
+      const hitSet = new Set();
+      bs.enemies
+        .filter(e => !e.isDead && dist(mx, my, e.x, e.y) < miniR)
+        .slice(0, 5)
+        .forEach(e => {
+          if (hitSet.has(e.id)) return;
+          hitSet.add(e.id);
+          if (e.markedTimer > 0) applyDmgToEnemy(e, Math.round(cs.dmg * 0.6 * (e.markedMult||1.35)));
+          else applyDmgToEnemy(e, Math.round(cs.dmg * 0.6));
+          if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+        });
+      bs.explosions.push({ x:mx, y:my, r:miniR*0.15, maxR:miniR, age:0, maxAge:0.3 });
+      return false; // remove from array
+    }
+    return true; // keep in array
+  });
 }
 
 // ── MAIN BATTLE LOOP ──
@@ -5420,6 +5940,7 @@ function battleLoop(ts) {
     updateEnemies(dt);
     updateTowers(dt);
     updateProjectiles(dt);
+    updateDelayedClusterShells(dt);
     updateExplosions(dt);
     checkWaveEnd();
   }
@@ -5443,7 +5964,7 @@ function startBattleLoop() {
       bs.lastTime = now;
       const dt = rawDt * battleSpeed;
       updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-      updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
+      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); checkWaveEnd();
     }
     // Always draw so the canvas stays live during the victory/defeat delay window
     if (bs) drawBattle();
@@ -5462,7 +5983,7 @@ function startBattleLoop() {
     bs.lastTime = now;
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-    updateProjectiles(dt); updateExplosions(dt); checkWaveEnd();
+    updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); checkWaveEnd();
   }, 50); // 20fps keepalive — fast enough for 4x speed in background
 }
 function stopBattleLoop() {
@@ -5484,9 +6005,71 @@ function updateEnemies(dt) {
   bs.enemies.forEach(e => {
     if (e.isDead || e.isReached) return;
     if (bs.eliteCfg?.enemyRegen) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.02 * dt);
+
+    // ── STATUS EFFECT TICKS ──
+    // Burn (Siege Meteor, Volcanic Rift, Hellstorm)
+    if ((e.burnStacks || 0) > 0 && (e.burnTimer || 0) > 0) {
+      e._burnTickTimer = (e._burnTickTimer === undefined ? 500 : e._burnTickTimer) - dt * 1000;
+      if (e._burnTickTimer <= 0) {
+        e._burnTickTimer = 500;
+        applyDmgToEnemy(e, (e.burnStacks || 1) * 3);
+        if (e.hp <= 0 && !e.isDead) {
+          // Hellstorm: spread burns on death
+          if ((e.burnStacks || 0) >= 3) {
+            const hasHellstorm = bs.towers.some(t => t.towerId === 'inferno' && t.ascendHellstorm);
+            if (hasHellstorm) {
+              bs.enemies
+                .filter(en => !en.isDead && !en.isReached && en.id !== e.id && dist(e.x, e.y, en.x, en.y) <= bs.tw * 2)
+                .forEach(en => {
+                  en.burnStacks = Math.min((en.burnStacks || 0) + Math.floor(e.burnStacks / 2), 8);
+                  en.burnTimer = Math.max(en.burnTimer || 0, 2000);
+                });
+            }
+          }
+          killEnemy(e, null);
+        }
+        if (e.isDead) return;
+      }
+      e.burnTimer -= dt * 1000;
+      if (e.burnTimer <= 0) { e.burnStacks = 0; e.burnTimer = 0; }
+    }
+    // Expose stack decay (Storm Repeater)
+    if ((e.exposeTimer || 0) > 0) {
+      e.exposeTimer -= dt * 1000;
+      if (e.exposeTimer <= 0) { e.exposeStacks = 0; e.exposeTimer = 0; delete e._exposeTriggered; }
+    }
+    // Mark decay (Watchtower)
+    if ((e.markedTimer || 0) > 0) e.markedTimer -= dt * 1000;
+    // Pin decay (Heavy Ballista)
+    if ((e.pinnedTimer || 0) > 0) e.pinnedTimer -= dt * 1000;
+    // Heavy Ballista stun cooldown decay
+    if ((e.ballistaStunCooldown || 0) > 0) e.ballistaStunCooldown -= dt * 1000;
+    // Spawn scale-in animation
+    if ((e._spawnAnim || 0) > 0) e._spawnAnim = Math.max(0, e._spawnAnim - dt * 1000);
+    // Witch summoning halo timer
+    if ((e._summoningTimer || 0) > 0) e._summoningTimer = Math.max(0, e._summoningTimer - dt * 1000);
+
     let _speedMult = 1.0;
-    if (e.slowTimer   > 0) { _speedMult *= 0.50;                       e.slowTimer   -= dt * 1000; }
+    if (e.slowTimer   > 0) { _speedMult *= 0.80;                        e.slowTimer   -= dt * 1000; }
     if (e.alSlowTimer > 0) { _speedMult *= (1 - (e.alSlowPct || 0.25)); e.alSlowTimer -= dt * 1000; }
+    // Frostbite: flat 25% slow, stacks used for visual intensity only
+    if ((e.frostbiteStacks || 0) > 0) {
+      _speedMult *= 0.75;
+      if ((e.frostbiteTimer || 0) > 0) e.frostbiteTimer -= dt * 1000;
+      else { e.frostbiteStacks = Math.max(0, (e.frostbiteStacks || 1) - 1); e.frostbiteTimer = 1500; }
+    }
+    // Stagger: briefly halts movement
+    if ((e.staggerTimer || 0) > 0) { _speedMult = 0; e.staggerTimer -= dt * 1000; }
+
+    // Update sprite animation frame for witch
+    if (e.type === 'witch') {
+      e.spriteFrameCounter += e.spriteSpeed;
+      if (e.spriteFrameCounter >= 1) {
+        e.spriteFrameCounter = 0;
+        e.spriteFrame = (e.spriteFrame + 1) % 8; // 8 frames in witch sprite
+      }
+    }
+
     const speed = e.speed * _speedMult;
 
     const target = bs.waypoints[e.wpIdx];
@@ -5507,6 +6090,56 @@ function updateEnemies(dt) {
     e.dist += move;
   });
 
+  // Witch spawning logic
+  bs.enemies.forEach(e => {
+    if (e.type === 'witch' && !e.isDead && !e.isReached) {
+      e._witchSpawnTimer = (e._witchSpawnTimer || 0) - dt * 1000;
+      if (e._witchSpawnTimer <= 0) {
+        e._witchSpawnTimer = 10000; // Spawn every 10 seconds
+
+        // Determine spawn tier based on witch health percentage
+        const healthPct = e.hp / e.maxHp;
+        let spawnPool = [];
+        if (healthPct > 0.75) {
+          // High health: spawn higher tier enemies
+          spawnPool = ['yellow', 'pink', 'black', 'purple', 'white', 'boss'];
+        } else if (healthPct > 0.50) {
+          // Mid-high health: spawn medium-high tier
+          spawnPool = ['green', 'yellow', 'pink', 'black', 'purple'];
+        } else if (healthPct > 0.25) {
+          // Mid health: spawn medium tier
+          spawnPool = ['blue', 'green', 'yellow', 'pink'];
+        } else {
+          // Low health: spawn lower tier
+          spawnPool = ['red', 'blue', 'green'];
+        }
+
+        // Spawn 2-3 random enemies around the witch
+        const spawnCount = 2 + Math.floor(Math.random() * 2);
+        // Cast ring expanding from witch
+        bs.witchSummonFx = bs.witchSummonFx || [];
+        bs.witchSummonFx.push({ x: e.x, y: e.y, age: 0, maxAge: 0.7, type: 'cast' });
+        e._summoningTimer = 700; // halo lasts as long as the cast ring
+        for (let i = 0; i < spawnCount; i++) {
+          const spawnType = spawnPool[Math.floor(Math.random() * spawnPool.length)];
+          const angle = Math.random() * Math.PI * 2;
+          const dist = bs.tw * (1.5 + Math.random() * 1);
+          const spawnX = e.x + Math.cos(angle) * dist;
+          const spawnY = e.y + Math.sin(angle) * dist;
+
+          const template = { ...ENEMY_TYPES[spawnType], x: spawnX, y: spawnY, type: spawnType };
+          const newEnemy = spawnEnemy(template);
+          newEnemy._spawnAnim = 400;
+          newEnemy._spawnAnimDur = 400;
+          bs.enemies.push(newEnemy);
+          bs.waveEnemiesLeft = (bs.waveEnemiesLeft || 0) + 1;
+          // Portal swirl at each spawn location
+          bs.witchSummonFx.push({ x: spawnX, y: spawnY, age: 0, maxAge: 1.5, type: 'portal' });
+        }
+      }
+    }
+  });
+
   bs.enemies = bs.enemies.filter(e => !e.isDead && !e.isReached);
 
   updateBattleHUD(); // update lives counter in real time
@@ -5518,6 +6151,55 @@ function updateEnemies(dt) {
 
 function updateTowers(dt) {
   bs.towers.forEach(t => {
+    // ── PASSIVE EFFECTS (run regardless of cooldown) ──
+
+    // Frozen Domain: builds Frostbite stacks on enemies in range
+    if (t.towerId === 'ice_tower' && t.ascendFrozenDomain) {
+      bs.enemies
+        .filter(e => !e.isDead && !e.isReached && dist(t.x, t.y, e.x, e.y) <= t.range)
+        .forEach(e => {
+          e.slowTimer      = Math.max(e.slowTimer      || 0, 600);
+          e.frostbiteStacks = Math.min((e.frostbiteStacks || 0) + Math.round(dt * 2), 10);
+          e.frostbiteTimer  = Math.max(e.frostbiteTimer || 0, 2000);
+        });
+    }
+
+    // Watchtower: every 3s mark the highest-threat enemy globally
+    if (t.towerId === 'sniper' && t.ascendWatchtower) {
+      t.ascendMarkTimer = (t.ascendMarkTimer || 0) - dt * 1000;
+      if (t.ascendMarkTimer <= 0) {
+        t.ascendMarkTimer = 3000;
+        bs.enemies.filter(e => !e.isDead && !e.isReached).forEach(e => { if (e.markedBy === t.id) e.markedTimer = 0; });
+        const best = bs.enemies
+          .filter(e => !e.isDead && !e.isReached)
+          .map(e => ({ e, threat: e.hp * (ENEMY_TIER[e.type] || 1) * (e.spawnOnDeath ? 3 : 1) }))
+          .sort((a,b) => b.threat - a.threat)[0];
+        if (best) {
+          best.e.marked = true;
+          best.e.markedTimer = 5000;
+          best.e.markedMult  = 1.35;
+          best.e.markedBy    = t.id;
+        }
+      }
+    }
+
+    // Deadeye: kill-streak speed buff timer
+    if (t.ascendKillStreakTimer > 0) t.ascendKillStreakTimer -= dt * 1000;
+
+    // Blizzard Spire: Ice Nova cooldown
+    if (t.ascendIceNovaCooldown > 0) t.ascendIceNovaCooldown -= dt;
+
+    // Supernova Core: accumulate Heat from burning enemies in range
+    if (t.towerId === 'inferno' && t.ascendSupernova) {
+      t.ascendHeatTimer = (t.ascendHeatTimer || 0) - dt * 1000;
+      if (t.ascendHeatTimer <= 0) {
+        t.ascendHeatTimer = 1000;
+        const burningNearby = bs.enemies.filter(e => !e.isDead && !e.isReached && (e.burnStacks||0) > 0 && dist(t.x, t.y, e.x, e.y) <= t.range).length;
+        t.ascendHeat = Math.min(20, (t.ascendHeat || 0) + burningNearby);
+        if (t.ascendHeat >= 20) t.ascendSupernovaReady = true;
+      }
+    }
+
     t.cooldown -= dt;
     if (t.cooldown > 0) return;
 
@@ -5534,11 +6216,56 @@ function updateTowers(dt) {
       default: inRange.sort((a,b) => b.dist - a.dist); break; // fallback to first
     }
 
-    // Inferno: hit all in range (capped at 6)
+    // Inferno: direct-hit all enemies in range
     if (t.towerId === 'inferno') {
-      inRange.slice(0,6).forEach(e => {
-        applyDmgToEnemy(e, t.dmg);
-        if (e.hp <= 0) killEnemy(e, t);
+      const infernoCap  = t.ascendHellstorm ? 12 : 6;
+      const markMult    = (e) => (e.markedTimer > 0) ? (e.markedMult || 1.35) : 1;
+
+      // Supernova Core: next attack is a massive supernova explosion
+      if (t.ascendSupernovaReady) {
+        t.ascendSupernovaReady = false;
+        t.ascendHeat = 0;
+        const burningCount = bs.enemies.filter(e => !e.isDead && !e.isReached && (e.burnStacks||0) > 0 && dist(t.x,t.y,e.x,e.y) <= t.range).length;
+        const novaDmg = t.dmg * (5 + burningCount);
+        bs.enemies.filter(e => !e.isDead && !e.isReached && dist(t.x,t.y,e.x,e.y) <= t.range).forEach(e => {
+          applyDmgToEnemy(e, Math.round(novaDmg * markMult(e)));
+          e.burnStacks = 8; e.burnTimer = 4000;
+          if (e.hp <= 0 && !e.isDead) killEnemy(e, t);
+        });
+        bs.explosions.push({ x:t.x, y:t.y, r:t.range*0.1, maxR:t.range, age:0, maxAge:0.8 });
+        t.cooldown = t.atkSpeed;
+        return;
+      }
+
+      inRange.slice(0, infernoCap).forEach(e => {
+        const dmgToApply = Math.round(t.dmg * markMult(e));
+        applyDmgToEnemy(e, dmgToApply);
+        if (e.hp <= 0 && !e.isDead) {
+          const ex = e.x, ey = e.y;
+          const ebs = e.burnStacks || 0;
+          // Hellstorm: spread burns + max-stack violent ignition
+          if (t.ascendHellstorm && ebs >= 8 && !e._igniting) {
+            e._igniting = true;
+            bs.enemies
+              .filter(en => !en.isDead && !en.isReached && en.id !== e.id && dist(ex, ey, en.x, en.y) <= bs.tw * 2)
+              .forEach(en => { en.burnStacks = Math.min((en.burnStacks||0)+4, 8); en.burnTimer = Math.max(en.burnTimer||0, 3000); });
+            bs.explosions.push({ x:ex, y:ey, r:bs.tw*0.2, maxR:bs.tw*2, age:0, maxAge:0.45 });
+          }
+          if (t.ascendHellstorm && ebs >= 3) {
+            bs.enemies
+              .filter(en => !en.isDead && !en.isReached && en.id !== e.id && dist(ex, ey, en.x, en.y) <= bs.tw * 2)
+              .forEach(en => { en.burnStacks = Math.min((en.burnStacks||0) + Math.floor(ebs/2), 8); en.burnTimer = Math.max(en.burnTimer||0, 2000); });
+          }
+          killEnemy(e, t);
+        } else {
+          // Volcanic Rift: create lava pool at hit enemy (max 4 active per tower)
+          if (t.ascendVolcanicRift) {
+            const poolsFromMe = (bs.groundEffects||[]).filter(g => g.type==='lava' && g.srcTowerId===t.id).length;
+            if (poolsFromMe < 4) {
+              bs.groundEffects.push({ type:'lava', x:e.x, y:e.y, r:bs.tw*0.7, initR:bs.tw*0.7, maxR:bs.tw*1.4, age:0, maxAge:6, dmg:0, srcTowerId:t.id });
+            }
+          }
+        }
       });
       t.cooldown = t.atkSpeed;
       return;
@@ -5554,8 +6281,21 @@ function updateTowers(dt) {
       return;
     }
 
-    // Multi-shot: hit up to `projectiles` targets
-    const targets = inRange.slice(0, t.projectiles);
+    // Heavy Ballista: prioritize stunnable targets
+    let finalPool = inRange;
+    if (t.ascendHeavyBallista) {
+      const stunnable = inRange.filter(e => !e.ballistaStunCooldown || e.ballistaStunCooldown <= 0);
+      if (stunnable.length > 0) finalPool = stunnable;
+    }
+
+    // Multi-shot: prefer targets not already doomed by in-flight projectiles
+    const inFlightDmg = {};
+    bs.projectiles.forEach(p => {
+      if (p.tx && !p.pierceTravel) inFlightDmg[p.tx] = (inFlightDmg[p.tx] || 0) + p.dmg;
+    });
+    const notDoomed = finalPool.filter(e => (e.hp - (inFlightDmg[e.id] || 0)) > 0);
+    const pool = notDoomed.length > 0 ? notDoomed : finalPool;
+    const targets = pool.slice(0, t.projectiles);
     targets.forEach(target => {
       bs.projectiles.push(makeProjectile(t, target, t.dmg));
     });
@@ -5565,12 +6305,106 @@ function updateTowers(dt) {
 
 function updateProjectiles(dt) {
   bs.projectiles.forEach(p => {
-    // Track target position — if dead use last known pos
-    const target = bs.enemies.find(e => e.id === p.tx);
-    if (!target && !p.lastTx) { p._done = true; return; }
-    if (target) { p.lastTx = { x: target.x, y: target.y }; }
-    const tx = target ? target.x : p.lastTx.x;
-    const ty = target ? target.y : p.lastTx.y;
+    // Storm Repeater burst: 10 bolts firing outward in all directions
+    if (p.stormBolt) {
+      const move = p.speed * dt;
+      const dx = p.stormBoltX - p.x, dy = p.stormBoltY - p.y;
+      const d = Math.sqrt(dx*dx+dy*dy);
+
+      if (d > move) {
+        p.x += (dx / d) * move;
+        p.y += (dy / d) * move;
+        p.vx = (dx / d) * p.speed;
+        p.vy = (dy / d) * p.speed;
+      } else {
+        p.x = p.stormBoltX;
+        p.y = p.stormBoltY;
+        p._done = true;
+      }
+
+      // Hit enemies along the path
+      bs.enemies.forEach(e => {
+        if (e.isDead || (p.stormHit && p.stormHit.has(e.id))) return;
+        if (dist(p.x, p.y, e.x, e.y) <= e.size + 8) {
+          if (!p.stormHit) p.stormHit = new Set();
+          p.stormHit.add(e.id);
+          applyDmgToEnemy(e, p.dmg);
+          if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+        }
+      });
+      return;
+    }
+
+    // Pierce-travel: straight-line bolt that pierces all enemies in path
+    if (p.pierceTravel) {
+      const move = p.speed * dt;
+      p.x += p.pdx * move;
+      p.y += p.pdy * move;
+      p.vx = p.pdx * p.speed;
+      p.vy = p.pdy * p.speed;
+      bs.enemies.forEach(e => {
+        if (e.isDead || p.pierceHit.has(e.id)) return;
+        const hitRadius = p.ascendHeavyBallista ? e.size + 12 : e.size + 8;
+        if (dist(p.x, p.y, e.x, e.y) <= hitRadius) {
+          p.pierceHit.add(e.id);
+          // Railgun: damage amplifies per enemy pierced
+          let ptDmg = p.dmg;
+          if (p.ascendRailgun) {
+            ptDmg = Math.round(p.dmg * (1 + (p.railgunPierceCount || 0) * 0.3));
+            p.railgunPierceCount = (p.railgunPierceCount || 0) + 1;
+          }
+          // Heavy Ballista: stun, pin first hit, bonus damage to pinned
+          if (p.ascendHeavyBallista) {
+            // Apply stun if cooldown is ready
+            if (!e.ballistaStunCooldown || e.ballistaStunCooldown <= 0) {
+              e.staggerTimer = 2000; // 2 second stun
+              e.ballistaStunCooldown = 5000; // 3 second cooldown starts after 2s stun ends = 5s total
+              // Create crater animation at impact
+              bs.groundEffects = bs.groundEffects || [];
+              bs.groundEffects.push({
+                type: 'ballistaCrater',
+                x: e.x, y: e.y,
+                r: bs.tw * 0.2, maxR: bs.tw * 1.2,
+                age: 0, maxAge: 0.5,
+                srcTowerId: p.srcTowerId
+              });
+            }
+            if ((e.staggerTimer || 0) > 0) ptDmg = Math.round(ptDmg * 1.2);
+            p.ballistaPierceCount = (p.ballistaPierceCount || 0) + 1;
+          }
+          // Watchtower mark bonus
+          if (e.markedTimer > 0) ptDmg = Math.round(ptDmg * (e.markedMult || 1.35));
+          applyDmgToEnemy(e, ptDmg);
+          if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+          p.pierce--;
+        }
+      });
+      const traveled = dist(p.ox, p.oy, p.x, p.y);
+      if (traveled >= p.maxRange || p.pierce <= 0) {
+        // Railgun: leave ionized trail
+        if (p.ascendRailgun) {
+          bs.groundEffects = bs.groundEffects || [];
+          bs.groundEffects.push({ type:'ionized', x1:p.ox, y1:p.oy, x2:p.x, y2:p.y, age:0, maxAge:1.0, dmg:Math.round(p.dmg*0.4) });
+        }
+        p._done = true;
+      }
+      return;
+    }
+
+    // Find target — if dead/missing, reroute to nearest live enemy
+    let target = bs.enemies.find(e => e.id === p.tx && !e.isDead && !e.isReached);
+    if (!target) {
+      const anchor = p.lastTx;
+      if (!anchor) { p._done = true; return; }
+      const reroute = bs.enemies
+        .filter(e => !e.isDead && !e.isReached)
+        .sort((a,b) => dist(anchor.x, anchor.y, a.x, a.y) - dist(anchor.x, anchor.y, b.x, b.y))[0];
+      if (reroute) { p.tx = reroute.id; target = reroute; }
+      else { p._done = true; return; }
+    }
+    p.lastTx = { x: target.x, y: target.y };
+    const tx = target.x;
+    const ty = target.y;
 
     const dx = tx - p.x, dy = ty - p.y;
     const d = Math.sqrt(dx*dx+dy*dy);
@@ -5587,19 +6421,82 @@ function updateProjectiles(dt) {
       const impactX = tx, impactY = ty;
 
       if (p.special === 'catapult') {
-        // AoE: damage up to maxAoeTargets enemies within 1 tile radius
-        const aoeR = bs.tw * 1.0;
-        const maxHit = p.maxAoeTargets || 5;
-        const inAoe = bs.enemies
-          .filter(e => dist(impactX, impactY, e.x, e.y) < aoeR)
-          .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
-          .slice(0, maxHit);
-        inAoe.forEach(e => {
-          applyDmgToEnemy(e, p.dmg);
-          if (e.hp <= 0) killEnemy(e, null);
-        });
-        // Spawn explosion animation
-        bs.explosions.push({ x: impactX, y: impactY, r: aoeR * 0.2, maxR: aoeR, age: 0, maxAge: 0.5 });
+        // Bombardment Engine: Cluster Shell splits into 4 mini-explosions (staggered, clockwise from North)
+        if (p.isClusterShell) {
+          // Initial impact damage at center
+          const aoeR = bs.tw * 1.0;
+          const maxHit = p.maxAoeTargets || 5;
+          bs.enemies
+            .filter(e => !e.isDead && dist(impactX, impactY, e.x, e.y) < aoeR)
+            .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
+            .slice(0, maxHit)
+            .forEach(e => {
+              const markBonus = e.markedTimer > 0 ? (e.markedMult||1.35) : 1;
+              applyDmgToEnemy(e, Math.round(p.dmg * markBonus));
+              if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+            });
+          bs.explosions.push({ x: impactX, y: impactY, r: aoeR * 0.2, maxR: aoeR, age: 0, maxAge: 0.5 });
+
+          // Store delayed mini-explosions
+          bs.delayedClusterShells = bs.delayedClusterShells || [];
+          // Clockwise: North, East, South, West with 0.2s between each (starting at 0.5s)
+          const miniOffsets = [
+            { ox:0, oy:-0.8, delay:0.5 },   // North
+            { ox:0.8, oy:0, delay:0.7 },   // East
+            { ox:0, oy:0.8, delay:0.9 },   // South
+            { ox:-0.8, oy:0, delay:1.1 }   // West
+          ];
+          miniOffsets.forEach(m => {
+            bs.delayedClusterShells.push({ x:impactX, y:impactY, dmg:p.dmg, ox:m.ox, oy:m.oy, delay:m.delay, age:0 });
+          });
+        } else if (p.ascendSiegeMeteor) {
+          // Siege Meteor: leave burning crater, slow enemies near center
+          const aoeR = bs.tw * 2.0;
+          const inAoe = bs.enemies
+            .filter(e => !e.isDead && dist(impactX, impactY, e.x, e.y) < aoeR)
+            .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
+            .slice(0, 5);
+          inAoe.forEach(e => {
+            const markBonus = e.markedTimer > 0 ? (e.markedMult||1.35) : 1;
+            applyDmgToEnemy(e, Math.round(p.dmg * markBonus));
+            e.slowTimer = Math.max(e.slowTimer || 0, 2000);
+            // Close to center: heavier slow
+            if (dist(impactX, impactY, e.x, e.y) < bs.tw * 0.6) e.slowTimer = Math.max(e.slowTimer, 2000);
+            if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+          });
+          // Create burning crater ground effect
+          bs.groundEffects = bs.groundEffects || [];
+          bs.groundEffects.push({ type:'crater', x:impactX, y:impactY, r:aoeR*0.5, age:0, maxAge:2, dmg:Math.round(p.dmg*0.05), maxTargets:5 });
+          bs.explosions.push({ x:impactX, y:impactY, r:aoeR*0.15, maxR:aoeR, age:0, maxAge:0.5 });
+        } else if (p.ascendEarthshatter) {
+          // Earthshatter: missile impact
+          const aoeR = bs.tw * 1.0;
+          bs.enemies
+            .filter(e => !e.isDead && dist(impactX, impactY, e.x, e.y) < aoeR)
+            .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
+            .slice(0, 10)
+            .forEach(e => {
+              const markBonus = e.markedTimer > 0 ? (e.markedMult||1.35) : 1;
+              const damageMultiplier = ENEMY_TYPES[e.type]?.isElite ? 3 : 2; // 3x to elite, 2x to normal
+              applyDmgToEnemy(e, Math.round(p.dmg * damageMultiplier * markBonus));
+              if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+            });
+          bs.explosions.push({ x:impactX, y:impactY, r:aoeR*0.2, maxR:aoeR, age:0, maxAge:0.5 });
+        } else {
+          // Normal catapult AoE
+          const aoeR = bs.tw * 1.0;
+          const maxHit = p.maxAoeTargets || 5;
+          bs.enemies
+            .filter(e => !e.isDead && dist(impactX, impactY, e.x, e.y) < aoeR)
+            .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
+            .slice(0, maxHit)
+            .forEach(e => {
+              const markBonus = e.markedTimer > 0 ? (e.markedMult||1.35) : 1;
+              applyDmgToEnemy(e, Math.round(p.dmg * markBonus));
+              if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+            });
+          bs.explosions.push({ x: impactX, y: impactY, r: aoeR * 0.2, maxR: aoeR, age: 0, maxAge: 0.5 });
+        }
       } else if (p.special === 'inferno') {
         // already handled in updateTowers
       } else {
@@ -5607,32 +6504,171 @@ function updateProjectiles(dt) {
         if (target) {
           const _abHit = getAllianceBuffs();
           let hitDmg = p.dmg;
-          // Alliance crit: 10% chance for +bonus damage
-          if (_abHit.crit_bonus > 0 && Math.random() < 0.10) {
-            hitDmg = Math.round(hitDmg * (1 + _abHit.crit_bonus));
+
+          // ── Damage modifiers ──
+          if (p.ascendTierDmg) hitDmg += (ENEMY_TIER[target.type] || 1) * 10;
+
+          // Shatterfrost: check threshold BEFORE applying damage
+          let shatterKill = false;
+          if (p.ascendShatterfrost && target.slowTimer > 0 && !target.shattering) {
+            if (target.hp / target.maxHp <= 0.30) {
+              target.shattering = true;
+              shatterKill = true; // force instant kill below
+            } else {
+              hitDmg = Math.round(hitDmg * 3); // frozen but not at threshold — triple damage
+            }
           }
-          // Alliance boss damage bonus
-          if (_abHit.boss_dmg > 0 && target.type === 'boss') {
-            hitDmg = Math.round(hitDmg * (1 + _abHit.boss_dmg));
+
+          if (p.ascendDeadeyeShot) hitDmg = Math.round(hitDmg * 5);
+
+          // Alliance crit
+          if (_abHit.crit_bonus > 0 && Math.random() < 0.10) hitDmg = Math.round(hitDmg * (1 + _abHit.crit_bonus));
+          if (_abHit.boss_dmg > 0 && target.type === 'boss')  hitDmg = Math.round(hitDmg * (1 + _abHit.boss_dmg));
+
+          // Ricochet Array accumulated crit
+          if (p.ascendRicochet && p.ricochetCrit > 0 && Math.random() < p.ricochetCrit) hitDmg = Math.round(hitDmg * 1.8);
+
+          // Watchtower mark bonus
+          if (target.markedTimer > 0) hitDmg = Math.round(hitDmg * (target.markedMult || 1.35));
+
+          if (!shatterKill) applyDmgToEnemy(target, hitDmg);
+
+          // Alliance slow
+          if (_abHit.slow > 0) { target.alSlowTimer = Math.max(target.alSlowTimer||0, 1500); target.alSlowPct = _abHit.slow; }
+
+          // Ice tower slow application + Blizzard Spire Ice Nova
+          if (p.special === 'ice_tower') {
+            const wasAlreadyFrozen = target.slowTimer > 0;
+            target.slowTimer = p.ascendBlizzardSpire ? 4000 : 2000;
+            // Blizzard Spire: newly frozen → Ice Nova spreads freeze to nearby (on cooldown)
+            if (p.ascendBlizzardSpire && !wasAlreadyFrozen) {
+              const srcT = bs.towers.find(t => t.id === p.srcTowerId);
+              if (srcT && (srcT.ascendIceNovaCooldown || 0) <= 0) {
+                srcT.ascendIceNovaCooldown = 2.0;
+                bs.enemies
+                  .filter(e => !e.isDead && e.id !== target.id && dist(impactX, impactY, e.x, e.y) <= bs.tw * 2)
+                  .forEach(e => { e.slowTimer = Math.max(e.slowTimer||0, 2000); });
+                bs.explosions.push({ x:impactX, y:impactY, r:bs.tw*0.2, maxR:bs.tw*2, age:0, maxAge:0.4 });
+              }
+            }
           }
-          applyDmgToEnemy(target, hitDmg);
-          // Alliance slow (stacks multiplicatively with ice_tower)
-          if (_abHit.slow > 0) {
-            target.alSlowTimer = Math.max(target.alSlowTimer || 0, 1500);
-            target.alSlowPct   = _abHit.slow;
+
+          // Storm Repeater: increment turret counter — burst bolts don't count
+          if (p.ascendStormRepeater && !p.stormBolt) {
+            const srcT = bs.towers.find(t => t.id === p.srcTowerId);
+            if (srcT) {
+              srcT.ascendStormCount = (srcT.ascendStormCount || 0) + 1;
+              // When counter reaches 30, fire burst
+              if (srcT.ascendStormCount >= 30) {
+                srcT.ascendStormCount = 0; // Reset counter
+                // Fire 10 bolts in radial pattern
+                for (let i = 0; i < 10; i++) {
+                  const angle = (i / 10) * Math.PI * 2;
+                  const boltRange = srcT.range;
+                  const boltX = srcT.x + Math.cos(angle) * boltRange;
+                  const boltY = srcT.y + Math.sin(angle) * boltRange;
+
+                  // Create projectile aimed at radial position
+                  const newBolt = {
+                    ...p, id: Math.random(),
+                    tx: null, lastTx: null,
+                    x: srcT.x, y: srcT.y,
+                    stormBoltX: boltX, stormBoltY: boltY,
+                    stormBolt: true
+                  };
+                  bs.projectiles.push(newBolt);
+                }
+                bs.explosions.push({ x: srcT.x, y: srcT.y, r: srcT.r * 0.5, maxR: srcT.range * 0.3, age: 0, maxAge: 0.4 });
+              }
+            }
           }
-          if (p.special === 'ice_tower') target.slowTimer = 2000;
-          if (target.hp <= 0) killEnemy(target, null);
-          // Pierce: continue as new projectile toward next enemy
-          if (p.piercing > 0 && target) {
-            const nextTarget = bs.enemies
-              .filter(e => !e.isDead && e.id !== target.id && dist(p.x,p.y,e.x,e.y) <= (bs.tw*3))
-              .sort((a,b)=>b.dist-a.dist)[0];
-            if (nextTarget) {
+
+          const killed = shatterKill || target.hp <= 0;
+          if (killed && !target.isDead) {
+            const prevLen = bs.enemies.length;
+            // Shatterfrost: mark children to spawn at half HP
+            if (p.ascendShatterfrost) target._shatterSpawn = true;
+            killEnemy(target, null);
+            // Tier Slayer overflow to children
+            if (p.ascendTierDmg && target.hp < 0 && bs.enemies.length > prevLen) {
+              bs.enemies.slice(prevLen).forEach(e => { applyDmgToEnemy(e, -target.hp); if (e.hp <= 0) killEnemy(e, null); });
+            }
+            // Shatterfrost: spray ice shards to up to 5 nearby enemies
+            if (p.ascendShatterfrost && p.special === 'ice_tower') {
+              bs.enemies
+                .filter(e => !e.isDead && !e.isReached && dist(impactX, impactY, e.x, e.y) <= bs.tw * 2.5)
+                .slice(0, 5)
+                .forEach(ne => {
+                  const shardDmg = Math.round(p.dmg * 1.5);
+                  applyDmgToEnemy(ne, shardDmg);
+                  ne.slowTimer = Math.max(ne.slowTimer||0, 2000);
+                  if (ne.hp <= 0 && !ne.isDead) killEnemy(ne, null);
+                });
+              bs.explosions.push({ x:impactX, y:impactY, r:bs.tw*0.15, maxR:bs.tw*2.5, age:0, maxAge:0.4 });
+            }
+            // Watchtower: on marked enemy death, mark inherits to largest child
+            if (target.marked && bs.enemies.length > prevLen) {
+              const children = bs.enemies.slice(prevLen).filter(e => !e.isDead);
+              const biggest = children.sort((a,b) => b.maxHp - a.maxHp)[0];
+              if (biggest) { biggest.marked = true; biggest.markedTimer = 3000; biggest.markedMult = 1.2; biggest.markedBy = target.markedBy; }
+            }
+            // Deadeye: kill refund + kill streak
+            if (p.towerType === 'sniper') {
+              const srcT = bs.towers.find(t => t.id === p.srcTowerId);
+              if (srcT && srcT.ascendDeadeyeCount !== undefined) {
+                srcT.cooldown = 0; // instant next shot
+                srcT.ascendKillStreakTimer = Math.max(srcT.ascendKillStreakTimer||0, 3000);
+                srcT.ascendConsecHits = (srcT.ascendConsecHits || 0) + 1;
+                // Retarget spawned children immediately
+                if (bs.enemies.length > prevLen) {
+                  const firstChild = bs.enemies.slice(prevLen).find(e => !e.isDead);
+                  if (firstChild) {
+                    bs.projectiles.push({
+                      id:Math.random(), x:srcT.x, y:srcT.y, tx:firstChild.id, lastTx:null,
+                      speed:srcT.projectileSpeed||300, dmg:srcT.dmg,
+                      color:'#f0c040', special:srcT.special, radius:4,
+                      piercing:0, maxAoeTargets:1, towerType:'sniper', srcTowerId:srcT.id,
+                      vx:0, vy:0, _done:false,
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          // ── Post-hit chain effects ──
+
+          // Ricochet Array: bounce to furthest nearby enemy (up to 2 times)
+          if (p.ascendRicochet && p.bounceCount < 2) {
+            const ricPool = bs.enemies
+              .filter(e => !e.isDead && !p.bounceHit.has(e.id) && dist(impactX, impactY, e.x, e.y) <= bs.tw * 3.5)
+              .sort((a,b) => dist(impactX,impactY,b.x,b.y) - dist(impactX,impactY,a.x,a.y)); // furthest first
+            if (ricPool.length > 0) {
+              const bounce = ricPool[0];
+              const newBounceHit = new Set(p.bounceHit);
+              newBounceHit.add(bounce.id);
               bs.projectiles.push({
-                ...p, id: Math.random(), x: impactX, y: impactY,
-                tx: nextTarget.id, piercing: p.piercing - 1, _done: false,
+                ...p, id:Math.random(), x:impactX, y:impactY,
+                tx:bounce.id, dmg:Math.round(p.dmg*0.85), bounceCount:p.bounceCount+1,
+                bounceHit:newBounceHit, ricochetCrit:Math.min((p.ricochetCrit||0)+0.10, 0.60), _done:false,
               });
+            }
+          }
+
+          // Rapid Barrage: chain every 3rd hit
+          if (p.ascendChain) {
+            const srcTower = bs.towers.find(t => t.id === p.originTowerId);
+            if (srcTower) {
+              srcTower.ascendChainCount = (srcTower.ascendChainCount || 0) + 1;
+              if (srcTower.ascendChainCount % 3 === 0) {
+                bs.enemies
+                  .filter(e => !e.isDead && e.id !== target.id && dist(impactX,impactY,e.x,e.y) <= srcTower.range)
+                  .sort((a,b) => dist(impactX,impactY,a.x,a.y) - dist(impactX,impactY,b.x,b.y))
+                  .slice(0, 2)
+                  .forEach(ct => bs.projectiles.push({
+                    ...p, id:Math.random(), x:impactX, y:impactY, tx:ct.id, ascendChain:false, _done:false,
+                  }));
+              }
             }
           }
         }
@@ -5678,6 +6714,72 @@ function updateExplosions(dt) {
   if (!bs.explosions) bs.explosions = [];
   bs.explosions.forEach(ex => { ex.age += dt; });
   bs.explosions = bs.explosions.filter(ex => ex.age < ex.maxAge);
+  // Witch summon FX
+  if (bs.witchSummonFx) {
+    bs.witchSummonFx.forEach(fx => { fx.age += dt; });
+    bs.witchSummonFx = bs.witchSummonFx.filter(fx => fx.age < fx.maxAge);
+  }
+}
+
+// ── GROUND EFFECTS (craters, lava, ionized trails, shockwaves) ──
+function ptSegDist(px, py, x1, y1, x2, y2) {
+  const dx = x2-x1, dy = y2-y1, len2 = dx*dx+dy*dy;
+  if (len2 === 0) return dist(px, py, x1, y1);
+  const t = Math.max(0, Math.min(1, ((px-x1)*dx+(py-y1)*dy)/len2));
+  return dist(px, py, x1+t*dx, y1+t*dy);
+}
+
+function updateGroundEffects(dt) {
+  if (!bs.groundEffects) bs.groundEffects = [];
+  bs.groundEffects.forEach(g => {
+    g.age += dt;
+    // Lava grows over first 40% of lifetime
+    if (g.type === 'lava' && g.r < g.maxR) g.r = Math.min(g.maxR, g.r + (g.maxR - g.initR) / (g.maxAge * 0.4) * dt);
+    // Shockwave expands
+    if (g.type === 'shockwave') g.r = Math.min(g.maxR, g.maxR * (g.age / g.maxAge) * 3);
+
+    g._dmgTimer = (g._dmgTimer || 0) - dt;
+    if (g._dmgTimer <= 0) {
+      g._dmgTimer = 0.6;
+      if (g.type === 'crater') {
+        bs.enemies
+          .filter(e => !e.isDead && !e.isReached && dist(g.x, g.y, e.x, e.y) <= g.r)
+          .sort((a,b) => dist(g.x, g.y, a.x, a.y) - dist(g.x, g.y, b.x, b.y))
+          .slice(0, g.maxTargets || 999)
+          .forEach(e => {
+            applyDmgToEnemy(e, g.dmg);
+            e.burnStacks = Math.min((e.burnStacks || 0) + 1, 8);
+            e.burnTimer  = Math.max(e.burnTimer  || 0, 3000);
+            if (e.markedTimer > 0) applyDmgToEnemy(e, Math.round(g.dmg * 0.35)); // mark bonus
+            if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+          });
+      } else if (g.type === 'lava') {
+        bs.enemies.filter(e => !e.isDead && !e.isReached && dist(g.x, g.y, e.x, e.y) <= g.r).forEach(e => {
+          e.burnStacks = Math.min((e.burnStacks || 0) + 2, 8);
+          e.burnTimer  = Math.max(e.burnTimer  || 0, 4000);
+          // Children spawned inside lava start at max burn (tracked via spawnChildEnemy hook on parent)
+          e._inLava = true;
+        });
+      } else if (g.type === 'ionized') {
+        bs.enemies.filter(e => !e.isDead && !e.isReached && ptSegDist(e.x, e.y, g.x1, g.y1, g.x2, g.y2) <= 14).forEach(e => {
+          applyDmgToEnemy(e, g.dmg);
+          if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+        });
+      } else if (g.type === 'shockwave' && g.hitSet) {
+        const rLo = Math.max(0, g.r - 20), rHi = g.r + 6;
+        bs.enemies.filter(e => !e.isDead && !e.isReached && !g.hitSet.has(e.id)).forEach(e => {
+          const d2 = dist(g.x, g.y, e.x, e.y);
+          if (d2 >= rLo && d2 <= rHi) {
+            g.hitSet.add(e.id);
+            applyDmgToEnemy(e, g.dmg);
+            if (e._impactHit) { e.staggerTimer = Math.max(e.staggerTimer || 0, 1200); }
+            if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+          }
+        });
+      }
+    }
+  });
+  bs.groundEffects = bs.groundEffects.filter(g => g.age < g.maxAge);
 }
 
 function checkWaveEnd() {
@@ -5713,8 +6815,11 @@ function drawBattle() {
   for (let r=0;r<=bs.ROWS;r++) { ctx.beginPath();ctx.moveTo(0,r*bs.th);ctx.lineTo(w,r*bs.th);ctx.stroke(); }
 
   drawPath(ctx);
+  drawGroundEffects(ctx);
   bs.towers.forEach(t => drawTower(ctx, t));
-  bs.enemies.forEach(e => drawEnemy(ctx, e));
+  drawWitchSummonFx(ctx);
+  bs.enemies.filter(e => !ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
+  bs.enemies.filter(e =>  ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
   bs.projectiles.forEach(p => drawProjectile(ctx, p));
   if (bs.explosions) bs.explosions.forEach(ex => drawExplosion(ctx, ex));
   if (placingTower) drawPlacementPreview(ctx);
@@ -5871,29 +6976,157 @@ function drawTower(ctx, t) {
   ctx.textBaseline = 'middle';
   ctx.fillText(towerResearchLevels[t.towerId] || 0, t.x + t.r - 5, t.y - t.r + 5);
 
+  // Bombardment Engine attack counter
+  if (t.ascendBombardment && t.ascendShotCount > 0) {
+    const count = (t.ascendShotCount % 5) || 5; // Show 1-5
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = 'bold 16px Inter';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(count, t.x, t.y - t.r - 15);
+  }
+
+  // Storm Repeater burst counter
+  if (t.ascendStormRepeater) {
+    const count = t.ascendStormCount || 0;
+    ctx.fillStyle = '#4a9eff';
+    ctx.font = 'bold 16px Inter';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(count, t.x, t.y - t.r - 15);
+  }
+
   ctx.restore();
+}
+
+function drawWitchSummonFx(ctx) {
+  if (!bs.witchSummonFx || !bs.witchSummonFx.length) return;
+  bs.witchSummonFx.forEach(fx => {
+    const p = fx.age / fx.maxAge; // 0 → 1
+    ctx.save();
+    if (fx.type === 'cast') {
+      // Expanding purple ring emanating from the witch
+      const r = bs.tw * 2.5 * p;
+      const alpha = (1 - p) * 0.85;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(180, 60, 220, ${alpha})`;
+      ctx.lineWidth = 3 * (1 - p) + 1;
+      ctx.stroke();
+      // Inner softer ring
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r * 0.55, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(220, 130, 255, ${alpha * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (fx.type === 'portal') {
+      // Portal swirl at each spawn point
+      const fadeAlpha = p < 0.7 ? 1 : (1 - p) / 0.3;
+      const radius = bs.tw * 0.45 * Math.min(1, p * 2.5);
+      ctx.shadowColor = '#9030c0';
+      ctx.shadowBlur = 12;
+      // Outer ring
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(180, 60, 220, ${fadeAlpha * 0.95})`;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      // Dark vortex fill
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, radius * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(80, 0, 120, ${fadeAlpha * 0.65})`;
+      ctx.fill();
+      // Orbiting sparkle dots
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2 + p * Math.PI * 5;
+        ctx.beginPath();
+        ctx.arc(fx.x + Math.cos(angle) * radius * 0.85, fx.y + Math.sin(angle) * radius * 0.85, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220, 150, 255, ${fadeAlpha})`;
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  });
 }
 
 function drawEnemy(ctx, e) {
   if (e.isDead || e.isReached) return;
   ctx.save();
+  // Spawn scale-in animation
+  if ((e._spawnAnim || 0) > 0 && (e._spawnAnimDur || 0) > 0) {
+    const s = Math.max(0.01, 1 - e._spawnAnim / e._spawnAnimDur);
+    ctx.translate(e.x, e.y);
+    ctx.scale(s, s);
+    ctx.translate(-e.x, -e.y);
+  }
 
   const isBoss = e.type === 'boss';
 
-  // Boss glow
+  // Glow priorities: boss > burn > frostbite > mark > slow
   if (isBoss) {
-    ctx.shadowColor = '#f55a5a';
-    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#f55a5a'; ctx.shadowBlur = 20;
+  } else if ((e.burnStacks || 0) > 0) {
+    ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 10 + Math.min(e.burnStacks, 8) * 2;
+  } else if ((e.frostbiteStacks || 0) > 0) {
+    ctx.shadowColor = '#a0d0ff'; ctx.shadowBlur = 8;
+  } else if (e.markedTimer > 0) {
+    ctx.shadowColor = '#f0c040'; ctx.shadowBlur = 12;
   } else if (e.slowTimer > 0) {
-    ctx.shadowColor = '#4a8fff';
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#a050ff'; ctx.shadowBlur = 8;
   }
 
-  // Body circle
-  ctx.beginPath();
-  ctx.arc(e.x, e.y, e.size, 0, Math.PI*2);
-  ctx.fillStyle = e.color;
-  ctx.fill();
+  // Witch purple aura — only while summoning, radial gradient fill, no outline
+  if (e.type === 'witch' && (e._summoningTimer || 0) > 0) {
+    const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 400);
+    ctx.save();
+    const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.size * 1.15);
+    grad.addColorStop(0,   `rgba(200, 80, 255, ${0.55 * pulse})`);
+    grad.addColorStop(0.6, `rgba(160, 40, 220, ${0.30 * pulse})`);
+    grad.addColorStop(1,   `rgba(120, 0,  180, 0)`);
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size * 1.15, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+    ctx.beginPath(); // clear path so the later ctx.stroke() doesn't re-stroke this arc
+  }
+
+  // Witch sprite rendering
+  if (e.type === 'witch' && spriteAssets.witch?.isLoaded) {
+    const sprite = spriteAssets.witch;
+    const frameWidth = sprite.frameWidth;
+    const frameHeight = sprite.frameHeight;
+    const srcX = (e.spriteFrame || 0) * frameWidth;
+    const srcY = 0;
+
+    // Draw witch sprite centered on enemy position, scaled to roughly match size
+    const scale = (e.size * 2) / frameWidth; // Scale sprite to match expected size
+    const drawWidth = frameWidth * scale;
+    const drawHeight = frameHeight * scale;
+
+    ctx.drawImage(
+      sprite.image,
+      srcX, srcY,
+      frameWidth, frameHeight,
+      e.x - drawWidth / 2, e.y - drawHeight / 2,
+      drawWidth, drawHeight
+    );
+  } else if (e.type !== 'witch') {
+    // Body circle for non-witch enemies only
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size, 0, Math.PI*2);
+    ctx.fillStyle = e.color;
+    ctx.fill();
+  }
+
+  // Purple tint overlay when non-frost slowed
+  if (e.slowTimer > 0) {
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(150,60,220,0.45)';
+    ctx.fill();
+  }
   ctx.shadowBlur = 0;
 
   // Outline — darker version of fill
@@ -5907,13 +7140,68 @@ function drawEnemy(ctx, e) {
   ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.fill();
 
-  // Slow indicator — blue ring
-  if (e.slowTimer > 0) {
+  // Burn — orange pulsing ring
+  if ((e.burnStacks || 0) > 0) {
     ctx.beginPath();
-    ctx.arc(e.x, e.y, e.size + 2, 0, Math.PI*2);
-    ctx.strokeStyle = 'rgba(74,143,255,0.7)';
-    ctx.lineWidth = 2;
+    ctx.arc(e.x, e.y, e.size + 3, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,80,0,${0.5 + Math.min(e.burnStacks, 8) * 0.06})`;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+  }
+  // Frostbite — light blue outer ring
+  if ((e.frostbiteStacks || 0) > 0) {
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size + 4, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(160,210,255,${0.3 + Math.min(e.frostbiteStacks, 10) * 0.05})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  // Expose stacks — yellow/white crackle ring
+  if ((e.exposeStacks || 0) >= 5) {
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size + 5, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,230,80,${0.4 + Math.min(e.exposeStacks, 10) * 0.05})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // Watchtower mark — gold diamond ring
+  if (e.markedTimer > 0) {
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size + 6, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(240,192,64,0.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // Pinned — dark cross indicator
+  if ((e.pinnedTimer || 0) > 0) {
+    ctx.strokeStyle = 'rgba(180,80,200,0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(e.x - 5, e.y); ctx.lineTo(e.x + 5, e.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(e.x, e.y - 5); ctx.lineTo(e.x, e.y + 5); ctx.stroke();
+  }
+  // Staggered — bright yellow dashed ring during 2s stun
+  if ((e.staggerTimer || 0) > 0) {
+    const stunPulse = 0.7 + 0.3 * Math.sin(Date.now() / 150);
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size + 4, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255, 220, 40, ${0.9 * stunPulse})`;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  // Stun cooldown — faint grey dashed ring during 3s cooldown after stun
+  } else if ((e.ballistaStunCooldown || 0) > 0) {
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size + 4, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(160, 160, 160, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   // HP bar — only show if below 100%
@@ -5935,6 +7223,22 @@ function drawEnemy(ctx, e) {
 
 function drawProjectile(ctx, p) {
   ctx.save();
+
+  // Piercing bolt: thick rectangle for ascended range
+  if (p.pierceTravel) {
+    const angle = Math.atan2(p.pdy, p.pdx);
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle);
+    ctx.shadowColor = '#f0c060';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#c07820';
+    ctx.fillRect(-14, -4, 28, 8);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffe090';
+    ctx.fillRect(-12, -2, 24, 4);
+    ctx.restore();
+    return;
+  }
 
   // Enhanced projectile based on tower type
   if (p.towerType === 'archer') {
@@ -5972,7 +7276,32 @@ function drawProjectile(ctx, p) {
     ctx.fill();
   }
   else if (p.towerType === 'catapult') {
-    // Boulder with rotation and shadow
+    // Earthshatter missile
+    if (p.ascendEarthshatter) {
+      const angle = Math.atan2(p.vy || 0, p.vx || 0);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(angle);
+      // Missile body
+      ctx.shadowColor = 'rgba(100,50,0,0.6)';
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = '#d04040';
+      ctx.fillRect(-8, -3, 16, 6);
+      // Missile tip (pointed)
+      ctx.fillStyle = '#ff6060';
+      ctx.beginPath();
+      ctx.moveTo(8, -3);
+      ctx.lineTo(12, 0);
+      ctx.lineTo(8, 3);
+      ctx.fill();
+      // Missile fins
+      ctx.fillStyle = '#8b3030';
+      ctx.fillRect(-6, 3, 3, 3);
+      ctx.fillRect(-6, -6, 3, 3);
+      ctx.restore();
+      return;
+    }
+
+    // Normal catapult: Boulder with rotation and shadow
     const rotation = (p.x + p.y) * 0.1; // Spinning effect
     ctx.shadowColor = 'rgba(0,0,0,0.4)';
     ctx.shadowBlur = 4;
@@ -6089,6 +7418,93 @@ function drawProjectile(ctx, p) {
   ctx.restore();
 }
 
+function drawGroundEffects(ctx) {
+  if (!bs.groundEffects) return;
+  bs.groundEffects.forEach(g => {
+    const alpha = Math.max(0, 1 - g.age / g.maxAge);
+    ctx.save();
+    if (g.type === 'crater') {
+      // Burning crater: dark scorched circle with orange glow
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(80,20,0,${alpha * 0.55})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,100,0,${alpha * 0.85})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // Inner ember
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r * 0.4, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,60,0,${alpha * 0.3})`;
+      ctx.fill();
+    } else if (g.type === 'lava') {
+      // Lava pool: red-orange pulsing
+      const pulse = 0.85 + Math.sin(g.age * 5) * 0.15;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r * pulse, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(220,40,0,${alpha * 0.5})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,130,0,${alpha * 0.8})`;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    } else if (g.type === 'ionized') {
+      // Railgun trail: electric blue line
+      ctx.strokeStyle = `rgba(100,180,255,${alpha * 0.9})`;
+      ctx.lineWidth = 5;
+      ctx.shadowColor = '#4af'; ctx.shadowBlur = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(g.x1, g.y1);
+      ctx.lineTo(g.x2, g.y2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (g.type === 'shockwave') {
+      // Expanding shockwave ring
+      const progress = g.age / g.maxAge;
+      const curR = g.maxR * Math.min(1, progress * 3);
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, curR, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255,220,80,${alpha * 0.9})`;
+      ctx.lineWidth = 4 * (1 - progress);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, curR * 0.85, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255,140,30,${alpha * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (g.type === 'ballistaCrater') {
+      // Heavy Ballista impact crater: 8-pointed star with electric blue
+      const progress = g.age / g.maxAge;
+      const curR = g.maxR * Math.min(1, progress * 3);
+      const points = 8;
+
+      // Draw star shape
+      ctx.beginPath();
+      for (let i = 0; i < points * 2; i++) {
+        const angle = (i / (points * 2)) * Math.PI * 2;
+        const radius = i % 2 === 0 ? curR : curR * 0.5;
+        const x = g.x + Math.cos(angle) * radius;
+        const y = g.y + Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = `rgba(100,200,255,${alpha * 0.3})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(100,200,255,${alpha * 0.85})`;
+      ctx.lineWidth = 3 * (1 - progress * 0.5);
+      ctx.stroke();
+
+      // Inner core
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, curR * 0.35, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(200,230,255,${alpha * 0.4})`;
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
 function drawExplosion(ctx, ex) {
   const progress = ex.age / ex.maxAge;
   const maxR = ex.maxR || ex.r;
@@ -6183,8 +7599,12 @@ async function showResultScreen(won) {
   let serverReward = {}, firstClear = true;
 
   const isPvpStage = bs?.stageId?.startsWith('pvp-');
+  const isSandboxStage = bs?.stageId?.startsWith('sandbox-');
 
-  if (isPvpStage) {
+  if (isSandboxStage) {
+    // Sandbox: no server call, no campaign progress
+    firstClear = false;
+  } else if (isPvpStage) {
     // PVP battle ended — handle win/lose, animate tile, apply cooldown
     if (pvpPendingTile) {
       await pvpBattleEnded(pvpPendingTile, !!won);
@@ -6259,7 +7679,7 @@ async function showResultScreen(won) {
     } finally {
       currentBattleId = null;
     }
-  } else if (won && stage && !isPvpStage) {
+  } else if (won && stage && !isPvpStage && !isSandboxStage) {
     // idw_start_battle failed (no battleId) — record stage locally so map advances
     firstClear = !campCompletedStages.has(stage);
     campCompletedStages.add(stage);
@@ -6280,9 +7700,15 @@ async function showResultScreen(won) {
   // (Removed duplicate addXP call to prevent double-counting)
 
   // Check if there's a next stage available
-  const stageIdx = CAMPAIGN_STAGES.findIndex(s => s.id === stage);
-  const nextStage = CAMPAIGN_STAGES[stageIdx + 1];
-  const hasNextStage = won && nextStage && !isPvpStage;
+  let hasNextStage = false, nextStageId = null, nextStageFn = 'openBattleSetup';
+  if (isSandboxStage) {
+    const sbNum = parseInt(stage.split('-')[1]);
+    if (won && sbNum < 50) { hasNextStage = true; nextStageId = `sandbox-${sbNum + 1}`; nextStageFn = 'startSandboxBattle'; }
+  } else {
+    const stageIdx = CAMPAIGN_STAGES.findIndex(s => s.id === stage);
+    const nextStage = CAMPAIGN_STAGES[stageIdx + 1];
+    if (won && nextStage && !isPvpStage) { hasNextStage = true; nextStageId = nextStage.id; }
+  }
 
   // Build reward rows
   const rewardRows = [];
@@ -6314,15 +7740,26 @@ async function showResultScreen(won) {
         </div>`).join('')}</div>`
     : won ? '' : `<div style="color:var(--text3);font-size:13px;margin-bottom:1rem;">Better luck next time, Commander.</div>`;
 
+  const resultSub = isSandboxStage
+    ? (won ? `Sandbox ${parseInt(stage.split('-')[1])} cleared!` : `Fell on Wave ${bs.wave}`)
+    : (won ? `Stage ${stage} complete!` : `Your base fell on Wave ${bs.wave}`);
+
+  const sandboxStatsHtml = isSandboxStage ? `
+    <div class="sandbox-result-stats">
+      <div class="sandbox-result-stat"><span class="sandbox-result-icon">💰</span><span class="sandbox-result-label">Gold Remaining</span><span class="sandbox-result-val">${bs.gold.toLocaleString()}</span></div>
+      <div class="sandbox-result-stat"><span class="sandbox-result-icon">❤️</span><span class="sandbox-result-label">Health Remaining</span><span class="sandbox-result-val">${bs.lives.toLocaleString()} / 10,000</span></div>
+    </div>` : '';
+
   box.innerHTML = `
     <div class="result-title ${won?'victory':'defeat'}">${won?'🏆 Victory!':'💀 Defeated'}</div>
-    <div class="result-sub">${won?`Stage ${stage} complete!`:`Your base fell on Wave ${bs.wave}`}</div>
+    <div class="result-sub">${resultSub}</div>
     ${badgeHtml}
+    ${sandboxStatsHtml}
     ${rewardsHtml}
     <div class="result-btns">
       <button class="result-btn secondary" onclick="closeBattleScreen(false)">← Exit</button>
-      ${won && hasNextStage
-        ? `<button class="result-btn next" onclick="closeBattleScreen(false);setTimeout(()=>openBattleSetup('${nextStage.id}'),200)">Next Stage →</button>`
+      ${hasNextStage
+        ? `<button class="result-btn next" onclick="closeBattleScreen(false);setTimeout(()=>${nextStageFn}('${nextStageId}'),200)">Next Stage →</button>`
         : ''}
       <button class="result-btn ${won?'secondary':'primary'}" onclick="replayBattle()">${won?'🔄 Replay':'↩ Retry'}</button>
     </div>`;
@@ -6340,7 +7777,11 @@ async function showResultScreen(won) {
 function replayBattle() {
   document.getElementById('result-overlay').style.display = 'none';
   _lastHudGold = -1;
-  openBattleSetup(battleSetupStageId);
+  if (battleSetupStageId?.startsWith('sandbox-')) {
+    startSandboxBattle(battleSetupStageId);
+  } else {
+    openBattleSetup(battleSetupStageId);
+  }
 }
 
 function exitBattle() {
@@ -8628,7 +10069,7 @@ async function alSubmitCreate() {
 }
 
 function switchSection(name){
-  ['base','campaign','pvp','alliance'].forEach(s=>{
+  ['base','campaign','pvp','alliance','sandbox','hero'].forEach(s=>{
     const el=document.getElementById('section-'+s);
     if(el) el.style.display=s===name?'flex':'none';
     const btn=document.getElementById('nav-'+s);
@@ -8649,6 +10090,9 @@ function switchSection(name){
     buildCampaignMap(); // Ensure map updates with correct world/stage
     updateCampaignInfo();
   }
+
+  // Build sandbox map when switching to it
+  if (name === 'sandbox') buildSandboxMap();
 
   // Init PVP map when switching to it
   if(name === 'pvp') {
@@ -8709,7 +10153,7 @@ function switchBaseTab(name){
 let toastTimer=null;
 function showToast(msg){
   const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
+  t.innerHTML=msg; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
 }
