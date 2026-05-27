@@ -117,10 +117,6 @@
           console.error('Failed to load sprite sheet. Make sure the file exists at:', imagePath);
         };
 
-        // Movement
-        this.time = 0;
-        this.moveRadius = 80;
-        this.moveSpeed = 0.01;
 
         // Zoom
         this.zoomLevel = 1.0;
@@ -136,10 +132,7 @@
           this.currentFrame = (this.currentFrame + 1) % this.frameCount;
         }
 
-        // Update position (circular movement)
-        this.time += this.moveSpeed;
-        this.x = canvas.width / 2 + Math.cos(this.time) * this.moveRadius;
-        this.y = canvas.height / 2 + Math.sin(this.time) * this.moveRadius;
+
       }
 
       draw() {
