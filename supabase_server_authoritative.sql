@@ -496,14 +496,20 @@ end $$;
 create or replace function public.idw_collect_resource(p_res_id text, p_tier_idx integer)
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare
-  p          public.idw_player_state;
-  ns         jsonb;
-  amount     int;
-  n          jsonb;
-  now_ms     numeric := extract(epoch from now())*1000;
-  v_terr     int     := 0;
-  v_prod_bon numeric := 0;
-  v_mult     numeric := 1.0;
+  p            public.idw_player_state;
+  ns           jsonb;
+  amount       int;
+  n            jsonb;
+  now_ms       numeric := extract(epoch from now())*1000;
+  v_terr       int     := 0;
+  v_prod_bon   numeric := 0;
+  v_mult       numeric := 1.0;
+  v_silo_bonus numeric := 0;
+  v_cap        int;
+  v_cur_res    int;
+  v_space      int;
+  v_collected  int;
+  v_leftover   int;
 begin
   if p_res_id not in ('wood','stone','fiber','leather','ore') or p_tier_idx not between 0 and 4
     then raise exception 'Invalid node'; end if;
@@ -531,12 +537,37 @@ begin
 
   amount := greatest(1, floor(amount::numeric * v_mult)::int);
 
-  ns := jsonb_set(ns, '{storedAmount}', '0'::jsonb, true);
+  -- Compute silo inventory capacity (mirrors client-side totalCapacity)
+  if coalesce((p.research->'econ1_i'->>'done')::boolean, false)         then v_silo_bonus := v_silo_bonus + 0.15; end if;
+  if coalesce((p.research->'econ1_ii'->>'done')::boolean, false)        then v_silo_bonus := v_silo_bonus + 0.25; end if;
+  if coalesce((p.research->'econ1_iii'->>'done')::boolean, false)       then v_silo_bonus := v_silo_bonus + 0.40; end if;
+  if coalesce((p.research->'unified_econ_iv'->>'done')::boolean, false) then v_silo_bonus := v_silo_bonus + 0.60; end if;
+
+  select round((5000 + coalesce(sum(
+    case when coalesce((elem->>'unlocked')::boolean, false)
+      then round((array[10000,25000,60000,150000,400000])[idx] * power(1.5, greatest(coalesce((elem->>'level')::int, 1), 1) - 1))
+      else 0
+    end
+  ), 0)) * (1 + v_silo_bonus))::int
+  into v_cap
+  from jsonb_array_elements(p.silo->p_res_id) with ordinality as t(elem, idx);
+
+  -- Cap collected amount to available inventory space; leftover stays in the node
+  v_cur_res   := coalesce((p.resources->>p_res_id)::int, 0);
+  v_space     := greatest(0, v_cap - v_cur_res);
+  v_collected := least(amount, v_space);
+
+  -- Nothing fits — leave the node completely untouched so it keeps accumulating naturally
+  if v_collected <= 0 then return public.idw_get_state(); end if;
+
+  v_leftover  := amount - v_collected;
+
+  ns := jsonb_set(ns, '{storedAmount}', to_jsonb(v_leftover), true);
   ns := jsonb_set(ns, '{lastCollectAt}', to_jsonb(now_ms), true);
   n  := jsonb_set(p.nodes, array[p_res_id, p_tier_idx::text], ns, true);
 
   update public.idw_player_state
-    set resources  = public.idw_apply_resource_delta(resources, jsonb_build_object(p_res_id, amount)),
+    set resources  = public.idw_apply_resource_delta(resources, jsonb_build_object(p_res_id, v_collected)),
         nodes      = n,
         updated_at = now()
   where user_id = p.user_id

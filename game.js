@@ -4942,19 +4942,26 @@ async function startBattle() {
   }
 
   spawnHero(); // spawn hero companion if one is selected
+
+  // Reset Commander state for this battle
+  commanderPlacing = false;
+  _cmdPreview      = null;
+
   renderShop(); updateBattleHUD(); showShopPanel();
   placingTower = null; selectedTowerId = null;
   document.getElementById('result-overlay').style.display = 'none';
   // (hud-wave-count dropdown removed — single send-wave button now used)
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
-  canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
+  canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; if (bs?.hero) bs.hero.selected = false; showShopPanel(); };
   startBattleLoop();
   // Show pending towers bar so player knows to place their armory towers
   updatePendingTowersBar();
   if (pendingTowersQueue.length > 0) {
     startPlacingPendingTower(0); // auto-select first tower to place
   }
-  showToast('⚔️ Place your towers then send waves!');
+  // Enter Commander placement mode — wave button locked until Commander is placed
+  enterCommanderPlacingMode();
+  showToast('⚔️ Place your Commander on the road, then place towers and send waves!');
 }
 
 function updatePendingTowersBar() {
@@ -5198,6 +5205,8 @@ function handleCanvasMouseMove(e) {
   const r = e.target.getBoundingClientRect();
   const rawX = e.clientX - r.left;
   const rawY = e.clientY - r.top;
+  // Live Commander placement preview
+  if (commanderPlacing) _cmdUpdatePreview(rawX, rawY);
   if (placingTower) {
     mousePos.x = Math.floor(rawX / GRID_SNAP) * GRID_SNAP + (GRID_SNAP / 2);
     mousePos.y = Math.floor(rawY / GRID_SNAP) * GRID_SNAP + (GRID_SNAP / 2);
@@ -5212,6 +5221,12 @@ function handleCanvasClick(e) {
   const rect = e.target.getBoundingClientRect();
   const rawX = e.clientX - rect.left;
   const rawY = e.clientY - rect.top;
+
+  // Commander placement: intercept click before anything else
+  if (commanderPlacing && _cmdTryPlace(rawX, rawY)) return;
+
+  // Hero click: select hero or move selected hero
+  if (!placingTower && bs.hero && _heroHandleCanvasClick(rawX, rawY)) return;
 
   if (placingTower) {
     const x = mousePos.x, y = mousePos.y;
@@ -5272,6 +5287,11 @@ window.deselectTower = deselectTower;
 // ── WAVE MANAGEMENT ──
 function startNextWave() {
   if (!bs || bs.gameOver || bs.victory) return;
+  // Commander must be placed before the first wave
+  if (!bs.commanderPlaced) {
+    showToast('⚔️ Place your Commander on the road first!');
+    return;
+  }
   if (bs.wave >= 10) return;
   launchWave();
 }
@@ -5502,52 +5522,72 @@ const ASCEND_DEFS = {
 const HERO_DEFS = {
   warlord: {
     name: 'Warlord', icon: '⚔️', color: '#e05030',
-    hp: 500, atk: 35, atkSpeed: 1500, range: 1.4,
-    positioning: 'front',
-    passive: 'Iron Skin: Takes 30% less damage from enemies.',
+    type: 'melee',
+    stats: {
+      maxHP: 500, atk: 30, atkSpeed: 1000,
+      range: 1.2,        // tiles — melee reach
+      moveSpeed: 110,    // px/sec
+      armor: 8,          // flat damage reduction per hit
+      blockCapacity: 3,  // max enemies simultaneously held
+      respawnTime: 15000,
+    },
+    passive: 'Iron Skin: Takes reduced damage from enemies.',
     abilities: [
       { id: 'shield_bash', name: 'Shield Bash', icon: '🛡️', energy: 25, cooldown: 8000,
-        desc: 'Stuns nearest enemy for 1.5s and deals 2× attack damage.' },
+        desc: 'Stuns nearest enemy for 1.5s and deals 2× ATK.' },
       { id: 'war_cry', name: 'War Cry', icon: '📯', energy: 30, cooldown: 15000,
-        desc: 'Boosts all tower attack speed by 20% for 5s. Auto-triggers below 30% HP.' },
+        desc: 'Boosts all tower attack speed by 20% for 5s.' },
     ],
     ultimate: { id: 'berserker', name: 'Berserker Rage', icon: '🔥', energy: 80, cooldown: 45000,
-      desc: 'Enter a rage for 8s: 3× damage, 50% faster attacks.' }
+      desc: '3× damage, 50% faster attacks for 8s.' }
   },
   sentinel: {
     name: 'Sentinel', icon: '🏹', color: '#4090e0',
-    hp: 300, atk: 50, atkSpeed: 2000, range: 4.0,
-    positioning: 'back',
-    passive: 'Headshot: 15% chance to critically strike for 3× damage.',
+    type: 'ranged',
+    stats: {
+      maxHP: 280, atk: 45, atkSpeed: 1800,
+      range: 3.5, moveSpeed: 100, armor: 3,
+      blockCapacity: 0,  // ranged — does not block enemies
+      respawnTime: 12000,
+    },
+    passive: 'Headshot: 15% chance to deal 3× damage.',
     abilities: [
       { id: 'piercing_shot', name: 'Piercing Shot', icon: '🎯', energy: 20, cooldown: 8000,
-        desc: 'Fires a bolt that pierces all enemies in a line for full damage.' },
+        desc: 'Pierces all enemies in a line for full damage.' },
       { id: 'eagle_eye', name: 'Eagle Eye', icon: '👁️', energy: 30, cooldown: 12000,
         desc: 'Marks all enemies in range — they take +35% damage for 5s.' },
     ],
     ultimate: { id: 'rain_of_arrows', name: 'Rain of Arrows', icon: '🌧️', energy: 80, cooldown: 45000,
-      desc: 'Rains arrows on all enemies in range for 3s, dealing rapid hits.' }
+      desc: 'Rapid hits to all enemies in range for 3s.' }
   },
   shaman: {
     name: 'Shaman', icon: '🌿', color: '#40c070',
-    hp: 280, atk: 0, atkSpeed: 0, range: 3.0,
-    positioning: 'center',
+    type: 'support',
+    stats: {
+      maxHP: 260, atk: 18, atkSpeed: 2200,
+      range: 2.5, moveSpeed: 90, armor: 4,
+      blockCapacity: 1, respawnTime: 12000,
+    },
     passive: 'Mending Aura: Towers within range attack 12% faster.',
     abilities: [
       { id: 'hex', name: 'Hex', icon: '🔮', energy: 25, cooldown: 12000,
-        desc: 'Curses the strongest enemy in range: slows 50% for 4s.' },
+        desc: 'Slows strongest enemy in range 50% for 4s.' },
     ],
     ultimate: { id: 'ancestral_wrath', name: 'Ancestral Wrath', icon: '⚡', energy: 80, cooldown: 45000,
       desc: 'Enemies in range take 3× damage for 6s.' }
   },
   necromancer: {
     name: 'Necromancer', icon: '💀', color: '#9040c0',
-    hp: 380, atk: 22, atkSpeed: 2500, range: 2.5,
-    positioning: 'mid',
-    passive: 'Raise Dead: 25% chance on kill to raise a skeleton ally. Soul Drain heals 5% HP per kill.',
+    type: 'summoner',
+    stats: {
+      maxHP: 350, atk: 20, atkSpeed: 2000,
+      range: 2.0, moveSpeed: 95, armor: 5,
+      blockCapacity: 2, respawnTime: 18000,
+    },
+    passive: 'Raise Dead: 25% chance on kill to raise a skeleton. Soul Drain heals 5% HP per kill.',
     abilities: [],
     ultimate: { id: 'army_of_darkness', name: 'Army of Darkness', icon: '🪦', energy: 80, cooldown: 30000,
-      desc: 'Instantly raise up to 5 powerful skeleton allies for 12s.' }
+      desc: 'Raise up to 5 powerful skeleton allies for 12s.' }
   }
 };
 
@@ -5573,46 +5613,54 @@ function _heroHexToRgb(hex) {
   return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
 }
 
-function getHeroSpawnPosition() {
+// ── Spawn hero at battle start ──────────────────────────────────────────────
+function spawnHero() {
+  if (!heroState || !HERO_DEFS[heroState.heroId]) { bs.hero = null; return; }
   const hd = HERO_DEFS[heroState.heroId];
+
+  // Spawn point: near last waypoint, offset off the path
   const wp = bs.waypoints;
-  const len = wp.length;
-  let wpIdx;
-  if      (hd.positioning === 'front')  wpIdx = Math.round(len * 0.75);
-  else if (hd.positioning === 'back')   wpIdx = Math.round(len * 0.15);
-  else if (hd.positioning === 'center') wpIdx = Math.round(len * 0.5);
-  else                                  wpIdx = Math.round(len * 0.35);
-  wpIdx = Math.max(0, Math.min(wpIdx, len - 2));
-  const base = wp[wpIdx];
-  const next = wp[wpIdx + 1];
+  const spawnWp = Math.max(0, wp.length - 3);
+  const base = wp[spawnWp];
+  const next = wp[Math.min(spawnWp + 1, wp.length - 1)];
   const dx = next.x - base.x, dy = next.y - base.y;
   const d  = Math.sqrt(dx*dx + dy*dy) || 1;
-  const px = -dy/d, py = dx/d; // perpendicular to path direction
-  const offset = bs.tw * 1.5;
-  return {
-    x: Math.max(bs.tw * 0.5, Math.min(bs.tw  * (bs.COLS - 0.5), base.x + px * offset)),
-    y: Math.max(bs.th * 0.5, Math.min(bs.th * (bs.ROWS - 0.5), base.y + py * offset)),
+  const px = -dy/d, py = dx/d; // perpendicular
+  const offset = bs.tw * 1.6;
+  const rx = Math.max(bs.tw * 0.6, Math.min(bs.tw * (bs.COLS - 0.6), base.x + px * offset));
+  const ry = Math.max(bs.th * 0.6, Math.min(bs.th * (bs.ROWS - 0.6), base.y + py * offset));
+
+  bs.hero = {
+    heroId: heroState.heroId, hd,
+    // Position & movement
+    x: rx, y: ry,
+    destX: rx, destY: ry,
+    destMarker: null,
+    facing: 1,
+    // State machine
+    state: 'idle',   // idle | moving | attacking | dead | respawning
+    stateTimer: 0,
+    selected: false,
+    // Stats
+    hp: hd.stats.maxHP, maxHp: hd.stats.maxHP,
+    // Combat
+    atkCooldown: 0,
+    attackTarget: null,    // enemy id
+    blockedSet: new Set(), // ids of enemies being held
+    // Respawn
+    respawnX: rx, respawnY: ry,
+    respawnTimer: 0,
+    // Visual
+    size: 18,
+    dmgFlashTimer: 0,
+    _spawnAnim: 400, _spawnAnimDur: 400,
   };
 }
 
-function spawnHero() {
-  if (!heroState || !HERO_DEFS[heroState.heroId]) { bs.hero = null; return; }
-  const hd  = HERO_DEFS[heroState.heroId];
-  const pos = getHeroSpawnPosition();
-  bs.hero = {
-    heroId: heroState.heroId, hd,
-    x: pos.x, y: pos.y,
-    hp: hd.hp, maxHp: hd.hp,
-    energy: 0, maxEnergy: 100,
-    atkCooldown: 0, abilityCooldowns: {}, ultCooldown: 0,
-    isDown: false, downTimer: 0,
-    skeletons: [],
-    berserkerTimer: 0, warCryTimer: 0,
-    ancestralWrathTimer: 0,
-    rainArrowTimer: 0, rainArrowTick: 0,
-    dmgFlashTimer: 0, size: 18,
-    _spawnAnim: 400, _spawnAnimDur: 400,
-  };
+// ── State machine ────────────────────────────────────────────────────────────
+function _heroSetState(h, state) {
+  h.state = state;
+  h.stateTimer = 0;
 }
 
 function updateHero(dt) {
@@ -5620,287 +5668,335 @@ function updateHero(dt) {
   if (!h) return;
   const dtMs = dt * 1000;
 
-  // Spawn animation
   if (h._spawnAnim > 0) { h._spawnAnim = Math.max(0, h._spawnAnim - dtMs); return; }
 
-  // Tick all cooldown timers
-  if (h.berserkerTimer      > 0) h.berserkerTimer      -= dtMs;
-  if (h.warCryTimer         > 0) h.warCryTimer         -= dtMs;
-  if (h.ancestralWrathTimer > 0) h.ancestralWrathTimer -= dtMs;
-  if (h.rainArrowTimer      > 0) h.rainArrowTimer      -= dtMs;
-  if (h.dmgFlashTimer       > 0) h.dmgFlashTimer       -= dtMs;
-  if (h.atkCooldown         > 0) h.atkCooldown         -= dtMs;
-  if (h.ultCooldown         > 0) h.ultCooldown         -= dtMs;
-  for (const k in h.abilityCooldowns) {
-    if (h.abilityCooldowns[k] > 0) h.abilityCooldowns[k] -= dtMs;
-  }
+  if (h.dmgFlashTimer > 0) h.dmgFlashTimer -= dtMs;
+  if (h.destMarker) { h.destMarker.timer -= dtMs; if (h.destMarker.timer <= 0) h.destMarker = null; }
+  h.stateTimer += dtMs;
 
-  // Downed — revive after 10s with 25% HP
-  if (h.isDown) {
-    h.downTimer -= dtMs;
-    if (h.downTimer <= 0) { h.isDown = false; h.hp = Math.round(h.maxHp * 0.25); }
-    updateHeroHUD(); return;
-  }
-
-  const hd    = h.hd;
-  const rangeR = hd.range * bs.tw;
-  const enemies = bs.enemies.filter(e => !e.isDead && !e.isReached);
-
-  // Tick Eagle Eye / Hex markers on enemies
-  enemies.forEach(e => {
-    if ((e.heroEagleEyeTimer || 0) > 0) {
-      e.heroEagleEyeTimer -= dtMs;
-      if (e.heroEagleEyeTimer <= 0) { e.heroEagleEye = false; e.heroEagleEyeTimer = 0; }
-    }
-    if ((e.hexTimer || 0) > 0) e.hexTimer -= dtMs;
+  // Clean up dead/escaped enemies from blocked set
+  h.blockedSet.forEach(id => {
+    const e = bs.enemies.find(en => en.id === id);
+    if (!e || e.isDead || e.isReached) { h.blockedSet.delete(id); }
   });
 
-  // Take damage from enemies physically overlapping the hero
-  enemies.forEach(e => {
-    if (dist(h.x, h.y, e.x, e.y) < e.size + h.size) {
-      let dmg = Math.max(0.5, Math.min(25, e.maxHp / 100)) * dt;
-      if (h.heroId === 'warlord') dmg *= 0.7; // Iron Skin passive
-      h.hp -= dmg;
-      h.dmgFlashTimer = 150;
-    }
-  });
-
-  if (h.hp <= 0) {
-    h.isDown = true; h.hp = 0; h.downTimer = 10000;
-    updateHeroHUD(); return;
+  switch (h.state) {
+    case 'idle':       _heroIdle(h, dt);       break;
+    case 'moving':     _heroMoving(h, dt);     break;
+    case 'attacking':  _heroAttacking(h, dt);  break;
+    case 'dead':       _heroDead(h, dt);       break;
+    case 'respawning': _heroRespawning(h, dt); break;
   }
 
-  const inRange = enemies.filter(e => dist(h.x, h.y, e.x, e.y) <= rangeR);
-
-  // Rain of Arrows — rapid hits every 0.2s to all in range
-  if (h.rainArrowTimer > 0) {
-    h.rainArrowTick = (h.rainArrowTick || 0) - dtMs;
-    if (h.rainArrowTick <= 0) {
-      h.rainArrowTick = 200;
-      inRange.forEach(e => {
-        applyDmgToEnemy(e, Math.round(hd.atk * 0.6));
-        if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
-      });
-    }
-  }
-
-  // Auto-attack: target furthest-along-path enemy in range
-  if (hd.atk > 0 && h.atkCooldown <= 0 && inRange.length > 0) {
-    inRange.sort((a,b) => b.dist - a.dist);
-    const target = inRange[0];
-    let dmg = hd.atk;
-    if (h.berserkerTimer > 0) dmg *= 3; // Berserker Rage
-    if (h.heroId === 'sentinel' && Math.random() < 0.15) dmg *= 3; // Headshot
-    if (target.heroEagleEye && (target.heroEagleEyeTimer || 0) > 0) dmg = Math.round(dmg * 1.35);
-    applyDmgToEnemy(target, Math.round(dmg));
-    if (target.hp <= 0 && !target.isDead) killEnemy(target, null);
-    h.energy = Math.min(h.maxEnergy, h.energy + 2);
-    h.atkCooldown = h.berserkerTimer > 0 ? hd.atkSpeed * 0.5 : hd.atkSpeed;
-  }
-
-  // Auto-trigger abilities when cooldown ready + enough energy
-  hd.abilities.forEach(ab => {
-    if ((h.abilityCooldowns[ab.id] || 0) > 0) return;
-    if (h.energy < ab.energy) return;
-    if (inRange.length === 0 && ab.id !== 'war_cry') return;
-    h.energy -= ab.energy;
-    h.abilityCooldowns[ab.id] = ab.cooldown;
-
-    if (ab.id === 'shield_bash') {
-      const t = inRange[0];
-      if (t) { applyDmgToEnemy(t, Math.round(hd.atk * 2)); t.staggerTimer = 1500; if (t.hp<=0&&!t.isDead) killEnemy(t,null); }
-    } else if (ab.id === 'war_cry') {
-      h.warCryTimer = 5000;
-    } else if (ab.id === 'piercing_shot') {
-      inRange.sort((a,b) => b.dist - a.dist);
-      const first = inRange[0];
-      if (first) {
-        const ldx = first.x - h.x, ldy = first.y - h.y;
-        const ld  = Math.sqrt(ldx*ldx + ldy*ldy) || 1;
-        const ndx = ldx/ld, ndy = ldy/ld;
-        inRange.forEach(e => {
-          const ex = e.x - h.x, ey = e.y - h.y;
-          const t = ex*ndx + ey*ndy;
-          if (t < 0 || t > rangeR) return;
-          const cx = ex - t*ndx, cy = ey - t*ndy;
-          if (Math.sqrt(cx*cx + cy*cy) < e.size * 2) {
-            applyDmgToEnemy(e, Math.round(hd.atk * 1.5));
-            if (e.hp<=0&&!e.isDead) killEnemy(e,null);
-          }
-        });
-      }
-    } else if (ab.id === 'eagle_eye') {
-      inRange.forEach(e => { e.heroEagleEye = true; e.heroEagleEyeTimer = 5000; });
-    } else if (ab.id === 'hex') {
-      inRange.sort((a,b) => b.hp - a.hp); // target strongest
-      const t = inRange[0];
-      if (t) { t.hexTimer = 4000; t.alSlowTimer = Math.max(t.alSlowTimer||0, 4000); t.alSlowPct = Math.max(t.alSlowPct||0, 0.5); }
-    }
-  });
-
-  // Warlord: auto-trigger War Cry when below 30% HP
-  if (h.heroId === 'warlord' && h.hp < h.maxHp * 0.3) {
-    const wcAb = hd.abilities.find(a => a.id === 'war_cry');
-    if (wcAb && (h.abilityCooldowns['war_cry'] || 0) <= 0 && h.energy >= wcAb.energy) {
-      h.energy -= wcAb.energy;
-      h.abilityCooldowns['war_cry'] = wcAb.cooldown;
-      h.warCryTimer = 5000;
-    }
-  }
-
-  // Ultimate: auto-trigger when energy full and cooldown ready
-  const ult = hd.ultimate;
-  if (ult && h.ultCooldown <= 0 && h.energy >= ult.energy) {
-    triggerHeroUltimate(h);
-  }
-
-  _updateHeroSkeletons(dt, h);
   updateHeroHUD();
 }
 
-function triggerHeroUltimate(h) {
-  const ult = h.hd.ultimate;
-  if (!ult) return;
-  h.energy -= ult.energy;
-  h.ultCooldown = ult.cooldown;
-  if (ult.id === 'berserker') {
-    h.berserkerTimer = 8000;
-  } else if (ult.id === 'rain_of_arrows') {
-    h.rainArrowTimer = 3000; h.rainArrowTick = 0;
-  } else if (ult.id === 'ancestral_wrath') {
-    h.ancestralWrathTimer = 6000;
-  } else if (ult.id === 'army_of_darkness') {
-    if (!h.skeletons) h.skeletons = [];
-    // Raise dead enemies nearby, fill remainder with fresh ones
-    const dead = bs.enemies.filter(e => e.isDead).slice(0, 5);
-    const positions = dead.map(e => ({x:e.x, y:e.y}));
-    while (positions.length < 3) {
-      positions.push({ x: h.x+(Math.random()-0.5)*bs.tw*2, y: h.y+(Math.random()-0.5)*bs.tw*2 });
+function _heroIdle(h, dt) {
+  // Slow HP regen when idle and not being attacked
+  if (h.blockedSet.size === 0) {
+    h.hp = Math.min(h.maxHp, h.hp + 3 * dt);
+  }
+  // Auto-engage: look for enemies within 1.3× attack range
+  const engR = h.hd.stats.range * bs.tw * 1.3;
+  const t = _heroFindTarget(h, engR);
+  if (t) { h.attackTarget = t.id; _heroSetState(h, 'attacking'); }
+}
+
+function _heroMoving(h, dt) {
+  const dx = h.destX - h.x, dy = h.destY - h.y;
+  const d  = Math.sqrt(dx*dx + dy*dy);
+  if (d < 4) { h.x = h.destX; h.y = h.destY; _heroSetState(h, 'idle'); return; }
+
+  const spd  = h.hd.stats.moveSpeed;
+  const move = Math.min(spd * dt, d);
+  h.x += (dx/d) * move;
+  h.y += (dy/d) * move;
+  h.facing = dx > 0 ? 1 : -1;
+  // Clamp to canvas
+  h.x = Math.max(h.size, Math.min(bs.tw * bs.COLS - h.size, h.x));
+  h.y = Math.max(h.size, Math.min(bs.th * bs.ROWS - h.size, h.y));
+
+  // Ranged / support heroes can fire while moving
+  if (h.hd.type !== 'melee') {
+    const t = _heroFindTarget(h, h.hd.stats.range * bs.tw);
+    if (t) { h.attackTarget = t.id; _heroTryAttack(h); }
+  }
+
+  // Auto-engage for melee when enemy enters range during movement
+  const t = _heroFindTarget(h, h.hd.stats.range * bs.tw);
+  if (t && h.hd.type === 'melee') { _heroSetState(h, 'attacking'); }
+}
+
+function _heroAttacking(h, dt) {
+  h.atkCooldown = Math.max(0, h.atkCooldown - dt * 1000);
+
+  // Validate / re-acquire target
+  let target = h.attackTarget
+    ? bs.enemies.find(e => e.id === h.attackTarget && !e.isDead && !e.isReached)
+    : null;
+  const atkR = h.hd.stats.range * bs.tw;
+
+  if (!target || dist(h.x, h.y, target.x, target.y) > atkR * 1.2) {
+    target = _heroFindTarget(h, atkR);
+    if (target) { h.attackTarget = target.id; }
+    else { h.attackTarget = null; _heroSetState(h, 'idle'); return; }
+  }
+
+  h.facing = target.x > h.x ? 1 : -1;
+
+  // Melee hero creeps toward target if not quite in reach
+  if (h.hd.type === 'melee') {
+    const d = dist(h.x, h.y, target.x, target.y);
+    if (d > atkR * 0.85) {
+      const tdx = target.x - h.x, tdy = target.y - h.y;
+      const tn  = Math.sqrt(tdx*tdx + tdy*tdy) || 1;
+      const creep = h.hd.stats.moveSpeed * 0.45 * dt;
+      h.x = Math.max(h.size, Math.min(bs.tw*bs.COLS-h.size, h.x + (tdx/tn)*creep));
+      h.y = Math.max(h.size, Math.min(bs.th*bs.ROWS-h.size, h.y + (tdy/tn)*creep));
     }
-    positions.slice(0,5).forEach(p => {
-      h.skeletons.push({ x:p.x, y:p.y, hp:120, maxHp:120, size:12,
-        dmg:Math.round(h.hd.atk*2), atkSpeed:1200, cooldown:0, timer:12000 });
-    });
+  }
+
+  _heroTryAttack(h);
+}
+
+function _heroDead(h, dt) {
+  h.respawnTimer -= dt * 1000;
+  if (h.respawnTimer <= 0) {
+    h.hp = h.maxHp;
+    h.x  = h.respawnX; h.y = h.respawnY;
+    h.attackTarget = null; h.atkCooldown = 0;
+    h._spawnAnim = 500; h._spawnAnimDur = 500;
+    _heroSetState(h, 'respawning');
   }
 }
 
-function _updateHeroSkeletons(dt, h) {
-  if (!h.skeletons || !h.skeletons.length) return;
-  const dtMs = dt * 1000;
-  h.skeletons = h.skeletons.filter(sk => {
-    sk.timer -= dtMs;
-    if (sk.timer <= 0) return false;
-    sk.cooldown = (sk.cooldown||0) - dtMs;
-    const alive = bs.enemies.filter(e => !e.isDead && !e.isReached);
-    if (!alive.length) return true;
-    let nearest = null, nearestD = Infinity;
-    alive.forEach(e => { const d=dist(sk.x,sk.y,e.x,e.y); if(d<nearestD){nearestD=d;nearest=e;} });
-    if (!nearest) return true;
-    const dx=nearest.x-sk.x, dy=nearest.y-sk.y, d=Math.sqrt(dx*dx+dy*dy)||1;
-    if (d > nearest.size + sk.size) {
-      sk.x += (dx/d)*60*dt; sk.y += (dy/d)*60*dt;
-    } else if (sk.cooldown <= 0) {
-      applyDmgToEnemy(nearest, sk.dmg);
-      if (nearest.hp<=0&&!nearest.isDead) killEnemy(nearest,null);
-      sk.cooldown = sk.atkSpeed;
-    }
-    return true;
-  });
+function _heroRespawning(h, dt) {
+  if (h._spawnAnim <= 0) _heroSetState(h, 'idle');
 }
 
+// ── Combat helpers ───────────────────────────────────────────────────────────
+function _heroFindTarget(h, range) {
+  const alive = bs.enemies.filter(e => !e.isDead && !e.isReached);
+
+  // Priority 1: blocked enemies already being held
+  const blocked = alive.filter(e => h.blockedSet.has(e.id));
+  if (blocked.length) return blocked[0];
+
+  // Priority 2: enemies within range, sorted furthest along path first
+  const inR = alive
+    .filter(e => dist(h.x, h.y, e.x, e.y) <= range)
+    .sort((a, b) => b.dist - a.dist);
+
+  return inR[0] || null;
+}
+
+function _heroTryAttack(h) {
+  if (h.atkCooldown > 0) return;
+  const target = h.attackTarget
+    ? bs.enemies.find(e => e.id === h.attackTarget && !e.isDead && !e.isReached)
+    : null;
+  if (!target) return;
+  if (dist(h.x, h.y, target.x, target.y) > h.hd.stats.range * bs.tw) return;
+
+  applyDmgToEnemy(target, h.hd.stats.atk);
+  if (target.hp <= 0 && !target.isDead) killEnemy(target, null);
+  h.atkCooldown    = h.hd.stats.atkSpeed;
+  h.dmgFlashTimer  = 80;
+}
+
+function _heroKill(h) {
+  if (h.state === 'dead' || h.state === 'respawning') return;
+  _heroReleaseAll(h);
+  h.hp           = 0;
+  h.selected     = false;
+  h.attackTarget = null;
+  h.respawnTimer = h.hd.stats.respawnTime;
+  _heroSetState(h, 'dead');
+}
+
+function _heroReleaseAll(h) {
+  h.blockedSet.forEach(id => {
+    const e = bs.enemies.find(en => en.id === id);
+    if (e) { e.blockedBy = null; e._heroAtkTimer = 0; }
+  });
+  h.blockedSet.clear();
+}
+
+// ── Movement command from player click ──────────────────────────────────────
+function setHeroDestination(x, y) {
+  const h = bs.hero;
+  if (!h || h.state === 'dead' || h.state === 'respawning') return false;
+
+  const m = h.size;
+  if (x < m || x > bs.tw * bs.COLS - m || y < m || y > bs.th * bs.ROWS - m) return false;
+
+  // Reject tower cells
+  const col = Math.floor(x / bs.tw), row = Math.floor(y / bs.th);
+  if (bs.towers.some(t => Math.floor(t.x/bs.tw)===col && Math.floor(t.y/bs.th)===row)) return false;
+
+  _heroReleaseAll(h); // release blocking enemies when hero moves away
+  h.destX = x; h.destY = y;
+  h.destMarker = { x, y, timer: 800 };
+  h.attackTarget = null;
+  _heroSetState(h, 'moving');
+  return true;
+}
+
+// ── Canvas click handler — called from handleCanvasClick ─────────────────────
+function _heroHandleCanvasClick(x, y) {
+  if (placingTower) return false;
+  const h = bs.hero;
+  if (!h || h.state === 'dead' || h.state === 'respawning') return false;
+
+  // Click on hero → toggle selection
+  if (dist(x, y, h.x, h.y) < h.size * 2.5) {
+    h.selected = !h.selected;
+    return true;
+  }
+
+  // Click on a placed tower → deselect hero, let tower logic handle it
+  if (bs.towers.some(t => dist(x, y, t.x, t.y) <= t.r + 6)) {
+    h.selected = false;
+    return false;
+  }
+
+  // Hero selected + valid canvas location → move
+  if (h.selected) {
+    setHeroDestination(x, y);
+    return true; // always consume to prevent deselecting towers accidentally
+  }
+
+  return false;
+}
+
+// ── Enemy blocking: called per-enemy inside updateEnemies ────────────────────
+// Returns true if enemy is held by hero and should skip its path movement.
+function _processHeroBlock(e, dt) {
+  const h = bs.hero;
+  if (!h || h.state === 'dead' || h.state === 'respawning') return false;
+  if (ENEMY_TYPES[e.type]?.isFlying)  return false; // flying enemies bypass hero
+  if (ENEMY_TYPES[e.type]?.bossImmune) return false; // boss immune enemies pass through
+
+  const blockR = h.size + e.size + 6;
+  const d = dist(h.x, h.y, e.x, e.y);
+
+  if (h.blockedSet.has(e.id)) {
+    // ── Already claimed: hold the enemy next to hero ──
+    const desired = h.size + e.size + 2;
+    if (d > desired + 1) {
+      const ex = h.x - e.x, ey = h.y - e.y;
+      const en = Math.sqrt(ex*ex + ey*ey) || 1;
+      const nudge = Math.min(e.speed * 0.35 * dt, d - desired);
+      e.x += (ex/en) * nudge;
+      e.y += (ey/en) * nudge;
+    }
+    // Enemy attacks hero every ~1.2s
+    e._heroAtkTimer = (e._heroAtkTimer || 0) - dt * 1000;
+    if (e._heroAtkTimer <= 0) {
+      e._heroAtkTimer = 1200;
+      const rawDmg = Math.max(1, Math.round(e.maxHp * 0.01));
+      const dmg    = Math.max(1, rawDmg - h.hd.stats.armor);
+      h.hp = Math.max(0, h.hp - dmg);
+      h.dmgFlashTimer = 150;
+      if (h.hp <= 0) _heroKill(h);
+    }
+    return true; // skip path movement
+  }
+
+  // ── Try to claim enemy ──
+  if (h.blockedSet.size < h.hd.stats.blockCapacity && d < blockR) {
+    h.blockedSet.add(e.id);
+    e.blockedBy = h.heroId;
+    // Make hero attack this enemy if not already fighting
+    if (h.state !== 'attacking') {
+      h.attackTarget = e.id;
+      _heroSetState(h, 'attacking');
+    }
+    return true;
+  }
+
+  return false;
+}
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
 function drawHero(ctx) {
   const h = bs.hero;
   if (!h) return;
 
-  // Skeletons drawn first (behind hero)
-  _drawHeroSkeletons(ctx, h);
+  // Dead: show pulsing respawn indicator at spawn point
+  if (h.state === 'dead') {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 350);
+    ctx.save();
+    ctx.globalAlpha = 0.55 * pulse;
+    ctx.beginPath();
+    ctx.arc(h.respawnX, h.respawnY, h.size * 1.6, 0, Math.PI*2);
+    ctx.strokeStyle = h.hd.color;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    ctx.beginPath();
+    return;
+  }
 
-  const spawnP = h._spawnAnimDur > 0 ? Math.min(1, 1 - h._spawnAnim/h._spawnAnimDur) : 1;
+  const spawnP = h._spawnAnimDur > 0 ? Math.min(1, 1 - h._spawnAnim / h._spawnAnimDur) : 1;
   const scale  = 0.3 + 0.7 * spawnP;
-  const alpha  = (h.isDown ? 0.3 : h.dmgFlashTimer > 0 ? 0.55 : 1.0) * spawnP;
+  const alpha  = h.dmgFlashTimer > 0 ? 0.5 : 1.0;
+
+  // Destination marker: fading target reticle
+  if (h.destMarker) {
+    const mp = Math.max(0, h.destMarker.timer / 800);
+    ctx.save();
+    ctx.globalAlpha = mp * 0.85;
+    ctx.beginPath();
+    ctx.arc(h.destMarker.x, h.destMarker.y, h.size * (0.5 + 0.5 * mp), 0, Math.PI*2);
+    ctx.strokeStyle = h.hd.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    ctx.beginPath();
+  }
 
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * spawnP;
   ctx.translate(h.x, h.y);
   ctx.scale(scale, scale);
 
-  const hd = h.hd;
-
-  // Shaman aura range indicator
-  if (h.heroId === 'shaman') {
+  // Selection ring — pulsing dashed white circle
+  if (h.selected) {
+    const sp = 0.65 + 0.35 * Math.sin(Date.now() / 280);
     ctx.beginPath();
-    ctx.arc(0, 0, hd.range * bs.tw / scale, 0, Math.PI*2);
-    ctx.strokeStyle = 'rgba(64,192,112,0.2)';
-    ctx.lineWidth = 1.5 / scale;
-    ctx.setLineDash([5, 5]);
+    ctx.arc(0, 0, h.size * 1.75, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,255,255,${sp})`;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
   }
 
-  // Active ultimate aura
-  if (h.berserkerTimer > 0 || h.ancestralWrathTimer > 0) {
-    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
-    const auC = h.berserkerTimer > 0
-      ? `rgba(255,100,30,${0.35*pulse})`
-      : `rgba(80,200,255,${0.35*pulse})`;
-    const g2 = ctx.createRadialGradient(0,0,h.size*0.5,0,0,h.size*3);
-    g2.addColorStop(0, auC); g2.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(0,0,h.size*3,0,Math.PI*2);
-    ctx.fillStyle = g2; ctx.fill();
-  }
-
   // Hero body
-  ctx.beginPath(); ctx.arc(0,0,h.size,0,Math.PI*2);
-  ctx.fillStyle   = h.isDown ? '#444' : hd.color; ctx.fill();
-  ctx.strokeStyle = h.isDown ? '#666' : 'rgba(255,255,255,0.75)';
-  ctx.lineWidth   = 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, h.size, 0, Math.PI*2);
+  ctx.fillStyle   = h.hd.color; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
 
-  // Icon
+  // Hero icon
   ctx.font = `${Math.round(h.size * 1.1)}px serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.globalAlpha = Math.max(0.25, alpha);
-  ctx.fillText(hd.icon, 0, 1);
+  ctx.globalAlpha = alpha * spawnP;
+  ctx.fillText(h.hd.icon, 0, 1);
 
-  // HP bar
-  const bW = h.size * 2.8, bY = -(h.size + 11);
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(-bW/2, bY, bW, 5);
+  // HP bar above hero
+  const bW = h.size * 2.8, bY = -(h.size + 10);
+  ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(-bW/2, bY, bW, 5);
   const hpR = Math.max(0, h.hp / h.maxHp);
   ctx.fillStyle = hpR > 0.5 ? '#44dd44' : hpR > 0.25 ? '#ffaa44' : '#ff4444';
-  ctx.fillRect(-bW/2, bY, bW*hpR, 5);
-
-  // Energy bar
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(-bW/2, bY-6, bW, 4);
-  ctx.fillStyle = '#a060f0';
-  ctx.fillRect(-bW/2, bY-6, bW*(h.energy/h.maxEnergy), 4);
-
-  // Downed: show revive countdown
-  if (h.isDown) {
-    ctx.font = `bold ${Math.round(h.size*0.75)}px Inter,sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#cccccc';
-    ctx.fillText(`${Math.ceil(h.downTimer/1000)}s`, 0, 0);
-  }
+  ctx.fillRect(-bW/2, bY, bW * hpR, 5);
 
   ctx.restore();
-  ctx.beginPath(); // clear any lingering arc path
-}
-
-function _drawHeroSkeletons(ctx, h) {
-  if (!h.skeletons || !h.skeletons.length) return;
-  h.skeletons.forEach(sk => {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, sk.timer / 1500);
-    ctx.translate(sk.x, sk.y);
-    ctx.beginPath(); ctx.arc(0,0,sk.size,0,Math.PI*2);
-    ctx.fillStyle = '#5030a0'; ctx.fill();
-    ctx.strokeStyle = 'rgba(180,120,255,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.font = `${sk.size * 1.1}px serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('💀', 0, 1);
-    ctx.restore();
-    ctx.beginPath();
-  });
+  ctx.beginPath(); // clear lingering arc paths
 }
 
 function updateHeroHUD() {
@@ -5909,18 +6005,21 @@ function updateHeroHUD() {
   const h = bs?.hero;
   if (!h) { w.style.display = 'none'; return; }
   w.style.display = 'flex';
+
   const iconEl = document.getElementById('hud-hero-icon-wd');
   const hpFill = document.getElementById('hud-hero-hp-fill');
-  const enFill = document.getElementById('hud-hero-en-fill');
   const statEl = document.getElementById('hud-hero-status');
+
   if (iconEl) iconEl.textContent = h.hd.icon;
-  if (hpFill) hpFill.style.width = `${Math.max(0,(h.hp/h.maxHp)*100).toFixed(1)}%`;
-  if (enFill) enFill.style.width = `${((h.energy/h.maxEnergy)*100).toFixed(1)}%`;
+  if (hpFill) {
+    const pct = h.state === 'dead' ? 0 : Math.max(0, (h.hp / h.maxHp) * 100);
+    hpFill.style.width      = `${pct.toFixed(1)}%`;
+    hpFill.style.background = pct > 50 ? '#44dd44' : pct > 25 ? '#ffaa44' : '#ff4444';
+  }
   if (statEl) {
-    if      (h.isDown)                statEl.textContent = `💫${Math.ceil(h.downTimer/1000)}s`;
-    else if (h.berserkerTimer      > 0) statEl.textContent = '🔥';
-    else if (h.ancestralWrathTimer > 0) statEl.textContent = '⚡';
-    else if (h.warCryTimer         > 0) statEl.textContent = '📯';
+    if      (h.state === 'dead')       statEl.textContent = `💀${Math.ceil(h.respawnTimer/1000)}s`;
+    else if (h.state === 'respawning') statEl.textContent = '✨';
+    else if (h.selected)               statEl.textContent = '🎯';
     else                               statEl.textContent = '';
   }
 }
@@ -5932,17 +6031,18 @@ function buildHeroPanel() {
   const selId = heroState?.heroId;
 
   let html = `<div style="margin-bottom:1.25rem;color:#8890b0;font-size:13px;text-align:center;">${
-    selId ? 'Your hero joins every battle automatically. Click to change.' : '👆 Select a hero class to bring them into battle.'
+    selId ? 'Your hero joins every battle automatically. Click/tap to move them. Click to change class.' : '👆 Select a hero class to bring into battle.'
   }</div>`;
   html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;max-width:620px;margin:0 auto;">';
 
   Object.entries(HERO_DEFS).forEach(([id, hd]) => {
     const isSel = id === selId;
-    const rgb   = _heroHexToRgb(hd.color);
-    const role  = hd.positioning === 'front' ? 'Frontline' : hd.positioning === 'back' ? 'Ranged' : hd.positioning === 'center' ? 'Support' : 'Mid-range';
+    const rgb  = _heroHexToRgb(hd.color);
+    const role = hd.type === 'melee' ? 'Melee' : hd.type === 'ranged' ? 'Ranged' : hd.type === 'support' ? 'Support' : 'Summoner';
+    const s = hd.stats;
     html += `
       <div onclick="selectHero('${id}')" style="cursor:pointer;background:${isSel?`rgba(${rgb},0.13)`:'rgba(255,255,255,0.04)'};border:2px solid ${isSel?hd.color:'rgba(255,255,255,0.1)'};border-radius:12px;padding:1rem;transition:border-color 0.15s;">
-        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
           <span style="font-size:2rem;">${hd.icon}</span>
           <div style="flex:1;">
             <div style="font-size:0.95rem;font-weight:700;color:#e4e8ff;">${hd.name}</div>
@@ -5950,9 +6050,15 @@ function buildHeroPanel() {
           </div>
           ${isSel?`<span style="color:${hd.color};font-size:11px;font-weight:700;">✓ ACTIVE</span>`:''}
         </div>
-        <div style="font-size:11px;color:#7080a0;margin-bottom:0.5rem;">❤️ ${hd.hp} HP &nbsp;⚔️ ${hd.atk||'—'} ATK &nbsp;📏 ${hd.range}t range</div>
-        <div style="font-size:11px;color:#a0c0e0;margin-bottom:0.5rem;line-height:1.5;"><span style="color:#f0c040;font-weight:600;">Passive:</span> ${hd.passive}</div>
-        <div style="font-size:11px;color:#9090c0;line-height:1.5;">${[...hd.abilities, hd.ultimate].map(ab=>`<div style="margin-bottom:2px;"><span style="color:#c0a0f0;">${ab.icon} ${ab.name}</span>: ${ab.desc}</div>`).join('')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:11px;color:#8890b0;margin-bottom:0.6rem;">
+          <span>❤️ HP: <b style="color:#e4e8ff">${s.maxHP}</b></span>
+          <span>⚔️ ATK: <b style="color:#e4e8ff">${s.atk}</b></span>
+          <span>🛡️ Armor: <b style="color:#e4e8ff">${s.armor}</b></span>
+          <span>🚫 Block: <b style="color:#e4e8ff">${s.blockCapacity}</b></span>
+          <span>📏 Range: <b style="color:#e4e8ff">${s.range}t</b></span>
+          <span>⏱️ Respawn: <b style="color:#e4e8ff">${s.respawnTime/1000}s</b></span>
+        </div>
+        <div style="font-size:11px;color:#a0c0e0;line-height:1.5;"><span style="color:#f0c040;font-weight:600;">Passive:</span> ${hd.passive}</div>
       </div>`;
   });
 
@@ -5961,6 +6067,875 @@ function buildHeroPanel() {
 }
 
 // ── END HERO SYSTEM ──────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARKET / GACHA SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+const GACHA_HEROES = [
+  { id:'iron_paladin',     name:'Iron Paladin',      icon:'🛡️', color:'#7aaad0',
+    passive:'Tower Defense',  passiveStat:'towerArmor',  desc:'+{v}% tower armor',          basePerLv:0.5 },
+  { id:'storm_archer',     name:'Storm Archer',      icon:'🏹', color:'#4a90d9',
+    passive:'Precision Aura', passiveStat:'towerDamage', desc:'+{v}% tower damage',         basePerLv:0.8 },
+  { id:'ember_witch',      name:'Ember Witch',        icon:'🔥', color:'#d9721e',
+    passive:'Gold Rush',      passiveStat:'goldBonus',   desc:'+{v}% gold from enemies',    basePerLv:1.0 },
+  { id:'shadow_rogue',     name:'Shadow Rogue',       icon:'🌑', color:'#8844c0',
+    passive:'Swift Strikes',  passiveStat:'towerSpeed',  desc:'+{v}% tower attack speed',   basePerLv:0.5 },
+  { id:'celestial_dragon', name:'Celestial Dragon',   icon:'🐉', color:'#d4a010',
+    passive:'Dragon Aura',    passiveStat:'allDamage',   desc:'+{v}% all damage',           basePerLv:1.5 },
+];
+
+const GACHA_RARITIES = [
+  { id:'common',    name:'Common',    color:'#8a8a8a', pts:1,  weight:550 },
+  { id:'uncommon',  name:'Uncommon',  color:'#2dba4e', pts:2,  weight:250 },
+  { id:'rare',      name:'Rare',      color:'#1e90ff', pts:4,  weight:120 },
+  { id:'epic',      name:'Epic',      color:'#b94cff', pts:8,  weight:50  },
+  { id:'legendary', name:'Legendary', color:'#f0a020', pts:15, weight:25  },
+  { id:'mystic',    name:'Mystic',    color:'#ff3d7f', pts:25, weight:5   },
+];
+
+// Cumulative power-point thresholds for each level (index 0 = Lv1 needs 0 pts)
+const GACHA_LV_THRESH = [0, 3, 8, 16, 30, 50, 80, 120, 180, 250];
+
+const GACHA_HARD_PITY = 80;   // guaranteed Legendary+ at this many rolls without one
+const GACHA_SOFT_PITY = 60;   // legendary rate starts boosting here
+const GACHA_EPIC_PITY = 10;   // guaranteed Epic+ every 10 rolls
+
+let marketState = null;
+
+function loadMarketState() {
+  try { marketState = JSON.parse(localStorage.getItem('idw_market')) || null; } catch(e) {}
+  if (!marketState) marketState = { gems:500, totalRolls:0, pityCount:0, epicPity:0, heroes:{} };
+}
+
+function saveMarketState() {
+  localStorage.setItem('idw_market', JSON.stringify(marketState));
+}
+
+function _gachaHeroLevel(pts) {
+  for (let i = GACHA_LV_THRESH.length - 1; i >= 0; i--)
+    if (pts >= GACHA_LV_THRESH[i]) return Math.min(i + 1, GACHA_LV_THRESH.length);
+  return 1;
+}
+
+function _gachaPassiveVal(gh, lv) {
+  return (gh.basePerLv * lv).toFixed(1);
+}
+
+// Returns all active passive bonus percentages from collected Market heroes
+function getMarketPassiveBonuses() {
+  if (!marketState) return {};
+  const out = {};
+  GACHA_HEROES.forEach(gh => {
+    const h = marketState.heroes[gh.id];
+    if (!h) return;
+    const lv  = _gachaHeroLevel(h.pts);
+    const val = gh.basePerLv * lv;
+    out[gh.passiveStat] = (out[gh.passiveStat] || 0) + val;
+  });
+  return out;
+}
+
+// ── Roll logic ──
+
+function _gachaRollRarity() {
+  // Hard pity: guaranteed Legendary+
+  if (marketState.pityCount >= GACHA_HARD_PITY) {
+    marketState.pityCount = 0; marketState.epicPity = 0;
+    return Math.random() < 0.8 ? 'legendary' : 'mystic';
+  }
+  // Epic pity: guaranteed Epic+ every 10 rolls
+  if (marketState.epicPity >= GACHA_EPIC_PITY) {
+    marketState.epicPity = 0;
+    const r = Math.random();
+    if (r < 0.60) return 'epic';
+    if (r < 0.85) return 'legendary';
+    return 'mystic';
+  }
+  // Build weight table with soft pity boost to legendary/mystic
+  const wt = GACHA_RARITIES.map(r => ({ id:r.id, w:r.weight }));
+  if (marketState.pityCount >= GACHA_SOFT_PITY) {
+    const sp = (marketState.pityCount - GACHA_SOFT_PITY) / (GACHA_HARD_PITY - GACHA_SOFT_PITY);
+    wt.find(w => w.id === 'legendary').w += sp * 400;
+    wt.find(w => w.id === 'mystic').w    += sp * 100;
+  }
+  const total = wt.reduce((s, w) => s + w.w, 0);
+  let roll = Math.random() * total;
+  for (const w of wt) { roll -= w.w; if (roll <= 0) return w.id; }
+  return 'common';
+}
+
+function _gachaDoRoll() {
+  const rarityId = _gachaRollRarity();
+  const hero   = GACHA_HEROES[Math.floor(Math.random() * GACHA_HEROES.length)];
+  const rarity = GACHA_RARITIES.find(r => r.id === rarityId);
+
+  // Update pity counters
+  marketState.pityCount++;
+  marketState.epicPity++;
+  if (['legendary','mystic'].includes(rarityId))        marketState.pityCount = 0;
+  if (['epic','legendary','mystic'].includes(rarityId)) marketState.epicPity  = 0;
+
+  // Add power points to hero
+  if (!marketState.heroes[hero.id]) marketState.heroes[hero.id] = { pts:0, level:1 };
+  const h = marketState.heroes[hero.id];
+  h.pts  += rarity.pts;
+  h.level = _gachaHeroLevel(h.pts);
+  marketState.totalRolls++;
+
+  return { hero, rarity };
+}
+
+// ── Wheel animation ──
+
+let _gachaAnimating = false;
+const _ITEM_H    = 72;    // px per strip item
+const _VISIBLE   = 5;     // items visible in viewport
+const _WINNER_I  = 3;     // winner index in the strip (near top so it scrolls into center from above)
+
+function rollGacha(count) {
+  if (_gachaAnimating) return;
+  if (!marketState) loadMarketState();
+  const cost = count === 1 ? 100 : 900;
+  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+
+  _gachaAnimating = true;
+  marketState.gems -= cost;
+
+  const results = [];
+  for (let i = 0; i < count; i++) results.push(_gachaDoRoll());
+  saveMarketState();
+
+  _gachaSetBtns(true);
+  _gachaSpinWheel(results[0], () => {
+    _gachaAnimating = false;
+    _gachaSetBtns(false);
+    renderGachaCollection();
+    updateMarketGemDisplay();
+    updatePityBar();
+    if (count > 1) _gachaShowMultiResult(results);
+    else            _gachaShowSingleResult(results[0]);
+  });
+}
+
+function _gachaSetBtns(disabled) {
+  ['roll-btn-1','roll-btn-10'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = disabled; el.style.opacity = disabled ? '0.5' : '1'; }
+  });
+}
+
+function _gachaSpinWheel(winnerResult, onDone) {
+  const strip = document.getElementById('gacha-strip');
+  if (!strip) { onDone(); return; }
+
+  const TOTAL = 28;
+
+  // Build strip items: winner at index _WINNER_I, rest are random fillers
+  strip.style.transition = 'none';
+  strip.innerHTML = '';
+  for (let i = 0; i < TOTAL; i++) {
+    const isWinner = (i === _WINNER_I);
+    const r = isWinner ? winnerResult : {
+      hero:   GACHA_HEROES[Math.floor(Math.random() * GACHA_HEROES.length)],
+      // Filler items skewed toward common/uncommon so winner stands out
+      rarity: (() => {
+        const fw = [60, 25, 10, 4, 1, 0.1];
+        const ft = fw.reduce((s, w) => s + w, 0);
+        let rr = Math.random() * ft;
+        for (let j = 0; j < GACHA_RARITIES.length; j++) { rr -= fw[j]; if (rr <= 0) return GACHA_RARITIES[j]; }
+        return GACHA_RARITIES[0];
+      })(),
+    };
+    strip.appendChild(_gachaMakeItem(r, isWinner));
+  }
+
+  // Container: VISIBLE * ITEM_H = 360px tall, center at 180px
+  const containerCenter = Math.floor(_VISIBLE / 2) * _ITEM_H + _ITEM_H / 2; // 180px
+  const winnerCenter    = _WINNER_I * _ITEM_H + _ITEM_H / 2;                // 252px
+  const finalY          = -(winnerCenter - containerCenter);                  // -72px
+
+  // Start position: strip pulled up so bottom of strip is in view.
+  // Then animating to finalY moves strip DOWN → items scroll top-to-bottom.
+  const spinItems = TOTAL - _WINNER_I - _VISIBLE - 1; // 19
+  const startY    = finalY - spinItems * _ITEM_H;      // -72 - 1368 = -1440px
+
+  strip.style.transform = `translateY(${startY}px)`;
+  void strip.offsetWidth; // force reflow before transition
+
+  strip.style.transition = `transform 3.2s cubic-bezier(0.08, 0.82, 0.17, 1)`;
+  strip.style.transform  = `translateY(${finalY}px)`;
+
+  setTimeout(onDone, 3400);
+}
+
+function _hexRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+function _gachaMakeItem({ hero, rarity }, isWinner) {
+  const div = document.createElement('div');
+  const rgb = _hexRgb(rarity.color);
+  div.style.cssText = `
+    height:${_ITEM_H}px;width:100%;display:flex;align-items:center;
+    padding:0 16px;gap:12px;box-sizing:border-box;
+    background:${isWinner
+      ? `linear-gradient(135deg,rgba(${rgb},0.28),rgba(${rgb},0.07))`
+      : 'rgba(255,255,255,0.02)'};
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    border-left:3px solid ${isWinner ? rarity.color : 'rgba(255,255,255,0.06)'};
+    ${isWinner ? `box-shadow:inset 0 0 22px rgba(${rgb},0.15);` : ''}
+  `;
+  div.innerHTML = `
+    <span style="font-size:${isWinner?'1.85':'1.45'}rem;line-height:1;flex-shrink:0;
+      ${isWinner?`filter:drop-shadow(0 0 8px rgba(${rgb},0.7));`:'opacity:0.6;'}">${hero.icon}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:${isWinner?'13':'11'}px;font-weight:${isWinner?'700':'500'};
+           color:${isWinner?rarity.color:'#606878'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
+      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':'#404858'};
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${hero.name}</div>
+    </div>
+    ${isWinner ? `<span style="color:${rarity.color};font-size:14px;">✦</span>` : ''}
+  `;
+  return div;
+}
+
+// ── Result modals ──
+
+function _gachaShowSingleResult({ hero, rarity }) {
+  const modal = document.getElementById('gacha-result-modal');
+  if (!modal) return;
+  const h   = marketState.heroes[hero.id];
+  const lv  = _gachaHeroLevel(h?.pts || 0);
+  const pv  = _gachaPassiveVal(hero, lv);
+  const rgb = _hexRgb(rarity.color);
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div style="background:#0e1220;border:2px solid ${rarity.color};border-radius:18px;padding:2rem 2.5rem;
+         text-align:center;max-width:300px;animation:gachaPopIn 0.28s ease;
+         box-shadow:0 0 60px rgba(${rgb},0.5),0 8px 32px rgba(0,0,0,0.6);">
+      <div style="font-size:3.5rem;margin-bottom:0.5rem;
+           filter:drop-shadow(0 0 16px rgba(${rgb},0.9));">${hero.icon}</div>
+      <div style="font-size:11px;font-weight:800;color:${rarity.color};letter-spacing:3px;
+           text-transform:uppercase;margin-bottom:6px;">${rarity.name}</div>
+      <div style="font-size:1.35rem;font-weight:800;color:#e8eeff;margin-bottom:6px;">${hero.name}</div>
+      <div style="font-size:12px;color:#7080a0;margin-bottom:1rem;line-height:1.5;">
+        ${hero.passive}: <b style="color:#f0e060;">+${pv}%</b> per level
+      </div>
+      <div style="display:flex;justify-content:center;gap:1.5rem;font-size:11px;color:#505870;margin-bottom:1.25rem;">
+        <span>Level <b style="color:#c8d4ff">${lv}</b></span>
+        <span>Power <b style="color:#f0c040">${h?.pts || 0} pts</b></span>
+      </div>
+      <button onclick="document.getElementById('gacha-result-modal').style.display='none'"
+        style="background:${rarity.color};color:#fff;border:none;padding:10px 34px;border-radius:9px;
+               cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;">✓ Collect</button>
+    </div>`;
+}
+
+function _gachaShowMultiResult(results) {
+  const modal = document.getElementById('gacha-result-modal');
+  if (!modal) return;
+  const grid = results.map(({ hero, rarity }) => {
+    const rgb = _hexRgb(rarity.color);
+    return `<div style="background:rgba(${rgb},0.1);border:1px solid rgba(${rgb},0.35);border-radius:10px;
+                 padding:10px 4px;text-align:center;border-top:3px solid ${rarity.color};">
+      <div style="font-size:1.5rem;line-height:1;">${hero.icon}</div>
+      <div style="font-size:9px;color:${rarity.color};font-weight:700;margin-top:4px;letter-spacing:0.5px;">${rarity.name}</div>
+      <div style="font-size:9px;color:#8090a8;margin-top:2px;">${hero.name}</div>
+    </div>`;
+  }).join('');
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div style="background:#0e1220;border:1px solid rgba(255,255,255,0.12);border-radius:18px;
+         padding:1.5rem;max-width:420px;width:calc(100% - 2rem);animation:gachaPopIn 0.28s ease;">
+      <div style="font-size:1rem;font-weight:700;color:#e0e8ff;text-align:center;margin-bottom:1rem;">✨ 10-Roll Results</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:1.25rem;">${grid}</div>
+      <div style="text-align:center;">
+        <button onclick="document.getElementById('gacha-result-modal').style.display='none'"
+          style="background:linear-gradient(135deg,#2a4888,#3a2e80);color:#fff;border:none;
+                 padding:10px 38px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;">
+          ✓ Collect All
+        </button>
+      </div>
+    </div>`;
+}
+
+// ── HUD / display helpers ──
+
+function updateMarketGemDisplay() {
+  if (!marketState) return;
+  const el = document.getElementById('market-gem-count');
+  if (el) el.textContent = marketState.gems.toLocaleString();
+}
+
+function updatePityBar() {
+  if (!marketState) return;
+  const fill  = document.getElementById('pity-bar-fill');
+  const label = document.getElementById('pity-bar-label');
+  const pct   = Math.min(100, (marketState.pityCount / GACHA_HARD_PITY) * 100);
+  const soft  = marketState.pityCount >= GACHA_SOFT_PITY;
+  if (fill) {
+    fill.style.width      = pct + '%';
+    fill.style.background = soft
+      ? 'linear-gradient(90deg,#f0a020,#ff4020)'
+      : 'linear-gradient(90deg,#4a90d9,#9c27b0)';
+  }
+  if (label) {
+    label.textContent = soft
+      ? `⚠️ Soft Pity! ${marketState.pityCount} / ${GACHA_HARD_PITY}`
+      : `${marketState.pityCount} / ${GACHA_HARD_PITY} rolls`;
+  }
+}
+
+function renderGachaCollection() {
+  const el = document.getElementById('gacha-collection');
+  if (!el || !marketState) return;
+
+  const maxLv = GACHA_LV_THRESH.length;
+  let html = `<div style="margin-top:2rem;max-width:560px;margin-left:auto;margin-right:auto;">
+    <div style="font-size:11px;font-weight:700;color:#404e68;text-transform:uppercase;letter-spacing:1.5px;
+         margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid rgba(255,255,255,0.06);">
+      Hero Collection
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">`;
+
+  GACHA_HEROES.forEach(gh => {
+    const h      = marketState.heroes[gh.id];
+    const pts    = h?.pts || 0;
+    const lv     = pts ? _gachaHeroLevel(pts) : 0;
+    const owned  = !!pts;
+    const pv     = owned ? _gachaPassiveVal(gh, lv) : null;
+    const curThr = owned && lv > 0 ? (GACHA_LV_THRESH[lv - 1] ?? 0) : 0;
+    const nxtThr = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const prog   = (owned && nxtThr) ? (pts - curThr) / (nxtThr - curThr) : 1;
+    const rgb    = _hexRgb(gh.color);
+
+    html += `
+      <div style="background:rgba(255,255,255,0.03);
+           border:1px solid ${owned ? 'rgba('+rgb+',0.3)' : 'rgba(255,255,255,0.06)'};
+           border-radius:12px;padding:12px;${owned ? '' : 'opacity:0.4;'}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:1.7rem;line-height:1;
+            ${owned ? `filter:drop-shadow(0 0 7px rgba(${rgb},0.65));` : ''}">${gh.icon}</span>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#d8e4ff;">${gh.name}</div>
+            <div style="font-size:10px;color:${owned ? gh.color : '#3a4458'};">
+              ${owned ? `Lv ${lv}${lv >= maxLv ? ' ★' : ''}` : 'Not obtained'}
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#6070a0;line-height:1.5;margin-bottom:6px;">
+          ${gh.passive}:<br><b style="color:${owned ? '#f0e060' : '#404e60'};">${owned ? '+'+pv+'%' : '—'}</b>
+        </div>
+        ${owned && nxtThr !== null ? `
+          <div style="height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-bottom:3px;">
+            <div style="height:100%;width:${Math.round(prog*100)}%;background:${gh.color};border-radius:2px;transition:width 0.4s;"></div>
+          </div>
+          <div style="font-size:10px;color:#404e68;">${pts} / ${nxtThr} pts → Lv ${lv+1}</div>
+        ` : owned ? `<div style="font-size:10px;color:#f0c040;margin-top:2px;">⭐ Max Level</div>` : ''}
+      </div>`;
+  });
+
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function switchMarketTab(tab) {
+  ['heroes','gear','skills'].forEach(t => {
+    const panel = document.getElementById(`market-tab-${t}`);
+    const btn   = document.getElementById(`mktab-${t}`);
+    if (panel) panel.style.display = t === tab ? (t === 'heroes' ? 'block' : 'flex') : 'none';
+    if (btn)   btn.classList.toggle('active', t === tab);
+  });
+  if (tab === 'heroes') {
+    if (!marketState) loadMarketState();
+    updateMarketGemDisplay();
+    updatePityBar();
+    renderGachaCollection();
+  }
+}
+
+function buildMarketSection() {
+  if (!marketState) loadMarketState();
+  switchMarketTab('heroes');
+}
+
+// ── END MARKET SYSTEM ────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMANDER SYSTEM
+// Modular placement-anchor + dynamic loss-point mechanic.
+// All Commander logic is isolated under bs.commander / commanderPlacing so
+// the original tower-defense loop is unaffected when Commander Mode is off.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Configuration ────────────────────────────────────────────────────────────
+const COMMANDER_CONFIG = {
+  baseDefenseDistance: 10,  // base tiles of safe path behind Commander
+  defenseToTileRatio:  0.8, // safe tiles added per point of defense stat
+  minDefenseDistance:  3,   // absolute floor (no matter how bad the stat)
+  maxDefenseDistance:  50,  // cap so huge defense doesn't break the map
+};
+
+// Base stats — designed so getFinalCommanderStats() can later layer in
+// gear / passive heroes / rank / relics without touching placement math.
+const COMMANDER_BASE_STATS = {
+  maxHP:        300,
+  defense:      15,    // dual-use: damage reduction + path-distance calculation
+  attackDamage: 25,
+  attackSpeed:  1200,  // ms between attacks
+  attackRange:  2.2,   // tiles
+};
+
+/**
+ * Aggregate Commander stats from all sources.
+ * Currently: base only.
+ * Future hook: getFinalCommanderStats(baseStats, gear, passiveHeroes, skills, relics, territoryBuffs)
+ */
+function getFinalCommanderStats(overrides = {}) {
+  const b = COMMANDER_BASE_STATS;
+  return {
+    maxHP:        overrides.maxHP        ?? b.maxHP,
+    defense:      overrides.defense      ?? b.defense,
+    attackDamage: overrides.attackDamage ?? b.attackDamage,
+    attackSpeed:  overrides.attackSpeed  ?? b.attackSpeed,
+    attackRange:  overrides.attackRange  ?? b.attackRange,
+  };
+}
+
+// ── Placement state ──────────────────────────────────────────────────────────
+let commanderPlacing = false;  // true while waiting for player to click path
+let _cmdPreview      = null;   // live snap preview while mouse moves
+
+function enterCommanderPlacingMode() {
+  commanderPlacing = true;
+  _cmdPreview      = null;
+  _cmdSetWaveBtn(false);
+  _showCmdOverlay(true);
+  updateCommanderHUD();
+}
+
+function _showCmdOverlay(show) {
+  const el = document.getElementById('commander-placement-overlay');
+  if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+// Enable/disable the wave-send button (and dim it visually) for commander gating
+function _cmdSetWaveBtn(enabled) {
+  const btn = document.getElementById('hud-wave-btn');
+  if (!btn) return;
+  btn.style.opacity      = enabled ? '' : '0.35';
+  btn.style.pointerEvents = enabled ? '' : 'none';
+}
+
+// Attempt to place Commander at canvas pixel (px, py).  Returns true if handled.
+function _cmdTryPlace(px, py) {
+  if (!bs || !commanderPlacing) return false;
+  const snap = _cmdSnapToPath(px, py);
+  if (snap.dist > bs.tw * 1.8) {
+    showToast('⚠️ Place Commander on the road!');
+    return false;
+  }
+  placeCommander(snap);
+  return true;
+}
+
+/**
+ * Project (px,py) onto the nearest point on any path segment.
+ * Returns { x, y, dist, segIdx, t } where t∈[0,1] along the segment.
+ */
+function _cmdSnapToPath(px, py) {
+  const wps = bs.waypoints;
+  let bestDist = Infinity, bestX = px, bestY = py, bestSeg = 0, bestT = 0.5;
+  for (let i = 0; i < wps.length - 1; i++) {
+    const ax = wps[i].x, ay = wps[i].y;
+    const bx = wps[i+1].x, by = wps[i+1].y;
+    const dx = bx-ax, dy = by-ay, len2 = dx*dx+dy*dy;
+    if (len2 < 1) continue;
+    const t = Math.max(0.05, Math.min(0.95, ((px-ax)*dx+(py-ay)*dy)/len2));
+    const nx = ax+t*dx, ny = ay+t*dy;
+    const d  = Math.sqrt((px-nx)**2+(py-ny)**2);
+    if (d < bestDist) { bestDist=d; bestX=nx; bestY=ny; bestSeg=i; bestT=t; }
+  }
+  return { x:bestX, y:bestY, dist:bestDist, segIdx:bestSeg, t:bestT };
+}
+
+// Pre-compute and cache cumulative px distances along path waypoints.
+function _cmdEnsurePathDists() {
+  if (bs._pathCumDists) return;
+  const wps = bs.waypoints, d = [0];
+  for (let i = 1; i < wps.length; i++) {
+    const dx = wps[i].x-wps[i-1].x, dy = wps[i].y-wps[i-1].y;
+    d.push(d[i-1]+Math.sqrt(dx*dx+dy*dy));
+  }
+  bs._pathCumDists = d;
+}
+
+/**
+ * From a snap position + stats, compute:
+ *   lossIdx       – waypoint index enemies must reach to cause life loss
+ *   lossPoint     – interpolated pixel position of the loss marker
+ *   tiles         – effective defense tiles
+ *   defDistPx     – defense distance in pixels
+ *   riskColor     – green/yellow/red
+ *
+ * Keeps damageReductionDefense and pathDefenseDistance as logically separate
+ * concerns even though both read from stats.defense.
+ */
+function _cmdCalcLoss(snap, stats) {
+  _cmdEnsurePathDists();
+  const wps = bs.waypoints, dists = bs._pathCumDists;
+
+  // Commander path distance from start (interpolated between waypoints)
+  const dA = dists[snap.segIdx] ?? 0;
+  const dB = dists[snap.segIdx+1] ?? dA;
+  const cmdDist = dA + snap.t*(dB-dA);
+
+  // pathDefenseDistance (separate from damage reduction)
+  const cfg = COMMANDER_CONFIG;
+  const tiles = Math.max(cfg.minDefenseDistance,
+    Math.min(cfg.maxDefenseDistance,
+      cfg.baseDefenseDistance + Math.floor(stats.defense * cfg.defenseToTileRatio)));
+  const defDistPx  = tiles * bs.tw;
+  const targetDist = cmdDist + defDistPx;
+
+  // First waypoint index at or beyond targetDist
+  let lossIdx = wps.length - 1;
+  for (let i = snap.segIdx; i < wps.length; i++) {
+    if (dists[i] >= targetDist) { lossIdx = i; break; }
+  }
+  lossIdx = Math.min(lossIdx, wps.length - 1);
+
+  // Interpolate exact pixel position of the loss marker
+  let lossX = wps[lossIdx].x, lossY = wps[lossIdx].y;
+  if (lossIdx > 0 && dists[lossIdx] > targetDist) {
+    const prev = dists[lossIdx-1], cur = dists[lossIdx];
+    const frac = cur > prev ? (targetDist-prev)/(cur-prev) : 1;
+    lossX = wps[lossIdx-1].x + frac*(wps[lossIdx].x-wps[lossIdx-1].x);
+    lossY = wps[lossIdx-1].y + frac*(wps[lossIdx].y-wps[lossIdx-1].y);
+  }
+
+  const riskColor = tiles >= 20 ? '#44dd66' : tiles >= 10 ? '#f0c040' : '#ee4444';
+  return { lossIdx, lossPoint:{x:lossX, y:lossY}, tiles, defDistPx, riskColor };
+}
+
+/** Commit the Commander to the battlefield at the given snap position. */
+function placeCommander(snap) {
+  if (!bs) return;
+  const stats = getFinalCommanderStats();
+  const loss  = _cmdCalcLoss(snap, stats);
+
+  bs.commander = {
+    x: snap.x, y: snap.y,
+    pathIdx: snap.segIdx,         // segment start index (used for zone drawing)
+    hp: stats.maxHP, maxHp: stats.maxHP,
+    stats,
+    state: 'active',              // 'active' | 'dead'
+    atkCooldown: 0, attackTarget: null,
+    dmgFlashTimer: 0, _shotFlash: 0,
+    _lastShotX: snap.x, _lastShotY: snap.y,
+    size: 18,
+  };
+
+  bs.commanderMode    = true;     // enables dynamic loss-point check in updateEnemies
+  bs.commanderPlaced  = true;     // gates wave launch
+  bs.dynamicLossIdx   = loss.lossIdx;
+  bs.dynamicLossPoint = loss.lossPoint;
+  bs.commanderRiskColor = loss.riskColor;
+  bs._commanderTiles  = loss.tiles;
+
+  commanderPlacing = false;
+  _cmdPreview      = null;
+  _showCmdOverlay(false);
+  _cmdSetWaveBtn(true);
+  updateCommanderHUD();
+
+  const riskLabel = loss.tiles >= 20 ? 'Low' : loss.tiles >= 10 ? 'Medium' : 'High';
+  showToast(`⚔️ Commander placed! Safe zone: ${loss.tiles} tiles · Risk: ${riskLabel}`);
+}
+
+/** Called from handleCanvasMouseMove during placement to update the preview. */
+function _cmdUpdatePreview(px, py) {
+  if (!bs || !commanderPlacing) { _cmdPreview = null; return; }
+  const snap = _cmdSnapToPath(px, py);
+  if (snap.dist > bs.tw * 2.5) { _cmdPreview = null; return; }
+  const stats = getFinalCommanderStats();
+  const loss  = _cmdCalcLoss(snap, stats);
+  _cmdPreview = { ...snap, ...loss };
+}
+
+// ── Combat (called every frame from startBattleLoop) ─────────────────────────
+function updateCommander(dt) {
+  if (!bs?.commander || !bs.commanderMode) return;
+  const cmd = bs.commander;
+
+  // Tick timers
+  if (cmd.dmgFlashTimer > 0) cmd.dmgFlashTimer -= dt*1000;
+  if (cmd._shotFlash    > 0) cmd._shotFlash    -= dt*1000;
+
+  if (cmd.state === 'dead') return;
+  cmd.atkCooldown = Math.max(0, cmd.atkCooldown - dt*1000);
+
+  // ── Find attack target: highest wpIdx (closest to loss zone) within range ──
+  const rangePx = cmd.stats.attackRange * bs.tw;
+  const alive = bs.enemies.filter(e =>
+    !e.isDead && !e.isReached &&
+    Math.sqrt((e.x-cmd.x)**2+(e.y-cmd.y)**2) <= rangePx
+  );
+  alive.sort((a,b) => b.wpIdx !== a.wpIdx ? b.wpIdx-a.wpIdx : b.dist-a.dist);
+  const target = alive[0] ?? null;
+  cmd.attackTarget = target?.id ?? null;
+
+  // ── Attack ──
+  if (target && cmd.atkCooldown <= 0) {
+    cmd.atkCooldown  = cmd.stats.attackSpeed;
+    applyDmgToEnemy(target, Math.max(1, cmd.stats.attackDamage));
+    if (target.hp <= 0 && !target.isDead) killEnemy(target, null);
+    cmd._lastShotX = target.x;
+    cmd._lastShotY = target.y;
+    cmd._shotFlash = 220;
+  }
+
+  // ── Take damage from adjacent enemies (melee reach ≈ 0.9 tiles) ──
+  // damageReductionDefense formula: separate from pathDefenseDistance
+  const meleeR = bs.tw * 0.9;
+  bs.enemies.forEach(e => {
+    if (e.isDead || e.isReached) return;
+    if (Math.sqrt((e.x-cmd.x)**2+(e.y-cmd.y)**2) >= meleeR) return;
+    e._cmdAtkTimer = (e._cmdAtkTimer ?? 1200) - dt*1000;
+    if (e._cmdAtkTimer > 0) return;
+    e._cmdAtkTimer = 1200;
+    const baseAtk = Math.max(3, Math.round((ENEMY_TYPES[e.type]?.hp ?? 30) * 0.04));
+    const reduc   = Math.min(Math.floor(baseAtk*0.8), Math.floor(cmd.stats.defense * 0.3));
+    const dmg     = Math.max(1, baseAtk - reduc);
+    cmd.hp -= dmg;
+    cmd.dmgFlashTimer = 220;
+    updateCommanderHUD();
+    if (cmd.hp <= 0) {
+      cmd.hp = 0;
+      cmd.state = 'dead';
+      // Commander death: disables combat, does NOT end battle (leak zone stays)
+      showToast('💀 Commander defeated! Hold the line with towers!');
+    }
+  });
+}
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+function _cmdHexRgb(hex) {
+  return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+}
+
+/**
+ * Draw the defense zone (colored dashed overlay on path) and the loss-point marker.
+ * Called AFTER drawPath so it sits on top of the road, under enemies.
+ */
+function drawCommanderZone(ctx) {
+  if (!bs?.commanderMode || !bs.commander || bs.dynamicLossIdx == null) return;
+  const cmd    = bs.commander;
+  const wps    = bs.waypoints;
+  const endIdx = Math.min(bs.dynamicLossIdx, wps.length-1);
+  const rc     = bs.commanderRiskColor || '#44dd66';
+  const rgb    = _cmdHexRgb(rc);
+  const roadW  = bs.tw * bs.mapDef.pathWidth;
+
+  // Colored zone overlay
+  ctx.save();
+  ctx.strokeStyle = `rgba(${rgb},0.28)`;
+  ctx.lineWidth   = roadW * 0.72;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(cmd.x, cmd.y);
+  for (let i = cmd.pathIdx+1; i <= endIdx; i++) ctx.lineTo(wps[i].x, wps[i].y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Loss-point pulsing marker
+  const lp = bs.dynamicLossPoint;
+  if (!lp) return;
+  const pulse = 0.72 + 0.28*Math.sin(Date.now()/400);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(lp.x, lp.y, 11*pulse, 0, Math.PI*2);
+  ctx.strokeStyle = rc; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = `rgba(${rgb},0.16)`; ctx.fill();
+  ctx.font = '12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('☠️', lp.x, lp.y);
+  ctx.font = 'bold 8px Inter'; ctx.fillStyle = rc;
+  ctx.textBaseline = 'top'; ctx.fillText('LEAK ZONE', lp.x, lp.y+13);
+  ctx.restore();
+  ctx.beginPath();
+}
+
+/** Draw the Commander unit itself. Called after drawHero, before projectiles. */
+function drawCommander(ctx) {
+  if (!bs?.commander) return;
+  const cmd  = bs.commander;
+  const { x, y, hp, maxHp, state, size, dmgFlashTimer, _shotFlash } = cmd;
+  const dead = state === 'dead';
+
+  ctx.save();
+
+  // Ambient glow ring when alive
+  if (!dead) {
+    const ga = 0.10 + 0.08*Math.sin(Date.now()/700);
+    ctx.beginPath(); ctx.arc(x, y, size+9, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(240,192,64,${ga})`; ctx.fill();
+  }
+
+  ctx.globalAlpha = dead ? 0.4 : 1;
+
+  // Body circle
+  ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2);
+  ctx.fillStyle = dead ? '#252525' : (dmgFlashTimer > 0 ? '#7a1010' : '#1a243c');
+  ctx.fill();
+  ctx.strokeStyle = dead ? '#555' : '#f0c040';
+  ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Icon
+  ctx.font = `${Math.round(size*1.1)}px serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(dead ? '💀' : '⚔️', x, y);
+
+  // CMDR label below
+  ctx.font = 'bold 9px Inter';
+  ctx.fillStyle = dead ? '#666' : '#f0c040';
+  ctx.textBaseline = 'top';
+  ctx.fillText('CMDR', x, y+size+4);
+
+  // HP bar above
+  if (!dead) {
+    const bW=44, bH=5, bX=x-22, bY=y-size-14;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(bX-1, bY-1, bW+2, bH+2);
+    const pct = hp/maxHp;
+    ctx.fillStyle = pct>0.6?'#44dd66':pct>0.3?'#f0c040':'#dd3333';
+    ctx.fillRect(bX, bY, bW*pct, bH);
+    ctx.font = '8px Inter'; ctx.fillStyle = '#b0c0e0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(`${Math.ceil(hp)}/${maxHp}`, x, bY-1);
+  }
+
+  // Attack flash: brief line to last target
+  if (_shotFlash > 0 && !dead) {
+    const frac = _shotFlash/220;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(cmd._lastShotX, cmd._lastShotY);
+    ctx.strokeStyle = `rgba(255,210,60,${frac*0.85})`;
+    ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  ctx.beginPath();
+}
+
+/**
+ * Ghost preview + projected defense zone during placement mode.
+ * Called at the end of drawBattle (on top of everything).
+ */
+function drawCommanderPlacementPreview(ctx) {
+  if (!commanderPlacing || !_cmdPreview) return;
+  const { x, y, lossPoint, riskColor, tiles, lossIdx, segIdx } = _cmdPreview;
+  const rc    = riskColor || '#44dd66';
+  const rgb   = _cmdHexRgb(rc);
+  const wps   = bs.waypoints;
+  const roadW = bs.tw * bs.mapDef.pathWidth;
+
+  // Projected defense zone
+  ctx.save();
+  ctx.strokeStyle = `rgba(${rgb},0.22)`;
+  ctx.lineWidth   = roadW * 0.7;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([8, 7]);
+  ctx.beginPath(); ctx.moveTo(x, y);
+  const endI = Math.min(lossIdx, wps.length-1);
+  for (let i = segIdx+1; i <= endI; i++) ctx.lineTo(wps[i].x, wps[i].y);
+  ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+
+  // Ghost Commander body
+  ctx.save(); ctx.globalAlpha = 0.62;
+  ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI*2);
+  ctx.fillStyle = '#1a243c'; ctx.fill();
+  ctx.strokeStyle = rc; ctx.lineWidth = 2; ctx.stroke();
+  ctx.font = '20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('⚔️', x, y);
+  ctx.font = 'bold 9px Inter'; ctx.fillStyle = rc;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('CMDR', x, y+20);
+  ctx.globalAlpha = 1; ctx.restore();
+
+  // Ghost loss-point marker
+  if (lossPoint) {
+    ctx.save(); ctx.globalAlpha = 0.72;
+    ctx.beginPath(); ctx.arc(lossPoint.x, lossPoint.y, 10, 0, Math.PI*2);
+    ctx.strokeStyle = rc; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = `rgba(${rgb},0.20)`; ctx.fill();
+    ctx.font='12px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('☠️', lossPoint.x, lossPoint.y);
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+
+  // Info tooltip (top-right of ghost)
+  if (tiles != null) {
+    const riskLabel = tiles>=20?'✅ SAFE':tiles>=10?'⚠️ RISKY':'🔴 DANGER';
+    const tx = Math.min(x+30, bs.tw*bs.COLS - 145);
+    const ty = Math.max(y-52, 8);
+    ctx.save(); ctx.globalAlpha = 0.93;
+    ctx.fillStyle = 'rgba(6,10,22,0.88)';
+    ctx.fillRect(tx, ty, 140, 38);
+    ctx.strokeStyle = rc; ctx.lineWidth = 1; ctx.strokeRect(tx, ty, 140, 38);
+    ctx.font = 'bold 10px Inter'; ctx.fillStyle = rc;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`${riskLabel} · ${tiles} tile defense`, tx+6, ty+5);
+    ctx.font = '9px Inter'; ctx.fillStyle = '#8090b0';
+    ctx.fillText(`DEF ${COMMANDER_BASE_STATS.defense} → ${tiles} tiles safe`, tx+6, ty+20);
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+  ctx.beginPath();
+}
+
+// ── HUD widget ───────────────────────────────────────────────────────────────
+function updateCommanderHUD() {
+  const widget = document.getElementById('hud-commander-widget');
+  if (!widget) return;
+
+  // During placement: show prompt
+  if (commanderPlacing && !bs?.commanderPlaced) {
+    widget.style.display = 'flex';
+    widget.innerHTML = `
+      <span style="font-size:15px;line-height:1;">⚔️</span>
+      <span style="font-size:11px;font-weight:700;color:#f0c040;white-space:nowrap;">Click road to place</span>`;
+    return;
+  }
+
+  if (!bs?.commander || !bs?.commanderMode) { widget.style.display = 'none'; return; }
+
+  const cmd   = bs.commander;
+  const hpPct = cmd.hp / cmd.maxHp;
+  const hpCol = hpPct>0.6?'#44dd66':hpPct>0.3?'#f0c040':'#dd3333';
+  const rc    = bs.commanderRiskColor || '#44dd66';
+  const tiles = bs._commanderTiles ?? 0;
+  const rLabel = tiles>=20?'Safe':tiles>=10?'Risky':'Danger';
+
+  widget.style.display = 'flex';
+  widget.innerHTML = `
+    <span style="font-size:1.1rem;line-height:1;flex-shrink:0;">${cmd.state==='dead'?'💀':'⚔️'}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:9px;font-weight:700;color:#f0c040;letter-spacing:1px;text-transform:uppercase;">Commander</div>
+      <div style="height:5px;background:rgba(255,255,255,0.1);border-radius:3px;margin-top:2px;overflow:hidden;">
+        <div style="height:100%;width:${Math.round(hpPct*100)}%;background:${hpCol};border-radius:3px;transition:width 0.2s;"></div>
+      </div>
+      <div style="font-size:9px;color:#5060a0;margin-top:1px;">${Math.ceil(cmd.hp)}/${cmd.maxHp}</div>
+    </div>
+    <div style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.08);
+         font-size:9px;display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+      <span style="color:#7080a0;">Zone: <b style="color:${rc}">${tiles}t</b></span>
+      <span style="color:${rc};font-weight:700;">${rLabel}</span>
+    </div>`;
+}
+
+// ── END COMMANDER SYSTEM ─────────────────────────────────────────────────────
 
 const UPGRADE_PATHS = [
   {
@@ -6431,7 +7406,7 @@ function startBattleLoop() {
       bs.lastTime = now;
       const dt = rawDt * battleSpeed;
       updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateHero(dt); checkWaveEnd();
+      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateHero(dt); updateCommander(dt); checkWaveEnd();
     }
     // Always draw so the canvas stays live during the victory/defeat delay window
     if (bs) drawBattle();
@@ -6537,10 +7512,20 @@ function updateEnemies(dt) {
       }
     }
 
+    // Hero blocking: stop enemy, let hero fight it; skip path movement this frame
+    if (_processHeroBlock(e, dt)) return;
+
     const speed = e.speed * _speedMult;
 
+    // Dynamic loss point: when Commander Mode active, enemies only cause life loss
+    // at dynamicLossIdx (behind Commander); otherwise use the original path end.
+    const _lossIdx = (bs.commanderMode && bs.dynamicLossIdx != null)
+      ? bs.dynamicLossIdx : bs.waypoints.length;
+
     const target = bs.waypoints[e.wpIdx];
-    if (!target) { e.isReached = true; bs.lives = Math.max(0, bs.lives-1); return; }
+    if (!target || e.wpIdx >= _lossIdx) {
+      e.isReached = true; bs.lives = Math.max(0, bs.lives-1); return;
+    }
 
     const dx = target.x - e.x, dy = target.y - e.y;
     const d = Math.sqrt(dx*dx+dy*dy);
@@ -6549,7 +7534,7 @@ function updateEnemies(dt) {
     if (d <= move) {
       e.x = target.x; e.y = target.y;
       e.wpIdx++;
-      if (e.wpIdx >= bs.waypoints.length) { e.isReached = true; bs.lives = Math.max(0,bs.lives-1); }
+      if (e.wpIdx >= _lossIdx) { e.isReached = true; bs.lives = Math.max(0,bs.lives-1); }
     } else {
       e.x += (dx/d)*move;
       e.y += (dy/d)*move;
@@ -6668,15 +7653,6 @@ function updateTowers(dt) {
     }
 
     t.cooldown -= dt;
-    // Hero passive effects on tower cooldown
-    if (bs.hero && !bs.hero.isDown) {
-      // Shaman Mending Aura: towers in range attack 12% faster
-      if (bs.hero.heroId === 'shaman' && dist(t.x,t.y,bs.hero.x,bs.hero.y) <= bs.hero.hd.range * bs.tw)
-        t.cooldown -= dt * 0.12;
-      // Warlord War Cry: all towers attack 20% faster for 5s
-      if (bs.hero.warCryTimer > 0)
-        t.cooldown -= dt * 0.20;
-    }
     if (t.cooldown > 0) return;
 
     // Find enemies in range then sort by targeting mode
@@ -7188,17 +8164,10 @@ function killEnemy(e, tower) {
   }
   updateBattleHUD();
   renderShop();
-  // Hero: gain energy on kill; Necromancer Raise Dead + Soul Drain
-  if (bs.hero && !bs.hero.isDown) {
-    bs.hero.energy = Math.min(bs.hero.maxEnergy, bs.hero.energy + 3);
-    if (bs.hero.heroId === 'necromancer') {
-      bs.hero.hp = Math.min(bs.hero.maxHp, bs.hero.hp + Math.round(bs.hero.maxHp * 0.05)); // Soul Drain
-      if (Math.random() < 0.25) { // Raise Dead
-        if (!bs.hero.skeletons) bs.hero.skeletons = [];
-        bs.hero.skeletons.push({ x:e.x, y:e.y, hp:50, maxHp:50, size:10,
-          dmg: Math.round(bs.hero.hd.atk * 1.5), atkSpeed:1500, cooldown:0, timer:20000 });
-      }
-    }
+  // Hero: release enemy from blocked set when it dies
+  if (bs.hero && bs.hero.blockedSet && bs.hero.blockedSet.has(e.id)) {
+    bs.hero.blockedSet.delete(e.id);
+    e.blockedBy = null;
   }
 }
 
@@ -7307,15 +8276,18 @@ function drawBattle() {
   for (let r=0;r<=bs.ROWS;r++) { ctx.beginPath();ctx.moveTo(0,r*bs.th);ctx.lineTo(w,r*bs.th);ctx.stroke(); }
 
   drawPath(ctx);
+  drawCommanderZone(ctx);          // defense zone + loss marker on path, under enemies
   drawGroundEffects(ctx);
   bs.towers.forEach(t => drawTower(ctx, t));
   drawWitchSummonFx(ctx);
   bs.enemies.filter(e => !ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
   bs.enemies.filter(e =>  ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
   if (bs.hero) drawHero(ctx);
+  drawCommander(ctx);              // Commander unit (on top of enemies, same layer as hero)
   bs.projectiles.forEach(p => drawProjectile(ctx, p));
   if (bs.explosions) bs.explosions.forEach(ex => drawExplosion(ctx, ex));
   if (placingTower) drawPlacementPreview(ctx);
+  if (commanderPlacing) drawCommanderPlacementPreview(ctx); // overlay during placement
 
   // Map border — placement boundary
   ctx.save();
@@ -10562,7 +11534,7 @@ async function alSubmitCreate() {
 }
 
 function switchSection(name){
-  ['base','campaign','pvp','alliance','sandbox','hero'].forEach(s=>{
+  ['base','campaign','pvp','alliance','sandbox','hero','market'].forEach(s=>{
     const el=document.getElementById('section-'+s);
     if(el) el.style.display=s===name?'flex':'none';
     const btn=document.getElementById('nav-'+s);
@@ -10589,6 +11561,9 @@ function switchSection(name){
 
   // Build hero panel when switching to it
   if (name === 'hero') buildHeroPanel();
+
+  // Build market when switching to it
+  if (name === 'market') buildMarketSection();
 
   // Init PVP map when switching to it
   if(name === 'pvp') {
