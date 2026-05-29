@@ -25,6 +25,7 @@ tests/
     game/
       smoke.spec.js               — Core panels render, navigation works
       formulas.spec.js            — Pure formula correctness via page.evaluate()
+      hero-gear.spec.js           — My Hero gear/equipment/skills UI
 
 playwright.config.js    — Playwright configuration
 package.json            — npm scripts and dependencies
@@ -89,6 +90,12 @@ npm run test:auth
 
 ```bash
 npm run test:smoke
+```
+
+### Run only hero gear tests
+
+```bash
+npm run test:hero
 ```
 
 ### Run only formula tests (no login needed)
@@ -190,6 +197,28 @@ This test exercises the Supabase Realtime broadcast kick mechanism end-to-end. I
 | Alliance section opens without crashing | `#al-content` has children |
 | PvP section opens (no guest lock for real account) | `pvp-guest-lock` is not active |
 | Navigation between sections works | Base → Campaign → Alliance → Base cycle |
+
+---
+
+### Game — `hero-gear.spec.js` (12 tests)
+
+All gear state lives in `localStorage` (`idw_hero_gear`). No Supabase interaction is needed. Each test resets the in-memory `heroGearState` and clears localStorage before running so tests are fully isolated.
+
+| Test | What it verifies |
+|---|---|
+| Two-panel layout renders | `.hero-inv-panel` and `.hero-char-panel` are visible; subtitle mentions "equipment" |
+| Weapons tab is default | Active tab is "Weapons"; cards show rarity, level, handedness, and Equip button |
+| Gear tab switch | Clicking Gear tab shows armour/offhand cards with slot labels |
+| Equip one-handed weapon | Main Hand slot fills, Unequip button appears, stats show ATK +15 |
+| Two-handed weapon disables offhand | Offhand slot gets `.equip-slot-disabled`; `equippedGear.offhand` is null |
+| Switch two-handed → one-handed re-enables offhand | Disabled slot count drops to 0 |
+| Equip helmet + armor + boots | 3 filled slots; DEF, HP +70, Mov Spd all appear in stats summary |
+| Unequip a slot | Slot reverts to empty; stats revert to "No gear equipped" |
+| Skills tab — 3 empty slots, disabled buttons | `.skill-slot` count = 3; all Equip buttons disabled; "coming soon" text present |
+| Hero selection updates panel title | After `selectHero('warlord')`, right panel title shows "Warlord" |
+| localStorage persistence | `idw_hero_gear` key contains correct `equippedGear` and `skills` array |
+| Navigate away and back preserves gear | Gear still equipped after Campaign → back to My Hero |
+| Other nav sections unaffected | Market, Campaign, Base sections still show/hide correctly after visiting My Hero |
 
 ---
 
@@ -308,6 +337,19 @@ In-game panels
 [ ] Campaign map loads
 [ ] Navigation between Base / Campaign / PvP / Alliance does not crash
 [ ] Resource pills show values in the top bar
+
+My Hero — gear page
+[ ] My Hero tab opens with two-column layout (Inventory left, Commander right)
+[ ] Weapons tab shows weapon cards with rarity, level, handedness, and Equip button
+[ ] Gear tab shows armour/offhand cards with slot labels
+[ ] Equipping a one-handed weapon fills Main Hand slot; stats update
+[ ] Equipping a two-handed weapon disables the Offhand slot
+[ ] Switching to a one-handed weapon re-enables the Offhand slot
+[ ] Equipping helmet, armor, boots fills the correct slots; stats accumulate
+[ ] Unequipping a slot via ✕ reverts it to empty; stats decrease
+[ ] Skills tab shows 3 empty slots with disabled Equip buttons
+[ ] Selecting a hero class updates the Commander panel title
+[ ] Gear state survives navigating away and back to My Hero
 
 Console (open DevTools → Console)
 [ ] No red errors during login

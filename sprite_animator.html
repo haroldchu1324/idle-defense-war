@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monster Sprite Animator</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      text-align: center;
+      background: rgba(0,0,0,0.5);
+      padding: 30px;
+      border-radius: 10px;
+      border: 2px solid #a030a0;
+    }
+    h1 {
+      color: #fff;
+      margin-bottom: 20px;
+    }
+    canvas {
+      background: radial-gradient(circle at 50% 50%, rgba(100,50,150,0.1), rgba(0,0,0,0.3));
+      border: 3px solid #a030a0;
+      border-radius: 8px;
+      display: block;
+      margin: 20px auto;
+      box-shadow: 0 0 30px rgba(160,50,200,0.3);
+    }
+    .controls {
+      color: #fff;
+      margin-top: 20px;
+    }
+    .controls button {
+      background: #a030a0;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .controls button:hover {
+      background: #c050c0;
+    }
+    .zoom-controls {
+      color: #fff;
+      margin-top: 15px;
+    }
+    .zoom-controls input {
+      width: 200px;
+      height: 30px;
+      cursor: pointer;
+    }
+    .info {
+      color: #aaa;
+      margin-top: 15px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Monster Sprite Animator</h1>
+    <canvas id="canvas" width="600" height="300"></canvas>
+    <div class="controls">
+      <button onclick="toggleAnimation()">▶ Start/Stop</button>
+      <button onclick="changeSpeed(1)">Speed: Normal</button>
+      <button onclick="changeSpeed(2)">Speed: Fast</button>
+      <button onclick="changeSpeed(0.5)">Speed: Slow</button>
+    </div>
+    <div class="zoom-controls">
+      <p>Zoom: <span id="zoomValue">100</span>%</p>
+      <input type="range" id="zoomSlider" min="10" max="200" value="100" oninput="changeZoom(this.value)">
+    </div>
+    <div class="info">
+      <p><strong>How to use:</strong></p>
+      <p>1. Place sprite sheet in: <code>assets/sprites/monsters/witch.png</code></p>
+      <p>2. Sprite sheet should be: 1600×200px (4 frames of 200×200 each)</p>
+      <p>3. Format: PNG with transparent background</p>
+      <p>Frame: <span id="frameCount">0</span> | Animation: <span id="animStatus">Stopped</span></p>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    class SpriteAnimator {
+      constructor(imagePath, frameWidth = 200, frameHeight = 200, frameCount = 4) {
+        this.image = new Image();
+        this.image.src = imagePath;
+        this.frameWidth = frameWidth;
+        this.frameHeight = frameHeight;
+        this.frameCount = frameCount;
+
+        this.currentFrame = 0;
+        this.x = canvas.width / 2;
+        this.y = canvas.height / 2;
+        this.isAnimating = false;
+        this.speed = 0.15; // frames per update
+        this.frameCounter = 0;
+
+        this.isLoaded = false;
+        this.image.onload = () => {
+          this.isLoaded = true;
+          console.log('Sprite sheet loaded successfully!');
+        };
+        this.image.onerror = () => {
+          console.error('Failed to load sprite sheet. Make sure the file exists at:', imagePath);
+        };
+
+
+        // Zoom
+        this.zoomLevel = 1.0;
+      }
+
+      update() {
+        if (!this.isAnimating || !this.isLoaded) return;
+
+        // Update animation frame
+        this.frameCounter += this.speed;
+        if (this.frameCounter >= 1) {
+          this.frameCounter = 0;
+          this.currentFrame = (this.currentFrame + 1) % this.frameCount;
+        }
+
+
+      }
+
+      draw() {
+        if (!this.isLoaded) {
+          ctx.fillStyle = '#fff';
+          ctx.font = '20px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('Loading sprite sheet...', canvas.width / 2, canvas.height / 2);
+          return;
+        }
+
+        // Display actual dimensions on canvas with background box (top right)
+        const dimText1 = `IMAGE: ${this.image.width}×${this.image.height}px`;
+        const dimText2 = `NEED: 1600×200px (8 frames)`;
+        const padding = 8;
+        const lineHeight = 18;
+        const boxX = canvas.width - 280;
+        const boxY = 10;
+        const boxW = 270;
+        const boxH = 50;
+
+        // Background box
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeStyle = 'rgba(255, 200, 0, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+        // Dimension text
+        ctx.fillStyle = 'rgba(255, 200, 0, 1)';
+        ctx.font = 'bold 13px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(dimText1, boxX + padding, boxY + padding + 13);
+        ctx.fillText(dimText2, boxX + padding, boxY + padding + 13 + lineHeight);
+
+        // Draw sprite frame
+        const srcX = this.currentFrame * this.frameWidth;
+        const srcY = 0;
+
+        const scaledWidth = this.frameWidth * this.zoomLevel;
+        const scaledHeight = this.frameHeight * this.zoomLevel;
+
+        ctx.drawImage(
+          this.image,
+          srcX, srcY,
+          this.frameWidth, this.frameHeight,
+          this.x - scaledWidth / 2, this.y - scaledHeight / 2,
+          scaledWidth, scaledHeight
+        );
+
+        // Draw frame info
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Frame: ${this.currentFrame + 1}/${this.frameCount}`, 10, 20);
+        ctx.fillText(`Animation: ${this.isAnimating ? 'Playing' : 'Stopped'}`, 10, 40);
+      }
+
+      toggleAnimation() {
+        this.isAnimating = !this.isAnimating;
+        return this.isAnimating;
+      }
+
+      setSpeed(multiplier) {
+        this.speed = 0.15 * multiplier;
+      }
+    }
+
+    // Initialize animator with witch sprite sheet
+    const animator = new SpriteAnimator('assets/sprites/monsters/witch.png', 200, 200, 4);
+
+    function toggleAnimation() {
+      const isPlaying = animator.toggleAnimation();
+      document.getElementById('animStatus').textContent = isPlaying ? 'Playing' : 'Stopped';
+    }
+
+    function changeSpeed(multiplier) {
+      animator.setSpeed(multiplier);
+    }
+
+    function changeZoom(value) {
+      animator.zoomLevel = value / 100;
+      document.getElementById('zoomValue').textContent = value;
+    }
+
+    function animate() {
+      // Clear canvas
+      ctx.fillStyle = 'rgba(20, 10, 40, 0.2)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Update and draw
+      animator.update();
+      animator.draw();
+
+      // Update frame counter display
+      document.getElementById('frameCount').textContent = animator.currentFrame + 1;
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
