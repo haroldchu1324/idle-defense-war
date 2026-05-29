@@ -380,21 +380,6 @@ begin
   return floor(least(amount, cap))::integer;
 end $$;
 
-create or replace function public.idw_state_to_v2(p public.idw_player_state)
-returns jsonb language plpgsql stable as $$
-declare n jsonb := p.nodes; res_id text; i int; ns jsonb; stored int;
-begin
-  foreach res_id in array array['wood','stone','fiber','leather','ore'] loop
-    for i in 0..4 loop
-      ns := n->res_id->i;
-      stored := public.idw_node_stored_amount(ns, i, p.player_level, p.research, res_id);
-      ns := jsonb_set(ns,'{storedAmount}',to_jsonb(stored),true);
-      n := jsonb_set(n, array[res_id,i::text], ns, true);
-    end loop;
-  end loop;
-  return jsonb_build_object('resources',p.resources,'playerXP',p.player_xp,'playerLevel',p.player_level,'nodes',n,'research',p.research,'armoryTowers',p.armory,'campCompleted',to_jsonb(p.campaign_completed),'lastSeen',extract(epoch from p.last_seen)*1000,'silo',p.silo);
-end $$;
-
 create or replace function public.idw_tick_silo_upgrades(p public.idw_player_state)
 returns public.idw_player_state language plpgsql security definer set search_path=public as $$
 declare res_id text; i int; ss jsonb; now_ms numeric := extract(epoch from now())*1000; new_silo jsonb := p.silo; did_complete boolean := false;
@@ -1306,46 +1291,6 @@ begin
 end $$;
 grant execute on function public.idw_cancel_research(text) to authenticated;
 
--- Complete any research whose timer has expired; awards 30 XP per completion
-create or replace function public.idw_check_research_completion()
-returns jsonb language plpgsql security definer set search_path=public as $$
-declare
-  p public.idw_player_state;
-  now_ms bigint := (extract(epoch from now()) * 1000)::bigint;
-  rs jsonb;
-  rid text;
-  completed text[] := '{}';
-begin
-  p := public.idw_ensure_player();
-
-  rid := p.active_research_id;
-  if rid is null then
-    return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
-  end if;
-
-  rs := p.research->rid;
-  if coalesce((rs->>'researching')::boolean, false)
-     and now_ms >= coalesce((rs->>'startMs')::bigint, 0) + coalesce((rs->>'durationMs')::bigint, 0) then
-
-    update public.idw_player_state
-    set
-      research = jsonb_set(
-        research,
-        array[rid],
-        jsonb_build_object('done', true, 'researching', false, 'startMs', 0, 'durationMs', 0)
-      ),
-      active_research_id = null,
-      player_xp = player_xp + 30,
-      updated_at = now()
-    where user_id = p.user_id;
-
-    completed := array_append(completed, rid);
-  end if;
-
-  return jsonb_build_object('completed_research', to_jsonb(completed), 'state', public.idw_get_state());
-end $$;
-grant execute on function public.idw_check_research_completion() to authenticated;
-
 -- Called on login to resolve any research that completed while offline
 create or replace function public.idw_resolve_offline_research()
 returns jsonb language plpgsql security definer set search_path=public as $$
@@ -1362,34 +1307,6 @@ grant execute on function public.idw_resolve_offline_research() to authenticated
 alter table public.idw_player_state
   add column if not exists tower_research_levels jsonb not null default '{}',
   add column if not exists active_tower_research jsonb;
-
--- Update idw_state_to_v2 to include tower research data
-create or replace function public.idw_state_to_v2(p public.idw_player_state)
-returns jsonb language plpgsql stable as $$
-declare n jsonb := p.nodes; res_id text; i int; ns jsonb; stored int;
-begin
-  foreach res_id in array array['wood','stone','fiber','leather','ore'] loop
-    for i in 0..4 loop
-      ns := n->res_id->i;
-      stored := public.idw_node_stored_amount(ns, i, p.player_level, p.research, res_id);
-      ns := jsonb_set(ns,'{storedAmount}',to_jsonb(stored),true);
-      n := jsonb_set(n, array[res_id,i::text], ns, true);
-    end loop;
-  end loop;
-  return jsonb_build_object(
-    'resources', p.resources,
-    'playerXP', p.player_xp,
-    'playerLevel', p.player_level,
-    'nodes', n,
-    'research', p.research,
-    'armoryTowers', p.armory,
-    'campCompleted', to_jsonb(p.campaign_completed),
-    'lastSeen', extract(epoch from p.last_seen)*1000,
-    'silo', p.silo,
-    'towerResearchLevels', coalesce(p.tower_research_levels, '{}'::jsonb),
-    'activeTowerResearch', p.active_tower_research
-  );
-end $$;
 
 -- Start tower research (runs independently from normal research queue)
 create or replace function public.idw_start_tower_research(
@@ -2162,3 +2079,124 @@ ON CONFLICT (tile_idx) DO UPDATE SET
   territory_value       = EXCLUDED.territory_value,
   territory_bonus_type  = EXCLUDED.territory_bonus_type,
   territory_bonus_value = EXCLUDED.territory_bonus_value;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- HERO GEAR, MARKET STATE & HERO SELECTION  (added this session)
+-- All three are new client-side features that need server-authoritative storage
+-- so data survives clearing localStorage / logging in from a different device.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Add new columns (idempotent)
+ALTER TABLE public.idw_player_state
+  ADD COLUMN IF NOT EXISTS hero_gear    jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS market_state jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS hero_state   jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+-- ── idw_state_to_v2: CANONICAL FINAL VERSION ────────────────────────────────
+-- Includes every field the client reads in applyServerPayload:
+--   resources, playerXP, playerLevel, nodes, research, armoryTowers,
+--   campCompleted, lastSeen, silo, towerResearchLevels, activeTowerResearch,
+--   heroGear, marketState, heroState
+CREATE OR REPLACE FUNCTION public.idw_state_to_v2(p public.idw_player_state)
+RETURNS jsonb LANGUAGE plpgsql STABLE AS $$
+DECLARE n jsonb := p.nodes; res_id text; i int; ns jsonb; stored int;
+BEGIN
+  FOREACH res_id IN ARRAY array['wood','stone','fiber','leather','ore'] LOOP
+    FOR i IN 0..4 LOOP
+      ns := n->res_id->i;
+      stored := public.idw_node_stored_amount(ns, i, p.player_level, p.research, res_id);
+      ns := jsonb_set(ns,'{storedAmount}',to_jsonb(stored),true);
+      n := jsonb_set(n, array[res_id,i::text], ns, true);
+    END LOOP;
+  END LOOP;
+  RETURN jsonb_build_object(
+    'resources',           p.resources,
+    'playerXP',            p.player_xp,
+    'playerLevel',         p.player_level,
+    'nodes',               n,
+    'research',            p.research,
+    'armoryTowers',        p.armory,
+    'campCompleted',       to_jsonb(p.campaign_completed),
+    'lastSeen',            extract(epoch from p.last_seen)*1000,
+    'silo',                p.silo,
+    'towerResearchLevels', COALESCE(p.tower_research_levels, '{}'::jsonb),
+    'activeTowerResearch', p.active_tower_research,
+    'heroGear',            p.hero_gear,
+    'marketState',         p.market_state,
+    'heroState',           p.hero_state
+  );
+END $$;
+
+-- ── Save RPCs (called fire-and-forget after every mutation) ──────────────────
+
+CREATE OR REPLACE FUNCTION public.idw_save_hero_gear(p_gear jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE u uuid := auth.uid();
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  UPDATE public.idw_player_state SET hero_gear = p_gear, updated_at = now() WHERE user_id = u;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.idw_save_market_state(p_market jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE u uuid := auth.uid();
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  UPDATE public.idw_player_state SET market_state = p_market, updated_at = now() WHERE user_id = u;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.idw_save_hero_state(p_hero_state jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE u uuid := auth.uid();
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  UPDATE public.idw_player_state SET hero_state = p_hero_state, updated_at = now() WHERE user_id = u;
+END $$;
+
+-- ── Admin helpers ────────────────────────────────────────────────────────────
+
+-- Set gem balance for a player by email (run with service role in SQL editor)
+-- Example: SELECT public.idw_admin_set_gems('player@example.com', 1000000);
+CREATE OR REPLACE FUNCTION public.idw_admin_set_gems(p_email text, p_gems int)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_uid uuid;
+BEGIN
+  SELECT id INTO v_uid FROM auth.users WHERE email = p_email;
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'User not found: %', p_email; END IF;
+  INSERT INTO public.idw_player_state(user_id) VALUES (v_uid) ON CONFLICT (user_id) DO NOTHING;
+  UPDATE public.idw_player_state
+    SET market_state = jsonb_set(
+          CASE WHEN market_state = '{}'::jsonb OR market_state IS NULL
+               THEN '{"totalRolls":0,"pityCount":0,"epicPity":0,"heroes":{},"gearPityCount":0,"gearEpicPity":0}'::jsonb
+               ELSE market_state
+          END,
+          '{gems}', to_jsonb(p_gems)
+        ),
+        updated_at = now()
+    WHERE user_id = v_uid;
+END $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- AUTH / SESSION FUNCTIONS  (live on DB but missing from this file)
+-- Documented here for completeness; these already exist on the Supabase instance.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- idw_create_guest_account(p_username text, p_email text, p_password text)
+-- Creates a pre-confirmed guest account with @idw.local email domain.
+-- SECURITY DEFINER on auth schema — already deployed on Supabase.
+
+-- idw_link_guest_account(p_new_email text, p_new_password text, p_username text)
+-- Upgrades a guest account to a real email account.
+-- SECURITY DEFINER on auth schema — already deployed on Supabase.
+
+-- idw_claim_session(p_session_id text) → json {allowed, remaining_seconds}
+-- Multi-tab kick: stamps active_session_id on auth.users; blocks concurrent sessions.
+-- Already deployed on Supabase.
+
+-- idw_release_session(p_session_id text)
+-- Clears active_session_id when the tab closes gracefully.
+-- Already deployed on Supabase.
+
+-- idw_set_announcement(p_text text)
+-- Commander-only: updates alliance announcement text.
+-- Already deployed on Supabase (see alliance section above).
