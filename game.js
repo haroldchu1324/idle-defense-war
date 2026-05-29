@@ -18,6 +18,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
 // important actions below call Supabase RPC instead of directly trusting browser state.
 // ═══════════════════════════════════════════════
 let currentBattleId = null;
+let _battleGearFingerprint = null; // snapshot of equipped gear at battle start — sent to server for validation
 
 // ═══════════════════════════════════════════════
 // SPRITE ANIMATION ASSETS
@@ -115,15 +116,11 @@ function applyServerPayload(payload) {
   if (!gameFullyLoaded) {
     if (s.heroGear && Object.keys(s.heroGear).length > 0) {
       try { localStorage.setItem('idw_hero_gear', JSON.stringify(s.heroGear)); } catch(e) {}
-      heroGearState = null; // will be loaded from localStorage when hero panel opens
+      cmdGearState = null; // will be loaded from localStorage when hero panel opens
     }
     if (s.marketState && Object.keys(s.marketState).length > 0) {
       try { localStorage.setItem('idw_market', JSON.stringify(s.marketState)); } catch(e) {}
       marketState = null; // will be loaded from localStorage when market opens
-    }
-    if (s.heroState && s.heroState.heroId) {
-      try { localStorage.setItem('idw_hero_state', JSON.stringify(s.heroState)); } catch(e) {}
-      heroState = null; // will be loaded from localStorage when hero panel opens
     }
   }
   lastServerSyncMs = Date.now();
@@ -374,7 +371,6 @@ function showGame() {
   sl.classList.remove('visible'); g.style.display='flex'; g.offsetHeight;
   setTimeout(()=>{ sl.style.display='none'; g.classList.add('visible'); }, 300);
   hideAuthLayer();
-  loadHeroState(); // load persisted hero selection
   // Always start on Resources/Production tab on login
   switchSection('base');
   switchBaseTab('resources');
@@ -1049,6 +1045,9 @@ function tickAll(){ tickResources(); }
 // PLAYER LEVEL UI
 // ═══════════════════════════════════════════════
 function addXP(amount, x, y) {
+  // Apply expBonus from equipped gear (% increase)
+  if (typeof _gearCritCache !== 'undefined' && _gearCritCache.expBonus > 0)
+    amount = Math.round(amount * (1 + _gearCritCache.expBonus / 100));
   // Update locally for immediate visual feedback
   playerXP += amount;
   while(playerXP >= xpForLevel(playerLevel) && (!isGuestUser || playerLevel < GUEST_MAX_LEVEL)){
@@ -1108,7 +1107,23 @@ function calculatePowerLevel() {
   campCompletedStages.forEach(id=>{ if(id.startsWith('elite:')){ const b=CAMPAIGN_STAGES.find(s=>s.id===id.slice(6)); pl.campaignProgress+=(b?.diff||3)*8; } else { const s=CAMPAIGN_STAGES.find(s=>s.id===id); pl.campaignProgress+=(s?.diff||1)*3; } });
   pl.permanentBuffs=0;
   RESEARCH_DEFS.forEach(rd=>{ if(!researchState[rd.id]?.done) return; if(rd.bonus?.pct) pl.permanentBuffs+=rd.bonus.pct*100; });
-  pl.total=Math.round(pl.accountLevel*1.0+pl.resources*0.5+pl.armory*2.0+pl.nodeUpgrades*1.5+pl.siloUpgrades*1.0+pl.research*3.0+pl.campaignProgress*2.0+pl.permanentBuffs*1.0);
+  // Commander gear power
+  pl.commanderGear = 0;
+  if (cmdGearState || (loadCmdGearState(), cmdGearState)) {
+    const gs = getEquippedStats();
+    pl.commanderGear = Math.round(
+      (gs.atk || 0) * 1.5 +
+      (gs.defense || 0) * 1.0 +
+      (gs.hp || 0) * 0.2 +
+      (gs.atkSpeed || 0) * 0.5 +
+      (gs.range || 0) * 10 +
+      (gs.critChance || 0) * 2 +
+      (gs.critDmg || 0) * 1 +
+      (gs.expBonus || 0) * 1.5 +
+      (cmdGearState.disenchantCount || 0) * 3
+    );
+  }
+  pl.total=Math.round(pl.accountLevel*1.0+pl.resources*0.5+pl.armory*2.0+pl.nodeUpgrades*1.5+pl.siloUpgrades*1.0+pl.research*3.0+pl.campaignProgress*2.0+pl.permanentBuffs*1.0+pl.commanderGear*1.0);
   return pl;
 }
 async function syncPowerLevel() {
@@ -1120,7 +1135,9 @@ async function syncPowerLevel() {
       pl_resources:Math.round(pl.resources), pl_armory:Math.round(pl.armory),
       pl_node_upgrades:Math.round(pl.nodeUpgrades), pl_silo_upgrades:Math.round(pl.siloUpgrades),
       pl_research:Math.round(pl.research), pl_campaign_progress:Math.round(pl.campaignProgress),
-      pl_permanent_buffs:Math.round(pl.permanentBuffs), updated_at:new Date().toISOString()
+      pl_permanent_buffs:Math.round(pl.permanentBuffs),
+      pl_commander_gear:Math.round(pl.commanderGear || 0),
+      updated_at:new Date().toISOString()
     }).eq('user_id',currentUser.id);
   } catch(e){ console.warn('syncPowerLevel failed:',e.message); }
 }
@@ -1201,12 +1218,27 @@ function openBuffsModal(){
       <div class="buff-row"><span class="buff-label">Silo Upgrades</span><span class="buff-val">${Math.round(pl.siloUpgrades)}</span></div>
       <div class="buff-row"><span class="buff-label">Research</span><span class="buff-val">${Math.round(pl.research)}</span></div>
       <div class="buff-row"><span class="buff-label">Campaign Progress</span><span class="buff-val">${Math.round(pl.campaignProgress)}</span></div>
+      <div class="buff-row"><span class="buff-label">🪖 Commander Gear</span><span class="buff-val">${Math.round(pl.commanderGear || 0)}</span></div>
     </div>
     <div class="buffs-section">
       <div class="buffs-section-title">🌾 Resource Production</div>
       ${prodRows}
     </div>
     ${allianceSection}
+    ${(() => {
+      if (!cmdGearState) loadCmdGearState();
+      const gs  = getEquippedStats();
+      const critChance = gs.critChance || 0;
+      const critDmg    = gs.critDmg    || 0;
+      const expB       = gs.expBonus   || 0;
+      function fmtPct(v){ return v > 0 ? `<span class="buff-val">+${v}%</span>` : `<span class="buff-val zero">—</span>`; }
+      return `<div class="buffs-section">
+        <div class="buffs-section-title">🪖 Commander Gear</div>
+        <div class="buff-row"><span class="buff-label">🎯 Crit Chance</span>${fmtPct(critChance)}</div>
+        <div class="buff-row"><span class="buff-label">💥 Crit DMG Bonus</span>${fmtPct(critDmg)}</div>
+        <div class="buff-row"><span class="buff-label">⭐ EXP Bonus</span>${fmtPct(expB)}</div>
+      </div>`;
+    })()}
     <div class="buffs-section">
       <div class="buffs-section-title">🗼 Tower Bonuses</div>
       <div class="buff-row"><span class="buff-label">Tower Damage</span>${fmtBonus(rb.tower_dmg*100)}</div>
@@ -2494,7 +2526,11 @@ function switchResearchTab(catId) {
   });
 }
 
+let _cachedResearchBonuses = null;
+function invalidateResearchCache() { _cachedResearchBonuses = null; }
+
 function getResearchBonuses() {
+  if (_cachedResearchBonuses) return _cachedResearchBonuses;
   const b = { prod:{}, all_prod:0, tower_dmg:0, tower_spd:0, tower_range:0, silo_cap:0, craft_cost:0, research_speed:0, start_gold:0, wave_gold:0, start_lives:0 };
   RESOURCE_DEFS.forEach(r => { b.prod[r.id] = 0; });
   RESEARCH_DEFS.forEach(rd => {
@@ -2522,6 +2558,61 @@ function getResearchBonuses() {
     if (bx.type === 'empire_mastery') { b.start_gold += bx.start_gold; b.wave_gold += bx.wave_gold; b.silo_cap += bx.silo_cap; }
     if (bx.type === 'transcendent') { b.all_prod += bx.all_prod; b.tower_dmg += bx.tower_dmg; b.tower_spd += bx.tower_spd; b.start_gold += bx.start_gold; b.start_lives += bx.start_lives; }
   });
+  // ── Pet passive bonuses ──────────────────────────────────────────────────
+  const petB = getMarketPassiveBonuses();
+  if (petB.tower_dmg)   b.tower_dmg   += petB.tower_dmg;
+  if (petB.tower_spd)   b.tower_spd   += petB.tower_spd;
+  if (petB.tower_range) b.tower_range += petB.tower_range;
+  if (petB.wave_gold)   b.wave_gold   += petB.wave_gold;
+  // ── Relic passive bonuses ────────────────────────────────────────────────
+  if (marketState) {
+    RELIC_DEFS.forEach(rd => {
+      if (!rd.passiveStat) return;          // skip disenchant-scaling relics (handled below)
+      const e = marketState.relics?.[rd.id];
+      if (!e?.pts) return;
+      const lv = _gachaHeroLevel(e.pts);
+      if (!lv) return;
+      b[rd.passiveStat]  = (b[rd.passiveStat]  || 0) + rd.basePerLv  * lv / 100;
+      if (rd.passiveStat2)
+        b[rd.passiveStat2] = (b[rd.passiveStat2] || 0) + rd.basePerLv2 * lv / 100;
+    });
+    // ── Market Skill passive bonuses ──────────────────────────────────────
+    if (typeof MARKET_SKILL_DEFS !== 'undefined') {
+      MARKET_SKILL_DEFS.forEach(sd => {
+        const e = marketState.marketSkills?.[sd.id];
+        if (!e?.pts) return;
+        const lv = _gachaHeroLevel(e.pts);
+        if (!lv) return;
+        b[sd.passiveStat]  = (b[sd.passiveStat]  || 0) + sd.basePerLv  * lv / 100;
+        if (sd.passiveStat2)
+          b[sd.passiveStat2] = (b[sd.passiveStat2] || 0) + sd.basePerLv2 * lv / 100;
+      });
+    }
+  }
+  // ── Gear expBonus → research speed ────────────────────────────────────────
+  {
+    if (!cmdGearState) loadCmdGearState();
+    if (cmdGearState) {
+      const expBonus = (typeof _gearCritCache !== 'undefined' ? _gearCritCache.expBonus : 0) || 0;
+      if (expBonus > 0) b.research_speed += expBonus / 100;
+      // ── Disenchant-scaling relics ──────────────────────────────────────────
+      const dc = cmdGearState.disenchantCount || 0;
+      if (dc > 0 && marketState) {
+        RELIC_DEFS.forEach(rd => {
+          if (!rd.disenchantStat) return;                   // not a disenchant relic
+          const e = marketState.relics?.[rd.id];
+          if (!e?.pts) return;                              // not owned
+          const bonus1 = dc * rd.disenchantPerItem / 100;
+          b[rd.disenchantStat] = (b[rd.disenchantStat] || 0) + bonus1;
+          if (rd.disenchantStat2) {
+            const bonus2 = dc * rd.disenchantPerItem2 / 100;
+            b[rd.disenchantStat2] = (b[rd.disenchantStat2] || 0) + bonus2;
+          }
+        });
+      }
+    }
+  }
+  _cachedResearchBonuses = b;
   return b;
 }
 
@@ -2998,6 +3089,7 @@ async function updateResearchBars() {
             const td = TOWER_DEFS.find(t => t.id === trTowerId);
             showToast(`🗼 ${td?.name||trTowerId} tower research complete! (+5% stats)`);
             addXP(30, undefined, undefined);
+            invalidateResearchCache();
             if (activeResearchTab === 'towers') buildTowerResearchTab(document.getElementById('rtree-towers'));
             if (towerResearchModalId === trTowerId) renderTowerResearchModal();
             renderArmoryGrid();
@@ -3008,6 +3100,7 @@ async function updateResearchBars() {
           if (rd) {
             showToast(`🔬 ${rd.name} research complete!`);
             addXP(30, undefined, undefined);
+            invalidateResearchCache();
             if (rd.category === 'battle' || rd.category === 'tower') { renderArmoryGrid(); updateArmorySlotCount(); }
             if (researchModalId === rd.id) renderResearchModal();
           }
@@ -3188,6 +3281,7 @@ async function resolveOfflineResearch() {
         if (rd) {
           showToast(`🔬 ${rd.name} research completed offline!`);
           addXP(30, undefined, undefined);
+          invalidateResearchCache();
         }
       });
     }
@@ -4959,8 +5053,6 @@ async function startBattle() {
     bs.eliteCfg = eliteCfg;
   }
 
-  spawnHero(); // spawn hero companion if one is selected
-
   // Reset Commander state for this battle
   commanderPlacing = false;
   _cmdPreview      = null;
@@ -4970,16 +5062,21 @@ async function startBattle() {
   document.getElementById('result-overlay').style.display = 'none';
   // (hud-wave-count dropdown removed — single send-wave button now used)
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
-  canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; if (bs?.hero) bs.hero.selected = false; showShopPanel(); };
+  canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
+  // Snapshot gear at battle start — used for server-side cheat validation
+  _battleGearFingerprint = _buildGearFingerprint();
+
   startBattleLoop();
   // Show pending towers bar so player knows to place their armory towers
   updatePendingTowersBar();
   if (pendingTowersQueue.length > 0) {
-    startPlacingPendingTower(0); // auto-select first tower to place
+    startPlacingPendingTower(0); // towers first — commander placement triggered after last tower
+    showToast('🏹 Place your armory towers, then place your Commander!');
+  } else {
+    // No armory towers — go straight to commander placement
+    enterCommanderPlacingMode();
+    showToast('⚔️ Place your Commander on the road, then send waves!');
   }
-  // Enter Commander placement mode — wave button locked until Commander is placed
-  enterCommanderPlacingMode();
-  showToast('⚔️ Place your Commander on the road, then place towers and send waves!');
 }
 
 function updatePendingTowersBar() {
@@ -5042,6 +5139,9 @@ function finishPlacingPendingTower(idx) {
     document.getElementById('pending-towers-bar').style.display = 'none';
     updateBattleHUD();
     renderShop();
+    // All armory towers placed — now prompt for commander placement
+    enterCommanderPlacingMode();
+    showToast('⚔️ Now place your Commander on the road!');
   }
   updatePendingTowersBar();
 }
@@ -5159,6 +5259,9 @@ function showShopPanel() {
 function showUpgradePanel(tower) {
   document.getElementById('shop-panel').style.display = 'none';
   document.getElementById('upgrade-panel').style.display = 'flex';
+  // Restore tower close button behaviour
+  const closeBtn = document.querySelector('#upgrade-panel .upg-close-btn');
+  if (closeBtn) closeBtn.onclick = deselectTower;
   renderUpgradePanel(tower);
 }
 function switchShopTab(tab) {
@@ -5243,9 +5346,6 @@ function handleCanvasClick(e) {
   // Commander placement: intercept click before anything else
   if (commanderPlacing && _cmdTryPlace(rawX, rawY)) return;
 
-  // Hero click: select hero or move selected hero
-  if (!placingTower && bs.hero && _heroHandleCanvasClick(rawX, rawY)) return;
-
   if (placingTower) {
     const x = mousePos.x, y = mousePos.y;
     if (!canPlaceTowerAt(x, y)) {
@@ -5268,6 +5368,15 @@ function handleCanvasClick(e) {
     }
     renderShop();
     return;
+  }
+
+  // Check if commander was clicked
+  if (bs.commanderMode && bs.commander && bs.commander.state !== 'dead') {
+    const cmd = bs.commander;
+    if (dist(rawX, rawY, cmd.x, cmd.y) <= cmd.size + 8) {
+      showCommanderPanel();
+      return;
+    }
   }
 
   const clicked = bs.towers.find(t => dist(rawX, rawY, t.x, t.y) <= t.r + 6);
@@ -5293,6 +5402,79 @@ function setTowerTargeting(towerId, mode) {
 
 // Make sure function is globally accessible
 window.setTowerTargeting = setTowerTargeting;
+
+function setCommanderTargeting(mode) {
+  if (!bs?.commander) return;
+  bs.commander.targeting = mode;
+  renderCommanderPanel();
+}
+window.setCommanderTargeting = setCommanderTargeting;
+
+// Uses the same upgrade-panel DOM as towers — no separate element needed.
+function showCommanderPanel() {
+  if (!bs?.commander) return;
+  selectedTowerId = null;
+  document.getElementById('shop-panel').style.display    = 'none';
+  document.getElementById('upgrade-panel').style.display = 'flex';
+  renderCommanderPanel();
+}
+
+function closeCommanderPanel() {
+  deselectTower();
+}
+window.closeCommanderPanel = closeCommanderPanel;
+
+function renderCommanderPanel() {
+  if (!bs?.commander) return;
+  const cmd   = bs.commander;
+  const s     = cmd.stats;
+  const tgt   = cmd.targeting || 'first';
+  const rc    = bs.commanderRiskColor || '#44dd66';
+  const tiles = bs._commanderTiles ?? 0;
+
+  // Title — reuse same element as tower panel
+  document.getElementById('upg-panel-title').textContent = '⚔️ Commander';
+
+  // Stats — same classes as renderUpgradePanel
+  document.getElementById('upg-panel-stats').innerHTML = `
+    <div class="upg-stat-row"><span class="upg-stat-label">❤️ HP</span><span class="upg-stat-val">${Math.ceil(cmd.hp)} / ${cmd.maxHp}</span></div>
+    <div class="upg-stat-row"><span class="upg-stat-label">⚔️ Damage</span><span class="upg-stat-val">${s.attackDamage}</span></div>
+    <div class="upg-stat-row"><span class="upg-stat-label">⚡ Atk Speed</span><span class="upg-stat-val">${(s.attackSpeed/1000).toFixed(2)}s</span></div>
+    <div class="upg-stat-row"><span class="upg-stat-label">📏 Range</span><span class="upg-stat-val">${s.attackRange} tiles</span></div>
+    <div class="upg-stat-row"><span class="upg-stat-label" style="color:${rc};">🛡️ Defense Zone</span><span class="upg-stat-val" style="color:${rc};">${tiles} tiles</span></div>
+  `;
+
+  // Targeting — same widget as towers
+  const paths = document.getElementById('upg-paths');
+  paths.innerHTML = '';
+
+  const targetingDiv = document.createElement('div');
+  targetingDiv.className = 'upg-targeting';
+
+  const targetLabel = document.createElement('div');
+  targetLabel.className = 'upg-target-label';
+  targetLabel.textContent = '🎯 Target Priority';
+
+  const targetBtns = document.createElement('div');
+  targetBtns.className = 'upg-target-btns';
+
+  [{mode:'first',label:'First'},{mode:'last',label:'Last'},{mode:'strongest',label:'Strongest'},{mode:'weakest',label:'Weakest'}]
+    .forEach(({mode, label}) => {
+      const btn = document.createElement('button');
+      btn.className = `upg-target-btn${tgt === mode ? ' active' : ''}`;
+      btn.textContent = label;
+      btn.onclick = () => setCommanderTargeting(mode);
+      targetBtns.appendChild(btn);
+    });
+
+  targetingDiv.appendChild(targetLabel);
+  targetingDiv.appendChild(targetBtns);
+  paths.appendChild(targetingDiv);
+
+  // Wire close button to close commander panel
+  const closeBtn = document.querySelector('#upgrade-panel .upg-close-btn');
+  if (closeBtn) closeBtn.onclick = closeCommanderPanel;
+}
 
 function deselectTower() {
   selectedTowerId = null;
@@ -5535,564 +5717,14 @@ const ASCEND_DEFS = {
   }
 };
 
-// ── HERO SYSTEM ──────────────────────────────────────────────────────────────
 
-const HERO_DEFS = {
-  warlord: {
-    name: 'Warlord', icon: '⚔️', color: '#e05030',
-    type: 'melee',
-    stats: {
-      maxHP: 500, atk: 30, atkSpeed: 1000,
-      range: 1.2,        // tiles — melee reach
-      moveSpeed: 110,    // px/sec
-      armor: 8,          // flat damage reduction per hit
-      blockCapacity: 3,  // max enemies simultaneously held
-      respawnTime: 15000,
-    },
-    passive: 'Iron Skin: Takes reduced damage from enemies.',
-    abilities: [
-      { id: 'shield_bash', name: 'Shield Bash', icon: '🛡️', energy: 25, cooldown: 8000,
-        desc: 'Stuns nearest enemy for 1.5s and deals 2× ATK.' },
-      { id: 'war_cry', name: 'War Cry', icon: '📯', energy: 30, cooldown: 15000,
-        desc: 'Boosts all tower attack speed by 20% for 5s.' },
-    ],
-    ultimate: { id: 'berserker', name: 'Berserker Rage', icon: '🔥', energy: 80, cooldown: 45000,
-      desc: '3× damage, 50% faster attacks for 8s.' }
-  },
-  sentinel: {
-    name: 'Sentinel', icon: '🏹', color: '#4090e0',
-    type: 'ranged',
-    stats: {
-      maxHP: 280, atk: 45, atkSpeed: 1800,
-      range: 3.5, moveSpeed: 100, armor: 3,
-      blockCapacity: 0,  // ranged — does not block enemies
-      respawnTime: 12000,
-    },
-    passive: 'Headshot: 15% chance to deal 3× damage.',
-    abilities: [
-      { id: 'piercing_shot', name: 'Piercing Shot', icon: '🎯', energy: 20, cooldown: 8000,
-        desc: 'Pierces all enemies in a line for full damage.' },
-      { id: 'eagle_eye', name: 'Eagle Eye', icon: '👁️', energy: 30, cooldown: 12000,
-        desc: 'Marks all enemies in range — they take +35% damage for 5s.' },
-    ],
-    ultimate: { id: 'rain_of_arrows', name: 'Rain of Arrows', icon: '🌧️', energy: 80, cooldown: 45000,
-      desc: 'Rapid hits to all enemies in range for 3s.' }
-  },
-  shaman: {
-    name: 'Shaman', icon: '🌿', color: '#40c070',
-    type: 'support',
-    stats: {
-      maxHP: 260, atk: 18, atkSpeed: 2200,
-      range: 2.5, moveSpeed: 90, armor: 4,
-      blockCapacity: 1, respawnTime: 12000,
-    },
-    passive: 'Mending Aura: Towers within range attack 12% faster.',
-    abilities: [
-      { id: 'hex', name: 'Hex', icon: '🔮', energy: 25, cooldown: 12000,
-        desc: 'Slows strongest enemy in range 50% for 4s.' },
-    ],
-    ultimate: { id: 'ancestral_wrath', name: 'Ancestral Wrath', icon: '⚡', energy: 80, cooldown: 45000,
-      desc: 'Enemies in range take 3× damage for 6s.' }
-  },
-  necromancer: {
-    name: 'Necromancer', icon: '💀', color: '#9040c0',
-    type: 'summoner',
-    stats: {
-      maxHP: 350, atk: 20, atkSpeed: 2000,
-      range: 2.0, moveSpeed: 95, armor: 5,
-      blockCapacity: 2, respawnTime: 18000,
-    },
-    passive: 'Raise Dead: 25% chance on kill to raise a skeleton. Soul Drain heals 5% HP per kill.',
-    abilities: [],
-    ultimate: { id: 'army_of_darkness', name: 'Army of Darkness', icon: '🪦', energy: 80, cooldown: 30000,
-      desc: 'Raise up to 5 powerful skeleton allies for 12s.' }
-  }
-};
-
-let heroState = null;
-
-function loadHeroState() {
-  try { heroState = JSON.parse(localStorage.getItem('idw_hero_state')) || null; }
-  catch(e) { heroState = null; }
-}
-
-function saveHeroState() {
-  if (heroState) {
-    localStorage.setItem('idw_hero_state', JSON.stringify(heroState));
-    if (currentUser) {
-      Promise.resolve(sb.rpc('idw_save_hero_state', { p_hero_state: heroState })).catch(e => console.warn('hero state sync failed', e));
-    }
-  }
-}
-
-function selectHero(heroId) {
-  if (!HERO_DEFS[heroId]) return;
-  heroState = { heroId };
-  saveHeroState();
-  buildHeroPanel();
-}
-
-function _heroHexToRgb(hex) {
-  return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
-}
-
-// ── Spawn hero at battle start ──────────────────────────────────────────────
-function spawnHero() {
-  if (!heroState || !HERO_DEFS[heroState.heroId]) { bs.hero = null; return; }
-  const hd = HERO_DEFS[heroState.heroId];
-
-  // Spawn point: near last waypoint, offset off the path
-  const wp = bs.waypoints;
-  const spawnWp = Math.max(0, wp.length - 3);
-  const base = wp[spawnWp];
-  const next = wp[Math.min(spawnWp + 1, wp.length - 1)];
-  const dx = next.x - base.x, dy = next.y - base.y;
-  const d  = Math.sqrt(dx*dx + dy*dy) || 1;
-  const px = -dy/d, py = dx/d; // perpendicular
-  const offset = bs.tw * 1.6;
-  const rx = Math.max(bs.tw * 0.6, Math.min(bs.tw * (bs.COLS - 0.6), base.x + px * offset));
-  const ry = Math.max(bs.th * 0.6, Math.min(bs.th * (bs.ROWS - 0.6), base.y + py * offset));
-
-  bs.hero = {
-    heroId: heroState.heroId, hd,
-    // Position & movement
-    x: rx, y: ry,
-    destX: rx, destY: ry,
-    destMarker: null,
-    facing: 1,
-    // State machine
-    state: 'idle',   // idle | moving | attacking | dead | respawning
-    stateTimer: 0,
-    selected: false,
-    // Stats — populated below by _heroRecomputeStats (base + gear)
-    hp: 0, maxHp: 0,
-    effectiveStats: null,
-    // Combat
-    atkCooldown: 0,
-    attackTarget: null,    // enemy id
-    blockedSet: new Set(), // ids of enemies being held
-    // Respawn
-    respawnX: rx, respawnY: ry,
-    respawnTimer: 0,
-    // Visual
-    size: 18,
-    dmgFlashTimer: 0,
-    _spawnAnim: 400, _spawnAnimDur: 400,
-    // Unique item effect state
-    _shadowStepTimer: 0,   // shadow_leggings: ms of speed boost remaining
-    _phoenixUsed: false,   // phoenix_shield: has the revive been consumed this wave
-  };
-  // Apply base + gear stats; set full HP on fresh spawn.
-  _heroRecomputeStats(bs.hero);
-  bs.hero.hp = bs.hero.effectiveStats.maxHP;
-}
-
-// ── State machine ────────────────────────────────────────────────────────────
-function _heroSetState(h, state) {
-  h.state = state;
-  h.stateTimer = 0;
-}
-
-function updateHero(dt) {
-  const h = bs.hero;
-  if (!h) return;
-  const dtMs = dt * 1000;
-
-  if (h._spawnAnim > 0) { h._spawnAnim = Math.max(0, h._spawnAnim - dtMs); return; }
-
-  if (h.dmgFlashTimer > 0) h.dmgFlashTimer -= dtMs;
-  if (h.destMarker) { h.destMarker.timer -= dtMs; if (h.destMarker.timer <= 0) h.destMarker = null; }
-  h.stateTimer += dtMs;
-
-  // ── Unique item passives ──────────────────────────────────────────────────
-  if (h.state !== 'dead' && h.state !== 'respawning') {
-    const eq = heroGearState?.equippedGear;
-    // Celestial Helm — Radiant: regen 4 HP/sec even in combat
-    if (eq?.helmet === 'celestial_helm') {
-      h.hp = Math.min(h.maxHp, h.hp + 4 * dt);
-    }
-    // Void Walker Boots — Void Aura: continuously slow nearby enemies
-    if (eq?.boots === 'void_walker_boots') {
-      const auraR = 2 * bs.tw;
-      bs.enemies.forEach(e => {
-        if (!e.isDead && !e.isReached && dist(h.x, h.y, e.x, e.y) <= auraR) {
-          e.slowTimer = Math.max(e.slowTimer || 0, 300); // refreshed each frame
-        }
-      });
-    }
-    // Shadow Step timer countdown
-    if (h._shadowStepTimer > 0) h._shadowStepTimer = Math.max(0, h._shadowStepTimer - dtMs);
-  }
-
-  // Clean up dead/escaped enemies from blocked set
-  h.blockedSet.forEach(id => {
-    const e = bs.enemies.find(en => en.id === id);
-    if (!e || e.isDead || e.isReached) { h.blockedSet.delete(id); }
-  });
-
-  switch (h.state) {
-    case 'idle':       _heroIdle(h, dt);       break;
-    case 'moving':     _heroMoving(h, dt);     break;
-    case 'attacking':  _heroAttacking(h, dt);  break;
-    case 'dead':       _heroDead(h, dt);       break;
-    case 'respawning': _heroRespawning(h, dt); break;
-  }
-
-}
-
-function _heroIdle(h, dt) {
-  // Slow HP regen when idle and not being attacked
-  if (h.blockedSet.size === 0) {
-    h.hp = Math.min(h.maxHp, h.hp + 3 * dt);
-  }
-  // Auto-engage: look for enemies within 1.3× attack range
-  const engR = h.effectiveStats.range * bs.tw * 1.3;
-  const t = _heroFindTarget(h, engR);
-  if (t) { h.attackTarget = t.id; _heroSetState(h, 'attacking'); }
-}
-
-function _heroMoving(h, dt) {
-  const dx = h.destX - h.x, dy = h.destY - h.y;
-  const d  = Math.sqrt(dx*dx + dy*dy);
-  if (d < 4) { h.x = h.destX; h.y = h.destY; _heroSetState(h, 'idle'); return; }
-
-  const spd  = h.effectiveStats.moveSpeed * (h._shadowStepTimer > 0 ? 1.6 : 1);
-  const move = Math.min(spd * dt, d);
-  h.x += (dx/d) * move;
-  h.y += (dy/d) * move;
-  h.facing = dx > 0 ? 1 : -1;
-  // Clamp to canvas
-  h.x = Math.max(h.size, Math.min(bs.tw * bs.COLS - h.size, h.x));
-  h.y = Math.max(h.size, Math.min(bs.th * bs.ROWS - h.size, h.y));
-
-  // Ranged / support heroes can fire while moving
-  if (h.hd.type !== 'melee') {
-    const t = _heroFindTarget(h, h.effectiveStats.range * bs.tw);
-    if (t) { h.attackTarget = t.id; _heroTryAttack(h); }
-  }
-
-  // Auto-engage for melee when enemy enters range during movement
-  const t = _heroFindTarget(h, h.effectiveStats.range * bs.tw);
-  if (t && h.hd.type === 'melee') { _heroSetState(h, 'attacking'); }
-}
-
-function _heroAttacking(h, dt) {
-  h.atkCooldown = Math.max(0, h.atkCooldown - dt * 1000);
-
-  // Validate / re-acquire target
-  let target = h.attackTarget
-    ? bs.enemies.find(e => e.id === h.attackTarget && !e.isDead && !e.isReached)
-    : null;
-  const atkR = h.effectiveStats.range * bs.tw;
-
-  if (!target || dist(h.x, h.y, target.x, target.y) > atkR * 1.2) {
-    target = _heroFindTarget(h, atkR);
-    if (target) { h.attackTarget = target.id; }
-    else { h.attackTarget = null; _heroSetState(h, 'idle'); return; }
-  }
-
-  h.facing = target.x > h.x ? 1 : -1;
-
-  // Melee hero creeps toward target if not quite in reach
-  if (h.hd.type === 'melee') {
-    const d = dist(h.x, h.y, target.x, target.y);
-    if (d > atkR * 0.85) {
-      const tdx = target.x - h.x, tdy = target.y - h.y;
-      const tn  = Math.sqrt(tdx*tdx + tdy*tdy) || 1;
-      const creep = h.effectiveStats.moveSpeed * (h._shadowStepTimer > 0 ? 1.6 : 1) * 0.45 * dt;
-      h.x = Math.max(h.size, Math.min(bs.tw*bs.COLS-h.size, h.x + (tdx/tn)*creep));
-      h.y = Math.max(h.size, Math.min(bs.th*bs.ROWS-h.size, h.y + (tdy/tn)*creep));
-    }
-  }
-
-  _heroTryAttack(h);
-}
-
-function _heroDead(h, dt) {
-  h.respawnTimer -= dt * 1000;
-  if (h.respawnTimer <= 0) {
-    h.hp = h.maxHp;
-    h.x  = h.respawnX; h.y = h.respawnY;
-    h.attackTarget = null; h.atkCooldown = 0;
-    h._spawnAnim = 500; h._spawnAnimDur = 500;
-    _heroSetState(h, 'respawning');
-  }
-}
-
-function _heroRespawning(h, dt) {
-  if (h._spawnAnim <= 0) _heroSetState(h, 'idle');
-}
-
-// ── Combat helpers ───────────────────────────────────────────────────────────
-function _heroFindTarget(h, range) {
-  const alive = bs.enemies.filter(e => !e.isDead && !e.isReached);
-
-  // Priority 1: blocked enemies already being held
-  const blocked = alive.filter(e => h.blockedSet.has(e.id));
-  if (blocked.length) return blocked[0];
-
-  // Priority 2: enemies within range, sorted furthest along path first
-  const inR = alive
-    .filter(e => dist(h.x, h.y, e.x, e.y) <= range)
-    .sort((a, b) => b.dist - a.dist);
-
-  return inR[0] || null;
-}
-
-function _heroTryAttack(h) {
-  if (h.atkCooldown > 0) return;
-  const target = h.attackTarget
-    ? bs.enemies.find(e => e.id === h.attackTarget && !e.isDead && !e.isReached)
-    : null;
-  if (!target) return;
-  if (dist(h.x, h.y, target.x, target.y) > h.effectiveStats.range * bs.tw) return;
-
-  const hitDmg = h.effectiveStats.atk;
-  applyDmgToEnemy(target, hitDmg);
-
-  // ── Unique weapon procs ───────────────────────────────────────────────────
-  const mainHand = heroGearState?.equippedGear?.mainHand;
-  // Stormcaller Blade — Chain Lightning: 25% to arc to all nearby enemies
-  if (mainHand === 'stormcaller_blade' && Math.random() < 0.25) {
-    const arcR = 2 * bs.tw;
-    const arcDmg = Math.round(hitDmg * 0.6);
-    bs.enemies.forEach(en => {
-      if (!en.isDead && !en.isReached && en !== target && dist(h.x, h.y, en.x, en.y) <= arcR) {
-        applyDmgToEnemy(en, arcDmg);
-        if (en.hp <= 0 && !en.isDead) killEnemy(en, null);
-      }
-    });
-  }
-  // Mythic Staff — Soul Drain: burn + heal on every hit
-  if (mainHand === 'mythic_staff') {
-    target.burnStacks = Math.min((target.burnStacks || 0) + 2, 8);
-    target.burnTimer  = Math.max(target.burnTimer  || 0, 2000);
-    h.hp = Math.min(h.maxHp, h.hp + 8);
-  }
-
-  // ── Kill & post-hit effects ───────────────────────────────────────────────
-  const killed = target.hp <= 0 && !target.isDead;
-  if (killed) {
-    killEnemy(target, null);
-    // Shadow Leggings — Shadow Step: speed burst on kill
-    if (heroGearState?.equippedGear?.pants === 'shadow_leggings') {
-      h._shadowStepTimer = 2000;
-    }
-  }
-
-  h.atkCooldown   = h.effectiveStats.atkSpeed;
-  h.dmgFlashTimer = 80;
-}
-
-function _heroKill(h) {
-  if (h.state === 'dead' || h.state === 'respawning') return;
-  // Phoenix Shield — Phoenix: revive once per wave instead of dying
-  if (heroGearState?.equippedGear?.offhand === 'phoenix_shield' && !h._phoenixUsed) {
-    h._phoenixUsed = true;
-    h.hp = Math.round(h.maxHp * 0.4);
-    h.dmgFlashTimer = 300;
-    _heroReleaseAll(h);
-    return; // survive
-  }
-  _heroReleaseAll(h);
-  h.hp           = 0;
-  h.selected     = false;
-  h.attackTarget = null;
-  h.respawnTimer = h.hd.stats.respawnTime;
-  _heroSetState(h, 'dead');
-}
-
-function _heroReleaseAll(h) {
-  h.blockedSet.forEach(id => {
-    const e = bs.enemies.find(en => en.id === id);
-    if (e) { e.blockedBy = null; e._heroAtkTimer = 0; }
-  });
-  h.blockedSet.clear();
-}
-
-// ── Movement command from player click ──────────────────────────────────────
-function setHeroDestination(x, y) {
-  const h = bs.hero;
-  if (!h || h.state === 'dead' || h.state === 'respawning') return false;
-
-  const m = h.size;
-  if (x < m || x > bs.tw * bs.COLS - m || y < m || y > bs.th * bs.ROWS - m) return false;
-
-  // Reject tower cells
-  const col = Math.floor(x / bs.tw), row = Math.floor(y / bs.th);
-  if (bs.towers.some(t => Math.floor(t.x/bs.tw)===col && Math.floor(t.y/bs.th)===row)) return false;
-
-  _heroReleaseAll(h); // release blocking enemies when hero moves away
-  h.destX = x; h.destY = y;
-  h.destMarker = { x, y, timer: 800 };
-  h.attackTarget = null;
-  _heroSetState(h, 'moving');
-  return true;
-}
-
-// ── Canvas click handler — called from handleCanvasClick ─────────────────────
-function _heroHandleCanvasClick(x, y) {
-  if (placingTower) return false;
-  const h = bs.hero;
-  if (!h || h.state === 'dead' || h.state === 'respawning') return false;
-
-  // Click on hero → toggle selection
-  if (dist(x, y, h.x, h.y) < h.size * 2.5) {
-    h.selected = !h.selected;
-    return true;
-  }
-
-  // Click on a placed tower → deselect hero, let tower logic handle it
-  if (bs.towers.some(t => dist(x, y, t.x, t.y) <= t.r + 6)) {
-    h.selected = false;
-    return false;
-  }
-
-  // Hero selected + valid canvas location → move
-  if (h.selected) {
-    setHeroDestination(x, y);
-    return true; // always consume to prevent deselecting towers accidentally
-  }
-
-  return false;
-}
-
-// ── Enemy blocking: called per-enemy inside updateEnemies ────────────────────
-// Returns true if enemy is held by hero and should skip its path movement.
-function _processHeroBlock(e, dt) {
-  const h = bs.hero;
-  if (!h || h.state === 'dead' || h.state === 'respawning') return false;
-  if (ENEMY_TYPES[e.type]?.isFlying)  return false; // flying enemies bypass hero
-  if (ENEMY_TYPES[e.type]?.bossImmune) return false; // boss immune enemies pass through
-
-  const blockR = h.size + e.size + 6;
-  const d = dist(h.x, h.y, e.x, e.y);
-
-  if (h.blockedSet.has(e.id)) {
-    // ── Already claimed: hold the enemy next to hero ──
-    const desired = h.size + e.size + 2;
-    if (d > desired + 1) {
-      const ex = h.x - e.x, ey = h.y - e.y;
-      const en = Math.sqrt(ex*ex + ey*ey) || 1;
-      const nudge = Math.min(e.speed * 0.35 * dt, d - desired);
-      e.x += (ex/en) * nudge;
-      e.y += (ey/en) * nudge;
-    }
-    // Enemy attacks hero every ~1.2s
-    e._heroAtkTimer = (e._heroAtkTimer || 0) - dt * 1000;
-    if (e._heroAtkTimer <= 0) {
-      e._heroAtkTimer = 1200;
-      const rawDmg = Math.max(1, Math.round(e.maxHp * 0.01));
-      const dmg    = Math.max(1, rawDmg - h.effectiveStats.armor);
-      h.hp = Math.max(0, h.hp - dmg);
-      h.dmgFlashTimer = 150;
-      // Divine Plate — Thorns: reflect 30% back to attacker
-      if (heroGearState?.equippedGear?.armor === 'divine_plate') {
-        applyDmgToEnemy(e, Math.max(1, Math.round(dmg * 0.3)));
-        if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
-      }
-      if (h.hp <= 0) _heroKill(h);
-    }
-    return true; // skip path movement
-  }
-
-  // ── Try to claim enemy ──
-  if (h.blockedSet.size < h.effectiveStats.blockCapacity && d < blockR) {
-    h.blockedSet.add(e.id);
-    e.blockedBy = h.heroId;
-    // Make hero attack this enemy if not already fighting
-    if (h.state !== 'attacking') {
-      h.attackTarget = e.id;
-      _heroSetState(h, 'attacking');
-    }
-    return true;
-  }
-
-  return false;
-}
-
-// ── Drawing ──────────────────────────────────────────────────────────────────
-function drawHero(ctx) {
-  const h = bs.hero;
-  if (!h) return;
-
-  // Dead: show pulsing respawn indicator at spawn point
-  if (h.state === 'dead') {
-    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 350);
-    ctx.save();
-    ctx.globalAlpha = 0.55 * pulse;
-    ctx.beginPath();
-    ctx.arc(h.respawnX, h.respawnY, h.size * 1.6, 0, Math.PI*2);
-    ctx.strokeStyle = h.hd.color;
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash([4, 4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-    ctx.beginPath();
-    return;
-  }
-
-  const spawnP = h._spawnAnimDur > 0 ? Math.min(1, 1 - h._spawnAnim / h._spawnAnimDur) : 1;
-  const scale  = 0.3 + 0.7 * spawnP;
-  const alpha  = h.dmgFlashTimer > 0 ? 0.5 : 1.0;
-
-  // Destination marker: fading target reticle
-  if (h.destMarker) {
-    const mp = Math.max(0, h.destMarker.timer / 800);
-    ctx.save();
-    ctx.globalAlpha = mp * 0.85;
-    ctx.beginPath();
-    ctx.arc(h.destMarker.x, h.destMarker.y, h.size * (0.5 + 0.5 * mp), 0, Math.PI*2);
-    ctx.strokeStyle = h.hd.color;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([3, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-    ctx.beginPath();
-  }
-
-  ctx.save();
-  ctx.globalAlpha = alpha * spawnP;
-  ctx.translate(h.x, h.y);
-  ctx.scale(scale, scale);
-
-  // Selection ring — pulsing dashed white circle
-  if (h.selected) {
-    const sp = 0.65 + 0.35 * Math.sin(Date.now() / 280);
-    ctx.beginPath();
-    ctx.arc(0, 0, h.size * 1.75, 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(255,255,255,${sp})`;
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash([4, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Hero body
-  ctx.beginPath(); ctx.arc(0, 0, h.size, 0, Math.PI*2);
-  ctx.fillStyle   = h.hd.color; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
-
-  // Hero icon
-  ctx.font = `${Math.round(h.size * 1.1)}px serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.globalAlpha = alpha * spawnP;
-  ctx.fillText(h.hd.icon, 0, 1);
-
-  // HP bar above hero
-  const bW = h.size * 2.8, bY = -(h.size + 10);
-  ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(-bW/2, bY, bW, 5);
-  const hpR = Math.max(0, h.hp / h.maxHp);
-  ctx.fillStyle = hpR > 0.5 ? '#44dd44' : hpR > 0.25 ? '#ffaa44' : '#ff4444';
-  ctx.fillRect(-bW/2, bY, bW * hpR, 5);
-
-  ctx.restore();
-  ctx.beginPath(); // clear lingering arc paths
-}
 
 // ── GEAR SYSTEM DATA ─────────────────────────────────────────────────────────
+
+// Hex colour → "r,g,b" string used for rgba() in canvas/CSS.
+function _hexToRgb(hex) {
+  return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+}
 
 const GEAR_RARITY_COLORS = {
   common:    '#8a8a8a',
@@ -6106,60 +5738,62 @@ const GEAR_RARITY_COLORS = {
 // Weapon definitions. Add real items here as the game expands.
 // TODO: Backend — load available item definitions from a Supabase `gear_defs` table.
 const GEAR_WEAPON_DEFS = {
-  iron_sword:         { id:'iron_sword',         name:'Iron Sword',        icon:'⚔️', rarity:'common',    level:1, handedness:'one-handed', stats:{ atk:15, atkSpeed:5          } },
-  shadow_dagger:      { id:'shadow_dagger',      name:'Shadow Dagger',     icon:'🗡️', rarity:'uncommon',  level:2, handedness:'one-handed', stats:{ atk:12, atkSpeed:20         } },
-  war_axe:            { id:'war_axe',            name:'War Axe',            icon:'🪓', rarity:'uncommon',  level:3, handedness:'two-handed', stats:{ atk:35, atkSpeed:-10        } },
-  elven_bow:          { id:'elven_bow',          name:'Elven Bow',          icon:'🏹', rarity:'rare',      level:5, handedness:'two-handed', stats:{ atk:28, range:1, atkSpeed:15 } },
-  enchanted_staff:    { id:'enchanted_staff',    name:'Enchanted Staff',    icon:'🪄', rarity:'epic',      level:7, handedness:'two-handed', stats:{ atk:50, atkSpeed:8, range:2  } },
-  stormcaller_blade:  { id:'stormcaller_blade',  name:'Stormcaller Blade',  icon:'⚡', rarity:'legendary', level:8, handedness:'one-handed', stats:{ atk:80, atkSpeed:15, range:1 },
+  iron_sword:         { id:'iron_sword',         name:'Iron Sword',        icon:'⚔️', rarity:'common',    level:1, handedness:'one-handed', stats:{ atk:15, atkSpeed:5,  range:0.2                              } },
+  shadow_dagger:      { id:'shadow_dagger',      name:'Shadow Dagger',     icon:'🗡️', rarity:'uncommon',  level:2, handedness:'one-handed', stats:{ atk:12, atkSpeed:20, range:0.1, critChance:8               } },
+  war_axe:            { id:'war_axe',            name:'War Axe',            icon:'🪓', rarity:'uncommon',  level:3, handedness:'two-handed', stats:{ atk:35, atkSpeed:-10,range:0.4, critDmg:40               } },
+  elven_bow:          { id:'elven_bow',          name:'Elven Bow',          icon:'🏹', rarity:'rare',      level:5, handedness:'two-handed', stats:{ atk:28, range:1, atkSpeed:15, critChance:5, expBonus:10 } },
+  enchanted_staff:    { id:'enchanted_staff',    name:'Enchanted Staff',    icon:'🪄', rarity:'epic',      level:7, handedness:'two-handed', stats:{ atk:50, atkSpeed:8, range:2, critChance:5, critDmg:30  } },
+  stormcaller_blade:  { id:'stormcaller_blade',  name:'Stormcaller Blade',  icon:'⚡', rarity:'legendary', level:8, handedness:'one-handed', stats:{ atk:80, atkSpeed:15, range:1, critChance:10, critDmg:50 },
     effect:{ id:'chain_lightning', name:'Chain Lightning', icon:'⚡', desc:'On hit: 25% chance to arc lightning to all enemies within 2 tiles, dealing 60% of the hit\'s damage.' } },
-  mythic_staff:       { id:'mythic_staff',       name:'Mythic Staff',       icon:'🌟', rarity:'mystic',    level:9, handedness:'two-handed', stats:{ atk:120, range:3, atkSpeed:20 },
-    effect:{ id:'soul_drain', name:'Soul Drain', icon:'🔮', desc:'Every hit burns the target (2 stacks) and heals the hero for 8 HP.' } },
+  mythic_staff:       { id:'mythic_staff',       name:'Mythic Staff',       icon:'🌟', rarity:'mystic',    level:9, handedness:'two-handed', stats:{ atk:120, range:3, atkSpeed:20, critChance:15, critDmg:100, expBonus:25 },
+    effect:{ id:'soul_drain', name:'Soul Drain', icon:'🔮', desc:'Every hit burns the target (2 stacks) and heals the Commander for 8 HP.' } },
 };
 
 // Armour/accessory definitions.
 const GEAR_ITEM_DEFS = {
   // Helmets
-  iron_helmet:          { id:'iron_helmet',          name:'Iron Helmet',          icon:'⛑️', rarity:'common',    level:1, slot:'helmet',  stats:{ defense:8,  hp:20              } },
-  leather_cap:          { id:'leather_cap',          name:'Leather Cap',           icon:'🪖', rarity:'uncommon',  level:2, slot:'helmet',  stats:{ defense:6,  hp:35, atkSpeed:5  } },
-  celestial_helm:       { id:'celestial_helm',       name:'Celestial Helm',        icon:'👑', rarity:'legendary', level:8, slot:'helmet',  stats:{ defense:40, hp:100, atkSpeed:10 },
+  iron_helmet:          { id:'iron_helmet',          name:'Iron Helmet',          icon:'⛑️', rarity:'common',    level:1, slot:'helmet',  stats:{ defense:8,  hp:20                          } },
+  leather_cap:          { id:'leather_cap',          name:'Leather Cap',           icon:'🪖', rarity:'uncommon',  level:2, slot:'helmet',  stats:{ defense:6,  hp:35, atkSpeed:5, expBonus:5   } },
+  celestial_helm:       { id:'celestial_helm',       name:'Celestial Helm',        icon:'👑', rarity:'legendary', level:8, slot:'helmet',  stats:{ defense:40, hp:100, atkSpeed:10, critChance:8, expBonus:15 },
     effect:{ id:'radiant', name:'Radiant', icon:'💫', desc:'Regenerates 4 HP per second even while in combat.' } },
   // Armor
-  chain_armor:          { id:'chain_armor',          name:'Chain Armor',           icon:'🥋', rarity:'uncommon',  level:3, slot:'armor',   stats:{ defense:18, hp:50              } },
-  iron_plate:           { id:'iron_plate',           name:'Iron Plate',            icon:'🛡️', rarity:'rare',      level:5, slot:'armor',   stats:{ defense:30, hp:80              } },
-  divine_plate:         { id:'divine_plate',         name:'Divine Plate',          icon:'✨', rarity:'legendary', level:8, slot:'armor',   stats:{ defense:55, hp:150             },
+  chain_armor:          { id:'chain_armor',          name:'Chain Armor',           icon:'🥋', rarity:'uncommon',  level:3, slot:'armor',   stats:{ defense:18, hp:50                          } },
+  iron_plate:           { id:'iron_plate',           name:'Iron Plate',            icon:'🛡️', rarity:'rare',      level:5, slot:'armor',   stats:{ defense:30, hp:80, critChance:3             } },
+  divine_plate:         { id:'divine_plate',         name:'Divine Plate',          icon:'✨', rarity:'legendary', level:8, slot:'armor',   stats:{ defense:55, hp:150, critDmg:30              },
     effect:{ id:'thorns', name:'Thorns', icon:'🌵', desc:'Reflects 30% of incoming melee damage back to the attacker.' } },
   // Pants
-  linen_pants:          { id:'linen_pants',          name:'Linen Pants',           icon:'👖', rarity:'common',    level:1, slot:'pants',   stats:{ defense:6,  moveSpeed:8        } },
-  reinforced_leggings:  { id:'reinforced_leggings',  name:'Reinforced Leggings',   icon:'🩱', rarity:'uncommon',  level:3, slot:'pants',   stats:{ defense:15, hp:30              } },
-  dragonhide_leggings:  { id:'dragonhide_leggings',  name:'Dragonhide Leggings',   icon:'🦖', rarity:'rare',      level:5, slot:'pants',   stats:{ defense:22, hp:50, moveSpeed:12 } },
-  shadow_leggings:      { id:'shadow_leggings',      name:'Shadow Leggings',       icon:'🌑', rarity:'legendary', level:8, slot:'pants',   stats:{ defense:35, hp:80, moveSpeed:25 },
+  linen_pants:          { id:'linen_pants',          name:'Linen Pants',           icon:'👖', rarity:'common',    level:1, slot:'pants',   stats:{ defense:6,  moveSpeed:8                    } },
+  reinforced_leggings:  { id:'reinforced_leggings',  name:'Reinforced Leggings',   icon:'🩱', rarity:'uncommon',  level:3, slot:'pants',   stats:{ defense:15, hp:30, expBonus:5               } },
+  dragonhide_leggings:  { id:'dragonhide_leggings',  name:'Dragonhide Leggings',   icon:'🦖', rarity:'rare',      level:5, slot:'pants',   stats:{ defense:22, hp:50, moveSpeed:12, critChance:4 } },
+  shadow_leggings:      { id:'shadow_leggings',      name:'Shadow Leggings',       icon:'🌑', rarity:'legendary', level:8, slot:'pants',   stats:{ defense:35, hp:80, moveSpeed:25, critDmg:40  },
     effect:{ id:'shadow_step', name:'Shadow Step', icon:'👤', desc:'Killing an enemy boosts move speed by 60% for 2 seconds.' } },
   // Boots
-  iron_boots:           { id:'iron_boots',           name:'Iron Boots',            icon:'👢', rarity:'common',    level:1, slot:'boots',   stats:{ defense:5,  moveSpeed:5        } },
-  swiftwalkers:         { id:'swiftwalkers',         name:'Swiftwalkers',          icon:'🥾', rarity:'rare',      level:4, slot:'boots',   stats:{ defense:8,  moveSpeed:20, atkSpeed:5 } },
-  void_walker_boots:    { id:'void_walker_boots',    name:'Void Walker Boots',     icon:'🌀', rarity:'legendary', level:8, slot:'boots',   stats:{ defense:20, moveSpeed:40, atkSpeed:10 },
+  iron_boots:           { id:'iron_boots',           name:'Iron Boots',            icon:'👢', rarity:'common',    level:1, slot:'boots',   stats:{ defense:5,  moveSpeed:5                    } },
+  swiftwalkers:         { id:'swiftwalkers',         name:'Swiftwalkers',          icon:'🥾', rarity:'rare',      level:4, slot:'boots',   stats:{ defense:8,  moveSpeed:20, atkSpeed:5, critChance:5 } },
+  void_walker_boots:    { id:'void_walker_boots',    name:'Void Walker Boots',     icon:'🌀', rarity:'legendary', level:8, slot:'boots',   stats:{ defense:20, moveSpeed:40, atkSpeed:10, critChance:8, expBonus:10 },
     effect:{ id:'void_aura', name:'Void Aura', icon:'🌀', desc:'Enemies within 2 tiles are continuously slowed by 20%.' } },
   // Offhand
-  wooden_shield:        { id:'wooden_shield',        name:'Wooden Shield',         icon:'🔰', rarity:'common',    level:1, slot:'offhand', stats:{ defense:12, hp:30              } },
-  magic_orb:            { id:'magic_orb',            name:'Magic Orb',             icon:'🔮', rarity:'epic',      level:6, slot:'offhand', stats:{ atk:15, range:1, hp:40         } },
-  phoenix_shield:       { id:'phoenix_shield',       name:'Phoenix Shield',        icon:'🦅', rarity:'mystic',    level:9, slot:'offhand', stats:{ defense:50, hp:120, atk:20     },
+  wooden_shield:        { id:'wooden_shield',        name:'Wooden Shield',         icon:'🔰', rarity:'common',    level:1, slot:'offhand', stats:{ defense:12, hp:30                          } },
+  magic_orb:            { id:'magic_orb',            name:'Magic Orb',             icon:'🔮', rarity:'epic',      level:6, slot:'offhand', stats:{ atk:15, range:1, hp:40, critChance:6, critDmg:20 } },
+  phoenix_shield:       { id:'phoenix_shield',       name:'Phoenix Shield',        icon:'🦅', rarity:'mystic',    level:9, slot:'offhand', stats:{ defense:50, hp:120, atk:20, critChance:12, critDmg:60, expBonus:20 },
     effect:{ id:'phoenix', name:'Phoenix', icon:'🔥', desc:'Revive once per wave at 40% HP instead of dying.' } },
 };
 
 // Labels and icons used when rendering stat values.
 const GEAR_STAT_LABELS = {
-  atk:       { label:'ATK',     icon:'⚔️' },
-  defense:   { label:'DEF',     icon:'🛡️' },
-  hp:        { label:'HP',      icon:'❤️' },
-  atkSpeed:  { label:'ATK Spd', icon:'⚡' },
-  range:     { label:'Range',   icon:'📏' },
-  moveSpeed: { label:'Mov Spd', icon:'💨' },
+  atk:        { label:'ATK',        icon:'⚔️' },
+  defense:    { label:'DEF',        icon:'🛡️' },
+  hp:         { label:'HP',         icon:'❤️' },
+  atkSpeed:   { label:'ATK Spd',    icon:'⚡' },
+  range:      { label:'Range',      icon:'📏' },
+  moveSpeed:  { label:'Mov Spd',    icon:'💨' },
+  critChance: { label:'Crit Chance',icon:'🎯' },
+  critDmg:    { label:'Crit DMG',   icon:'💥' },
+  expBonus:   { label:'EXP Bonus',  icon:'⭐' },
 };
 
-// Canonical display order: ATK → ATK Spd → Range → DEF → HP → Mov Spd
-// Stats absent from an item are silently skipped; order is always preserved.
-const GEAR_STAT_ORDER = ['atk', 'atkSpeed', 'range', 'defense', 'hp', 'moveSpeed'];
+// Canonical display order
+const GEAR_STAT_ORDER = ['atk','atkSpeed','range','critChance','critDmg','expBonus','defense','hp','moveSpeed'];
 
 // Skill definitions available in the inventory.
 // TODO: Backend — load available skills from Supabase `skill_defs` table.
@@ -6173,16 +5807,16 @@ const GEAR_SKILL_DEFS = {
 
 // ── Gear state management ─────────────────────────────────────────────────────
 
-let heroGearState = null;
+let cmdGearState = null;
 
-function loadHeroGearState() {
-  try { heroGearState = JSON.parse(localStorage.getItem('idw_hero_gear')) || null; } catch(e) {}
-  if (!heroGearState) {
+function loadCmdGearState() {
+  try { cmdGearState = JSON.parse(localStorage.getItem('idw_hero_gear')) || null; } catch(e) {}
+  if (!cmdGearState) {
     // TODO: Backend — load from Supabase `hero_gear` table for this user's account.
     // Each inventory entry: { id, level, copies }
     //   level  — upgrade tier (increases when enough copies are collected)
     //   copies — duplicate copies collected toward the next level-up
-    heroGearState = {
+    cmdGearState = {
       equippedGear: { helmet:null, armor:null, pants:null, boots:null, mainHand:null, offhand:null },
       skills: [null, null, null],
       // TODO: Backend — replace with inventory fetched from Supabase `hero_inventory` table.
@@ -6209,32 +5843,36 @@ function loadHeroGearState() {
     return;
   }
   // Migrate old string-array format → new { id, level, copies } object format.
-  if (heroGearState.ownedWeaponIds) {
-    heroGearState.ownedWeapons = heroGearState.ownedWeaponIds.map(id => ({ id, level:1, copies:0 }));
-    heroGearState.ownedGear    = (heroGearState.ownedGearIds  || []).map(id => ({ id, level:1, copies:0 }));
-    heroGearState.ownedSkills  = (heroGearState.ownedSkillIds || []).map(id => ({ id, level:1, copies:0 }));
-    delete heroGearState.ownedWeaponIds;
-    delete heroGearState.ownedGearIds;
-    delete heroGearState.ownedSkillIds;
-    saveHeroGearState();
+  if (cmdGearState.ownedWeaponIds) {
+    cmdGearState.ownedWeapons = cmdGearState.ownedWeaponIds.map(id => ({ id, level:1, copies:0 }));
+    cmdGearState.ownedGear    = (cmdGearState.ownedGearIds  || []).map(id => ({ id, level:1, copies:0 }));
+    cmdGearState.ownedSkills  = (cmdGearState.ownedSkillIds || []).map(id => ({ id, level:1, copies:0 }));
+    delete cmdGearState.ownedWeaponIds;
+    delete cmdGearState.ownedGearIds;
+    delete cmdGearState.ownedSkillIds;
+    saveCmdGearState();
   }
   // Migrate saves that don't have pants slot yet
-  if (!('pants' in (heroGearState.equippedGear || {}))) {
-    heroGearState.equippedGear.pants = null;
-    saveHeroGearState();
+  if (!('pants' in (cmdGearState.equippedGear || {}))) {
+    cmdGearState.equippedGear.pants = null;
+    saveCmdGearState();
   }
   // Ensure required arrays always exist (guards against partial server saves
   // that only contain equippedGear and are missing the inventory arrays)
-  if (!Array.isArray(heroGearState.ownedWeapons)) heroGearState.ownedWeapons = [];
-  if (!Array.isArray(heroGearState.ownedGear))    heroGearState.ownedGear    = [];
-  if (!Array.isArray(heroGearState.ownedSkills))  heroGearState.ownedSkills  = [];
-  if (!Array.isArray(heroGearState.skills))       heroGearState.skills       = [null, null, null];
+  if (!Array.isArray(cmdGearState.ownedWeapons)) cmdGearState.ownedWeapons = [];
+  if (!Array.isArray(cmdGearState.ownedGear))    cmdGearState.ownedGear    = [];
+  if (!Array.isArray(cmdGearState.ownedSkills))  cmdGearState.ownedSkills  = [];
+  if (!Array.isArray(cmdGearState.skills))       cmdGearState.skills       = [null, null, null];
+  // Migrate: ensure disenchant fields exist
+  if (cmdGearState.disenchantCount   === undefined) cmdGearState.disenchantCount   = 0;
+  if (cmdGearState.disenchantEssence === undefined) cmdGearState.disenchantEssence = 0;
 }
 
-function saveHeroGearState() {
-  localStorage.setItem('idw_hero_gear', JSON.stringify(heroGearState));
+function saveCmdGearState() {
+  invalidateResearchCache();
+  localStorage.setItem('idw_hero_gear', JSON.stringify(cmdGearState));
   if (currentUser) {
-    Promise.resolve(sb.rpc('idw_save_hero_gear', { p_gear: heroGearState })).catch(e => console.warn('hero gear sync failed', e));
+    Promise.resolve(sb.rpc('idw_save_hero_gear', { p_gear: cmdGearState })).catch(e => console.warn('hero gear sync failed', e));
   }
 }
 
@@ -6245,32 +5883,110 @@ function gearCopiesNeeded(level) {
   return level * 4; // Lv1→2 = 4, Lv2→3 = 8, Lv3→4 = 12, …
 }
 
+// Level up a gear/weapon entry if it has enough copies. Returns true if leveled up.
+function tryGearLevelUp(entry) {
+  const needed = gearCopiesNeeded(entry.level);
+  if (entry.copies < needed) return false;
+  entry.copies -= needed;
+  entry.level  += 1;
+  return true;
+}
+
+// Called from the modal "Level Up" button.
+function levelUpGearItem(category, itemId) {
+  if (!cmdGearState) loadCmdGearState();
+  const arr = category === 'weapon' ? cmdGearState.ownedWeapons : cmdGearState.ownedGear;
+  const entry = arr?.find(e => e.id === itemId);
+  if (!entry) return;
+  if (!tryGearLevelUp(entry)) return;
+  saveCmdGearState();
+  buildCommanderPanel();
+  openCommanderItemModal(category, itemId); // re-open modal to show updated level
+  showToast(`🎉 ${(GEAR_WEAPON_DEFS[itemId] || GEAR_ITEM_DEFS[itemId])?.name} leveled up to Lv ${entry.level}!`);
+}
+
 function equipGearItem(slot, itemId) {
-  if (!heroGearState) loadHeroGearState();
-  heroGearState.equippedGear[slot] = itemId;
+  if (!cmdGearState) loadCmdGearState();
+  cmdGearState.equippedGear[slot] = itemId;
   // Two-handed rule: equipping a two-handed weapon in main hand clears the offhand slot.
   if (slot === 'mainHand' && itemId) {
     const wpn = GEAR_WEAPON_DEFS[itemId];
-    if (wpn && wpn.handedness === 'two-handed') heroGearState.equippedGear.offhand = null;
+    if (wpn && wpn.handedness === 'two-handed') cmdGearState.equippedGear.offhand = null;
   }
-  saveHeroGearState();
-  if (bs.hero) _heroRecomputeStats(bs.hero); // live update during combat
-  buildHeroPanel();
+  saveCmdGearState();
+  updateGearCritCache();
+  cmdActiveCharTab = 'equipped'; // snap right panel to Equipped so update is visible
+  buildCommanderPanel();
 }
 
 function unequipGearSlot(slot) {
-  if (!heroGearState) loadHeroGearState();
-  heroGearState.equippedGear[slot] = null;
-  saveHeroGearState();
-  if (bs.hero) _heroRecomputeStats(bs.hero); // live update during combat
-  buildHeroPanel();
+  if (!cmdGearState) loadCmdGearState();
+  cmdGearState.equippedGear[slot] = null;
+  saveCmdGearState();
+  updateGearCritCache();
+  cmdActiveCharTab = 'equipped';
+  buildCommanderPanel();
+}
+
+
+// ── Crit / expBonus cache ─────────────────────────────────────────────────────
+// Recomputed on every equip/unequip; read in _cmdRollCrit / addXP.
+let _gearCritCache = { critChance:0, critDmg:0, expBonus:0 };
+
+function updateGearCritCache() {
+  const s = getEquippedStats();
+  _gearCritCache.critChance = s.critChance || 0;
+  _gearCritCache.critDmg    = s.critDmg    || 0;
+  _gearCritCache.expBonus   = s.expBonus   || 0;
+}
+
+// ── Disenchant ────────────────────────────────────────────────────────────────
+// Removes one copy of an item from inventory and awards disenchant essence.
+function disenchantItem(category, itemId) {
+  if (!cmdGearState) loadCmdGearState();
+
+  let arr, def;
+  if (category === 'weapon') { arr = cmdGearState.ownedWeapons; def = GEAR_WEAPON_DEFS[itemId]; }
+  else if (category === 'gear') { arr = cmdGearState.ownedGear; def = GEAR_ITEM_DEFS[itemId]; }
+  else return;
+
+  if (!arr || !def) return;
+  const idx = arr.findIndex(e => e.id === itemId);
+  if (idx === -1) return;
+
+  // Unequip first if this item is currently equipped
+  const eqSlot = Object.entries(cmdGearState.equippedGear).find(([, v]) => v === itemId)?.[0];
+  if (eqSlot) cmdGearState.equippedGear[eqSlot] = null;
+
+  // Read entry data before removing
+  const entry = arr[idx];
+  const lv = entry.level || 1;
+  const cp = entry.copies || 0;
+
+  // Remove the item from inventory
+  arr.splice(idx, 1);
+
+  // Award essence — rarity × total copies (current + consumed via level-ups)
+  const rarityEssence = { common:1, uncommon:2, rare:4, epic:8, legendary:16, mystic:32 };
+  const rarityBase = rarityEssence[def.rarity] || 1;
+  const consumedCopies = 2 * lv * (lv - 1);
+  const essence = rarityBase * (cp + consumedCopies);
+  cmdGearState.disenchantCount   = (cmdGearState.disenchantCount   || 0) + 1;
+  cmdGearState.disenchantEssence = (cmdGearState.disenchantEssence || 0) + essence;
+
+  saveCmdGearState();   // also calls invalidateResearchCache()
+  updateGearCritCache();
+  closeItemModal();
+  cmdSelectedInvItem = null;
+  buildCommanderPanel();
+  showToast(`✨ Disenchanted ${def.name} (+${essence} essence)`);
 }
 
 // Returns aggregate stat totals from all currently equipped items.
 function getEquippedStats() {
-  if (!heroGearState) loadHeroGearState();
-  const totals = { atk:0, defense:0, hp:0, atkSpeed:0, range:0, moveSpeed:0 };
-  const eq = heroGearState.equippedGear;
+  if (!cmdGearState) loadCmdGearState();
+  const totals = { atk:0, defense:0, hp:0, atkSpeed:0, range:0, moveSpeed:0, critChance:0, critDmg:0, expBonus:0 };
+  const eq = cmdGearState.equippedGear;
   [
     GEAR_WEAPON_DEFS[eq.mainHand],
     GEAR_WEAPON_DEFS[eq.offhand] || GEAR_ITEM_DEFS[eq.offhand],
@@ -6285,101 +6001,84 @@ function getEquippedStats() {
   return totals;
 }
 
-// Merges base hero stats with currently equipped gear and writes the result
-// to h.effectiveStats. Call on spawn and whenever gear changes.
-// Combat code reads ONLY from h.effectiveStats — never from h.hd.stats directly.
-function _heroRecomputeStats(h) {
-  const gear = getEquippedStats();
-  const base = h.hd.stats;
-  h.effectiveStats = {
-    atk:           base.atk          + gear.atk,
-    // Positive gear atkSpeed = faster attacks = lower cooldown ms.
-    atkSpeed:      Math.max(100, base.atkSpeed - gear.atkSpeed),
-    range:         base.range        + gear.range,
-    moveSpeed:     base.moveSpeed    + gear.moveSpeed,
-    maxHP:         base.maxHP        + gear.hp,
-    armor:         (base.armor || 0) + gear.defense,
-    // Non-gear stats carried through unchanged.
-    blockCapacity: base.blockCapacity,
-    respawnTime:   base.respawnTime,
-  };
-  // Keep live maxHp in sync; never heal above new cap, never drop below 1.
-  h.maxHp = h.effectiveStats.maxHP;
-  if (h.hp > h.maxHp) h.hp = h.maxHp;
-  if (h.hp < 1 && h.maxHp >= 1) h.hp = 1;
-}
-
 // ── Tab + selection state ─────────────────────────────────────────────────────
-let heroActiveInvTab    = 'weapons';  // 'weapons' | 'gear' | 'skills'
-let heroActiveCharTab   = 'equipped'; // 'equipped' | 'skills'
-let heroSelectedInvItem = null;       // { category: 'weapon'|'gear'|'skill', id: string } | null
+let cmdActiveInvTab    = 'weapons';  // 'weapons' | 'gear' | 'skills' | 'pets' | 'relics'
+let cmdActiveCharTab   = 'equipped'; // 'equipped' | 'skills'
+let cmdSelectedInvItem = null;       // { category: 'weapon'|'gear'|'skill', id: string } | null
+let cmdSelectedPet     = null;       // pet id string | null
 
 // Clear selection when switching inventory tabs so stale detail panels don't persist.
-function heroSetInvTab(tab)  { heroActiveInvTab = tab; heroSelectedInvItem = null; buildHeroPanel(); }
-function heroSetCharTab(tab) { heroActiveCharTab = tab; buildHeroPanel(); }
+function cmdSetInvTab(tab)  { cmdActiveInvTab = tab; cmdSelectedInvItem = null; cmdSelectedPet = null; buildCommanderPanel(); }
+function cmdSetCharTab(tab) { cmdActiveCharTab = tab; buildCommanderPanel(); }
 
-function heroSelectInvItem(category, id) {
+function cmdSelectInvItem(category, id) {
   // Toggle: clicking the same slot again closes the detail panel.
-  if (heroSelectedInvItem?.category === category && heroSelectedInvItem?.id === id) {
-    heroSelectedInvItem = null;
+  if (cmdSelectedInvItem?.category === category && cmdSelectedInvItem?.id === id) {
+    cmdSelectedInvItem = null;
   } else {
-    heroSelectedInvItem = { category, id };
+    cmdSelectedInvItem = { category, id };
   }
-  buildHeroPanel();
+  buildCommanderPanel();
+}
+
+function cmdSelectPet(id) {
+  cmdSelectedPet = cmdSelectedPet === id ? null : id;
+  buildCommanderPanel();
 }
 
 // ── Inventory panel: Weapons grid ─────────────────────────────────────────────
 function _buildWeaponsGrid() {
-  const owned = heroGearState.ownedWeapons || [];
-  if (!owned.length) return '<div class="hero-empty-state">No weapons owned yet.</div>';
-  const eq = heroGearState.equippedGear;
-  const slots = owned.map(entry => {
+  const ownedWeapons  = cmdGearState.ownedWeapons || [];
+  const ownedOffhands = (cmdGearState.ownedGear || []).filter(e => GEAR_ITEM_DEFS[e.id]?.slot === 'offhand');
+  if (!ownedWeapons.length && !ownedOffhands.length) return '<div class="hero-empty-state">No weapons owned yet.</div>';
+  const eq = cmdGearState.equippedGear;
+
+  function _weaponSlot(entry, def, isEqSlot) {
     const { id, level, copies } = entry;
-    const w = GEAR_WEAPON_DEFS[id]; if (!w) return '';
-    const rc    = GEAR_RARITY_COLORS[w.rarity] || '#8a8a8a';
-    const isEq  = eq.mainHand === id;
-    const isSel = heroSelectedInvItem?.id === id;
+    const rc     = GEAR_RARITY_COLORS[def.rarity] || '#8a8a8a';
+    const rgb    = _hexToRgb(rc);
+    const isEq   = eq[isEqSlot] === id;
     const needed = gearCopiesNeeded(level);
     const pct    = Math.min(100, Math.round((copies / needed) * 100));
-    const style  = isSel
-      ? `border-color:${rc};background:rgba(${_heroHexToRgb(rc)},0.1)`
-      : isEq ? `border-top:2px solid ${rc}` : '';
+    const style  = `border:1px solid ${rc};background:rgba(${rgb},0.07)`;
+    const cat    = isEqSlot === 'mainHand' ? 'weapon' : 'gear';
     return `
-      <div class="inv-slot filled${isSel ? ' hinv-sel' : ''}" style="${style}"
-           onclick="heroSelectInvItem('weapon','${id}')">
-        <div class="hinv-lv-badge">Lv${level}</div>
-        ${isEq ? `<div class="inv-slot-level hinv-eq-badge">EQ</div>` : ''}
-        ${w.effect ? `<div style="position:absolute;top:2px;right:2px;font-size:9px;color:#ffcd50;">✦</div>` : ''}
-        <div class="inv-slot-icon">${w.icon}</div>
-        <div class="inv-slot-name">${w.name}</div>
+      <div class="inv-slot filled" style="${style}"
+           onclick="openCommanderItemModal('${cat}','${id}')">
+        ${isEq ? `<div class="inv-slot-eq">EQ</div>` : ''}
+        <div class="inv-slot-level">Lv${level}</div>
+        ${def.effect ? `<div style="position:absolute;bottom:18px;right:3px;font-size:9px;color:#ffcd50;line-height:1;">✦</div>` : ''}
+        <div class="inv-slot-icon">${def.icon}</div>
+        <div class="inv-slot-name">${def.name}</div>
         <div class="hinv-slot-progress"><div class="hinv-slot-progress-fill" style="width:${pct}%;background:${rc}"></div></div>
       </div>`;
-  }).join('');
-  return `<div class="inv-grid">${slots}</div>`;
+  }
+
+  const weaponSlots  = ownedWeapons.map(e => { const w = GEAR_WEAPON_DEFS[e.id]; return w ? _weaponSlot(e, w, 'mainHand') : ''; }).join('');
+  const offhandSlots = ownedOffhands.map(e => { const g = GEAR_ITEM_DEFS[e.id];  return g ? _weaponSlot(e, g, 'offhand')  : ''; }).join('');
+  return `<div class="inv-grid">${weaponSlots}${offhandSlots}</div>`;
 }
 
 // ── Inventory panel: Gear grid ────────────────────────────────────────────────
 function _buildGearGrid() {
-  const owned = heroGearState.ownedGear || [];
+  const owned = (cmdGearState.ownedGear || []).filter(e => GEAR_ITEM_DEFS[e.id]?.slot !== 'offhand');
   if (!owned.length) return '<div class="hero-empty-state">No gear owned yet.</div>';
-  const eq = heroGearState.equippedGear;
+  const eq = cmdGearState.equippedGear;
   const slots = owned.map(entry => {
     const { id, level, copies } = entry;
     const g = GEAR_ITEM_DEFS[id]; if (!g) return '';
     const rc     = GEAR_RARITY_COLORS[g.rarity] || '#8a8a8a';
+    const rgb    = _hexToRgb(rc);
     const isEq   = Object.values(eq).includes(id);
-    const isSel  = heroSelectedInvItem?.id === id;
     const needed = gearCopiesNeeded(level);
     const pct    = Math.min(100, Math.round((copies / needed) * 100));
-    const style  = isSel
-      ? `border-color:${rc};background:rgba(${_heroHexToRgb(rc)},0.1)`
-      : isEq ? `border-top:2px solid ${rc}` : '';
+    const style  = `border:1px solid ${rc};background:rgba(${rgb},0.07)`;
     return `
-      <div class="inv-slot filled${isSel ? ' hinv-sel' : ''}" style="${style}"
-           onclick="heroSelectInvItem('gear','${id}')">
-        <div class="hinv-lv-badge">Lv${level}</div>
-        ${isEq ? `<div class="inv-slot-level hinv-eq-badge">EQ</div>` : ''}
-        ${g.effect ? `<div style="position:absolute;top:2px;right:2px;font-size:9px;color:#ffcd50;">✦</div>` : ''}
+      <div class="inv-slot filled" style="${style}"
+           onclick="openCommanderItemModal('gear','${id}')">
+        ${isEq ? `<div class="inv-slot-eq">EQ</div>` : ''}
+        <div class="inv-slot-level">Lv${level}</div>
+        ${g.effect ? `<div style="position:absolute;bottom:18px;right:3px;font-size:9px;color:#ffcd50;line-height:1;">✦</div>` : ''}
         <div class="inv-slot-icon">${g.icon}</div>
         <div class="inv-slot-name">${g.name}</div>
         <div class="hinv-slot-progress"><div class="hinv-slot-progress-fill" style="width:${pct}%;background:${rc}"></div></div>
@@ -6390,20 +6089,20 @@ function _buildGearGrid() {
 
 // ── Inventory panel: Skills grid ──────────────────────────────────────────────
 function _buildSkillsInvGrid() {
-  const owned = heroGearState.ownedSkills || [];
+  const owned = cmdGearState.ownedSkills || [];
   if (!owned.length) return '<div class="hero-empty-state">No skills learned yet.</div>';
   const slots = owned.map(entry => {
     const { id, level, copies } = entry;
     const s = GEAR_SKILL_DEFS[id]; if (!s) return '';
     const rc     = GEAR_RARITY_COLORS[s.rarity] || '#8a8a8a';
-    const isSel  = heroSelectedInvItem?.id === id;
+    const rgb    = _hexToRgb(rc);
     const needed = gearCopiesNeeded(level);
     const pct    = Math.min(100, Math.round((copies / needed) * 100));
-    const style  = isSel ? `border-color:${rc};background:rgba(${_heroHexToRgb(rc)},0.1)` : '';
+    const style  = `border:1px solid ${rc};background:rgba(${rgb},0.07)`;
     return `
-      <div class="inv-slot filled${isSel ? ' hinv-sel' : ''}" style="${style}"
-           onclick="heroSelectInvItem('skill','${id}')">
-        <div class="hinv-lv-badge">Lv${level}</div>
+      <div class="inv-slot filled" style="${style}"
+           onclick="openCommanderItemModal('skill','${id}')">
+        <div class="inv-slot-level">Lv${level}</div>
         <div class="inv-slot-icon">${s.icon}</div>
         <div class="inv-slot-name">${s.name}</div>
         <div class="hinv-slot-progress"><div class="hinv-slot-progress-fill" style="width:${pct}%;background:${rc}"></div></div>
@@ -6414,28 +6113,28 @@ function _buildSkillsInvGrid() {
 
 // ── Inventory panel: click-to-expand detail panel ─────────────────────────────
 function _buildInvDetailPanel() {
-  if (!heroSelectedInvItem) return '';
-  const { category, id } = heroSelectedInvItem;
+  if (!cmdSelectedInvItem) return '';
+  const { category, id } = cmdSelectedInvItem;
 
   let item, equippedSlot, actionBtn, ownedEntry;
 
   if (category === 'weapon') {
     item = GEAR_WEAPON_DEFS[id];
-    ownedEntry = (heroGearState.ownedWeapons || []).find(e => e.id === id);
-    const isEq = heroGearState.equippedGear.mainHand === id;
+    ownedEntry = (cmdGearState.ownedWeapons || []).find(e => e.id === id);
+    const isEq = cmdGearState.equippedGear.mainHand === id;
     actionBtn = isEq
       ? `<button class="gear-btn gear-btn-unequip" onclick="unequipGearSlot('mainHand')">Unequip</button>`
       : `<button class="gear-btn gear-btn-equip"   onclick="equipGearItem('mainHand','${id}')">Equip</button>`;
   } else if (category === 'gear') {
     item = GEAR_ITEM_DEFS[id];
-    ownedEntry = (heroGearState.ownedGear || []).find(e => e.id === id);
-    equippedSlot = Object.entries(heroGearState.equippedGear).find(([, v]) => v === id)?.[0] || null;
+    ownedEntry = (cmdGearState.ownedGear || []).find(e => e.id === id);
+    equippedSlot = Object.entries(cmdGearState.equippedGear).find(([, v]) => v === id)?.[0] || null;
     actionBtn = equippedSlot
       ? `<button class="gear-btn gear-btn-unequip" onclick="unequipGearSlot('${equippedSlot}')">Unequip</button>`
       : `<button class="gear-btn gear-btn-equip"   onclick="equipGearItem('${item?.slot}','${id}')">Equip</button>`;
   } else {
     item = GEAR_SKILL_DEFS[id];
-    ownedEntry = (heroGearState.ownedSkills || []).find(e => e.id === id);
+    ownedEntry = (cmdGearState.ownedSkills || []).find(e => e.id === id);
     actionBtn = `<button class="gear-btn gear-btn-equip" disabled>Equip (soon)</button>`;
   }
 
@@ -6470,7 +6169,8 @@ function _buildInvDetailPanel() {
         .map(k => {
           const v = item.stats[k];
           const sl = GEAR_STAT_LABELS[k]; if (!sl) return '';
-          return `<span class="gear-stat">${sl.icon} ${sl.label}: <b>${v > 0 ? '+' : ''}${v}</b></span>`;
+          const pctStat = k === 'critChance' || k === 'critDmg' || k === 'expBonus' || k === 'atkSpeed';
+          return `<span class="gear-stat">${sl.icon} ${sl.label}: <b>${v > 0 ? '+' : ''}${v}${pctStat ? '%' : ''}</b></span>`;
         }).join('')
     : '';
 
@@ -6489,15 +6189,298 @@ function _buildInvDetailPanel() {
           ${category === 'skill' ? `<div class="hero-inv-detail-desc">${item.desc}</div>` : ''}
           ${progressHtml}
         </div>
-        <button class="hero-inv-detail-close" onclick="heroSelectInvItem('${category}','${id}')">✕</button>
+        <button class="hero-inv-detail-close" onclick="cmdSelectInvItem('${category}','${id}')">✕</button>
       </div>
       <div class="hero-inv-detail-footer">${actionBtn}</div>
     </div>`;
 }
 
+// ── Commander inventory: centre popup (reuses item-modal) ────────────────────
+function openCommanderItemModal(category, id) {
+  if (!cmdGearState) loadCmdGearState();
+  let item, ownedEntry, actionBtn;
+
+  if (category === 'weapon') {
+    item = GEAR_WEAPON_DEFS[id];
+    ownedEntry = (cmdGearState.ownedWeapons || []).find(e => e.id === id);
+    const isEq = cmdGearState.equippedGear.mainHand === id || cmdGearState.equippedGear.offhand === id;
+    const eqSlot = cmdGearState.equippedGear.mainHand === id ? 'mainHand' : 'offhand';
+    const rarityEssence = { common:1, uncommon:2, rare:4, epic:8, legendary:16, mystic:32 };
+    const rarityBase = rarityEssence[item?.rarity] || 1;
+    const lv = ownedEntry?.level || 1;
+    const cp = ownedEntry?.copies || 0;
+    const consumedCopies = 2 * lv * (lv - 1); // copies spent leveling up to current level
+    const ess = rarityBase * (cp + consumedCopies);
+    actionBtn = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">` +
+      (isEq
+        ? `<button class="gear-btn gear-btn-unequip" onclick="unequipGearSlot('${eqSlot}');closeItemModal()">Unequip</button>`
+        : `<button class="gear-btn gear-btn-equip"   onclick="equipGearItem('mainHand','${id}');closeItemModal()">Equip</button>`) +
+      `<button class="gear-btn gear-btn-disenchant" onclick="disenchantItem('weapon','${id}')" title="Disenchant for ${ess} essence">🔥 Disenchant (+${ess})</button>` +
+      `</div>`;
+  } else if (category === 'gear') {
+    item = GEAR_ITEM_DEFS[id];
+    ownedEntry = (cmdGearState.ownedGear || []).find(e => e.id === id);
+    const equippedSlot = Object.entries(cmdGearState.equippedGear).find(([, v]) => v === id)?.[0] || null;
+    const gearSlot = item?.slot || equippedSlot;
+    const rarityEssence = { common:1, uncommon:2, rare:4, epic:8, legendary:16, mystic:32 };
+    const rarityBase = rarityEssence[item?.rarity] || 1;
+    const lv = ownedEntry?.level || 1;
+    const cp = ownedEntry?.copies || 0;
+    const consumedCopies = 2 * lv * (lv - 1);
+    const ess = rarityBase * (cp + consumedCopies);
+    actionBtn = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">` +
+      (equippedSlot
+        ? `<button class="gear-btn gear-btn-unequip" onclick="unequipGearSlot('${equippedSlot}');closeItemModal()">Unequip</button>`
+        : `<button class="gear-btn gear-btn-equip"   onclick="equipGearItem('${gearSlot}','${id}');closeItemModal()">Equip</button>`) +
+      `<button class="gear-btn gear-btn-disenchant" onclick="disenchantItem('gear','${id}')" title="Disenchant for ${ess} essence">🔥 Disenchant (+${ess})</button>` +
+      `</div>`;
+  } else if (category === 'skill') {
+    item = GEAR_SKILL_DEFS[id];
+    ownedEntry = (cmdGearState.ownedSkills || []).find(e => e.id === id);
+    actionBtn = `<button class="gear-btn gear-btn-equip" disabled>Equip (soon)</button>`;
+  } else if (category === 'pet') {
+    if (!marketState) loadMarketState();
+    const gh = GACHA_HEROES.find(h => h.id === id); if (!gh) return;
+    const h   = marketState.heroes?.[id];
+    const pts = h?.pts || 0;
+    const lv  = pts ? _gachaHeroLevel(pts) : 0;
+    const maxLv = GACHA_LV_THRESH.length;
+    const owned = !!pts;
+    const rar = GACHA_RARITIES.find(r => r.id === gh.rarity) || GACHA_RARITIES[0];
+    const rgb  = _hexRgb(rar.color);
+    // Progress bar
+    const nxtThr = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const curThr = owned && lv > 0 ? (GACHA_LV_THRESH[lv - 1] ?? 0) : 0;
+    const prog = (owned && nxtThr) ? Math.round((pts - curThr) / (nxtThr - curThr) * 100) : 100;
+    const statLabel = { tower_dmg:'Tower Dmg', tower_spd:'Atk Speed', tower_range:'Range', wave_gold:'Wave Gold' };
+    // Level bonus table
+    const lvRows = Array.from({length: maxLv}, (_, i) => {
+      const lvNum = i + 1;
+      const isActive = owned && lvNum <= lv;
+      const isCurrent = owned && lvNum === lv;
+      const v1 = (gh.basePerLv * lvNum).toFixed(1);
+      const v2 = gh.passiveStat2 ? (gh.basePerLv2 * lvNum).toFixed(1) : null;
+      const bonusStr = `+${v1}% ${statLabel[gh.passiveStat] || gh.passiveStat}${v2 ? `  ·  +${v2}% ${statLabel[gh.passiveStat2] || gh.passiveStat2}` : ''}`;
+      const copiesNeeded = GACHA_LV_THRESH[i] || 0;
+      const rowStyle = isCurrent
+        ? `background:rgba(${rgb},0.18);border-left:2px solid ${rar.color};font-weight:700;`
+        : isActive ? `opacity:0.7;` : `opacity:0.35;`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-radius:5px;font-size:11px;${rowStyle}">
+        <span style="color:var(--text3);min-width:32px;">Lv ${lvNum}${lvNum === maxLv ? ' ★' : ''}</span>
+        <span style="color:${isActive ? rar.color : 'var(--text3)'};">${bonusStr}</span>
+        <span style="color:var(--text3);font-size:10px;min-width:48px;text-align:right;">${copiesNeeded === 0 ? '1 copy' : copiesNeeded + ' pts'}</span>
+      </div>`;
+    }).join('');
+
+    document.getElementById('item-modal-content').innerHTML = `
+      <div class="bmodal-header">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:2rem;filter:drop-shadow(0 0 8px rgba(${rgb},0.7));">${gh.icon}</span>
+          <div>
+            <div class="bmodal-title">${gh.name}</div>
+            <div class="bmodal-sub" style="color:${rar.color};">${rar.name} · ${gh.passive}</div>
+          </div>
+        </div>
+        <button class="bmodal-close" onclick="closeItemModal()">✕</button>
+      </div>
+      <!-- Progress bar -->
+      <div style="margin:10px 0 6px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+          <span style="font-size:12px;font-weight:700;color:#e4e8ff;">
+            ${owned ? `Level ${lv}${lv >= maxLv ? ' ★ Max' : ''}` : 'Not Obtained'}
+          </span>
+          <span style="font-size:11px;color:var(--text3);">
+            ${owned && nxtThr ? `${pts - curThr} / ${nxtThr - curThr} pts to Lv ${lv + 1}` : lv >= maxLv ? 'Max level reached' : 'Pull from Market → Pets'}
+          </span>
+        </div>
+        <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${owned ? prog : 0}%;background:linear-gradient(90deg,${rar.color},rgba(${rgb},0.6));border-radius:4px;transition:width 0.3s;"></div>
+        </div>
+      </div>
+      <!-- Current bonus -->
+      ${owned ? `<div style="background:rgba(${rgb},0.1);border:1px solid rgba(${rgb},0.3);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:${rar.color};font-weight:600;">
+        ⚡ Active: ${gh.desc.replace('{v}', (gh.basePerLv * lv).toFixed(1)).replace('{v2}', gh.passiveStat2 ? (gh.basePerLv2 * lv).toFixed(1) : '')}
+      </div>` : `<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Pull from Market → Pets to obtain this companion.</div>`}
+      <!-- Level table -->
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Bonus Per Level</div>
+      <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;">
+        ${lvRows}
+      </div>`;
+    document.getElementById('item-modal').classList.add('open');
+    return;
+  }
+
+  if (category === 'relic') {
+    if (!marketState) loadMarketState();
+    const rd = RELIC_DEFS.find(r => r.id === id); if (!rd) return;
+    const e    = marketState.relics?.[id];
+    const pts  = e?.pts || 0;
+    const lv   = pts ? _gachaHeroLevel(pts) : 0;
+    const maxLv = GACHA_LV_THRESH.length;
+    const owned = !!pts;
+    const rar  = GACHA_RARITIES.find(r => r.id === rd.rarity) || GACHA_RARITIES[0];
+    const rgb  = _hexRgb(rar.color);
+    const nxtThr = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const curThr = owned && lv > 0 ? (GACHA_LV_THRESH[lv - 1] ?? 0) : 0;
+    const prog = (owned && nxtThr) ? Math.min(100, Math.round((pts - curThr) / (nxtThr - curThr) * 100)) : 100;
+    const statLabel = { tower_dmg:'Tower Dmg', tower_spd:'Atk Speed', tower_range:'Range', wave_gold:'Wave Gold' };
+
+    const isDisenchantRelic = !!rd.disenchantStat;
+
+    // ── Active bonus callout ──
+    let activeBonusHtml = '';
+    if (owned) {
+      if (isDisenchantRelic) {
+        if (!cmdGearState) loadCmdGearState();
+        const dc  = cmdGearState?.disenchantCount   || 0;
+        const ess = cmdGearState?.disenchantEssence || 0;
+        const tot1 = (dc * rd.disenchantPerItem).toFixed(1);
+        const tot2 = rd.disenchantStat2 ? (dc * rd.disenchantPerItem2).toFixed(1) : null;
+        const sLbl = { tower_dmg:'Tower DMG', tower_spd:'Atk Speed', tower_range:'Range', wave_gold:'Wave Gold' };
+        activeBonusHtml = `<div style="background:rgba(${rgb},0.1);border:1px solid rgba(${rgb},0.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;">
+          <div style="color:${rar.color};font-weight:700;margin-bottom:6px;">🔥 ${rd.passive}</div>
+          <div style="font-size:11px;color:#c4d0e8;line-height:1.8;">
+            <div>${rd.desc}</div>
+            <div style="margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.08);">
+              <span style="color:#aaa;">Items Disenchanted:</span> <b style="color:#e4e8ff;">${dc}</b>
+              &nbsp;·&nbsp; <span style="color:#aaa;">Essence:</span> <b style="color:#c4a8ff;">${ess}</b>
+            </div>
+            <div><span style="color:#aaa;">Current Bonus:</span>
+              <b style="color:#f4c842;">+${tot1}% ${sLbl[rd.disenchantStat] || rd.disenchantStat}${tot2 ? `  &  +${tot2}% ${sLbl[rd.disenchantStat2] || rd.disenchantStat2}` : ''}</b>
+            </div>
+          </div>
+        </div>`;
+      } else {
+        activeBonusHtml = `<div style="background:rgba(${rgb},0.1);border:1px solid rgba(${rgb},0.3);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:${rar.color};font-weight:600;">
+          🪬 Active: ${rd.desc.replace('{v}', (rd.basePerLv * lv).toFixed(2)).replace('{v2}', rd.passiveStat2 ? (rd.basePerLv2 * lv).toFixed(2) : '')}
+        </div>`;
+      }
+    } else {
+      activeBonusHtml = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Pull from Market → Relics to obtain this relic.</div>`;
+    }
+
+    // ── Level table (standard relics only) ──
+    let lvTableHtml = '';
+    if (isDisenchantRelic) {
+      // Show a simple scaling preview instead of a level table
+      lvTableHtml = `
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">How It Scales</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:6px;">
+          <div>Each item you <b style="color:#c4a8ff;">disenchant</b> permanently increases this relic's bonus.</div>
+          <div style="margin-top:4px;color:var(--text3);">Obtain this relic from Market → Relics to activate the effect.</div>
+        </div>`;
+    } else {
+      const lvRows = Array.from({ length: maxLv }, (_, i) => {
+        const lvNum = i + 1;
+        const isActive  = owned && lvNum <= lv;
+        const isCurrent = owned && lvNum === lv;
+        const v1 = (rd.basePerLv * lvNum).toFixed(2);
+        const v2 = rd.passiveStat2 ? (rd.basePerLv2 * lvNum).toFixed(2) : null;
+        const bonusStr = `+${v1}% ${statLabel[rd.passiveStat] || rd.passiveStat}${v2 ? `  ·  +${v2}% ${statLabel[rd.passiveStat2] || rd.passiveStat2}` : ''}`;
+        const rowStyle = isCurrent
+          ? `background:rgba(${rgb},0.18);border-left:2px solid ${rar.color};font-weight:700;`
+          : isActive ? `opacity:0.7;` : `opacity:0.35;`;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-radius:5px;font-size:11px;${rowStyle}">
+          <span style="color:var(--text3);min-width:32px;">Lv ${lvNum}${lvNum === maxLv ? ' ★' : ''}</span>
+          <span style="color:${isActive ? rar.color : 'var(--text3)'};">${bonusStr}</span>
+          <span style="color:var(--text3);font-size:10px;min-width:48px;text-align:right;">${GACHA_LV_THRESH[i] === 0 ? '1 copy' : (GACHA_LV_THRESH[i] || '') + ' pts'}</span>
+        </div>`;
+      }).join('');
+      lvTableHtml = `
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Bonus Per Level</div>
+        <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;">${lvRows}</div>`;
+    }
+
+    document.getElementById('item-modal-content').innerHTML = `
+      <div class="bmodal-header">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:2rem;filter:drop-shadow(0 0 8px rgba(${rgb},0.7));">${rd.icon}</span>
+          <div>
+            <div class="bmodal-title">${rd.name}</div>
+            <div class="bmodal-sub" style="color:${rar.color};">${rar.name} · ${rd.passive}</div>
+          </div>
+        </div>
+        <button class="bmodal-close" onclick="closeItemModal()">✕</button>
+      </div>
+      ${!isDisenchantRelic ? `<div style="margin:10px 0 6px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+          <span style="font-size:12px;font-weight:700;color:#e4e8ff;">
+            ${owned ? `Level ${lv}${lv >= maxLv ? ' ★ Max' : ''}` : 'Not Obtained'}
+          </span>
+          <span style="font-size:11px;color:var(--text3);">
+            ${owned && nxtThr ? `${pts - curThr} / ${nxtThr - curThr} pts to Lv ${lv + 1}` : lv >= maxLv ? 'Max level reached' : 'Pull from Market → Relics'}
+          </span>
+        </div>
+        <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${owned ? prog : 0}%;background:linear-gradient(90deg,${rar.color},rgba(${rgb},0.6));border-radius:4px;transition:width 0.3s;"></div>
+        </div>
+      </div>` : `<div style="margin:8px 0 4px;"><span style="font-size:11px;color:${owned ? rar.color : 'var(--text3)'};font-weight:600;">${owned ? '✅ Obtained' : '🔒 Not Obtained'}</span></div>`}
+      ${activeBonusHtml}
+      ${lvTableHtml}`;
+    document.getElementById('item-modal').classList.add('open');
+    return;
+  }
+
+  if (!item) return;
+  const rc = GEAR_RARITY_COLORS[item.rarity] || '#8a8a8a';
+  const itemLevel = ownedEntry ? ownedEntry.level : (item.level || 1);
+
+  const metaTags = [
+    `<span class="gear-rarity-tag" style="color:${rc}">${item.rarity}</span>`,
+    `<span class="gear-level-tag">Lv ${itemLevel}</span>`,
+    category === 'weapon' ? `<span class="gear-hand-tag">${item.handedness}</span>` : '',
+    category === 'gear'   ? `<span class="gear-slot-tag">${{ helmet:'Helmet', armor:'Armor', pants:'Pants', boots:'Boots', offhand:'Offhand' }[item.slot] || item.slot}</span>` : '',
+    category === 'skill'  ? `<span class="gear-slot-tag">${item.weaponType}</span>` : '',
+  ].filter(Boolean).join('');
+
+  const statsHtml = category !== 'skill'
+    ? GEAR_STAT_ORDER.filter(k => k in (item.stats || {})).map(k => {
+        const v = item.stats[k]; const sl = GEAR_STAT_LABELS[k]; if (!sl) return '';
+        const pctStat = k === 'critChance' || k === 'critDmg' || k === 'expBonus' || k === 'atkSpeed';
+        return `<div class="bmodal-stat"><div class="bmodal-stat-label">${sl.icon} ${sl.label}</div><div class="bmodal-stat-value">${v > 0 ? '+' : ''}${v}${pctStat ? '%' : ''}</div></div>`;
+      }).join('') : '';
+
+  let progressHtml = '';
+  if (ownedEntry) {
+    const { level, copies } = ownedEntry;
+    const needed = gearCopiesNeeded(level);
+    const pct = Math.min(100, Math.round((copies / needed) * 100));
+    const canLevelUp = copies >= needed;
+    progressHtml = `
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Lv${level} → ${level+1}: ${copies}/${needed} copies</div>
+        <div style="height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${rc};border-radius:3px;"></div>
+        </div>
+        ${canLevelUp ? `<button class="gear-btn" onclick="levelUpGearItem('${category}','${id}')" style="margin-top:8px;width:100%;background:linear-gradient(135deg,#b8860b,#ffd700);color:#1a1208;font-weight:700;border:none;">⬆ Level Up!</button>` : ''}
+      </div>`;
+  }
+
+  document.getElementById('item-modal-content').innerHTML = `
+    <div class="bmodal-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="bmodal-icon">${item.icon}</span>
+        <div>
+          <div class="bmodal-title" style="color:${rc}">${item.name}</div>
+          <div class="bmodal-sub">${metaTags}</div>
+        </div>
+      </div>
+      <button class="bmodal-close" onclick="closeItemModal()">✕</button>
+    </div>
+    ${statsHtml ? `<div class="bmodal-stat-grid">${statsHtml}</div>` : ''}
+    ${item.effect ? `<div style="margin:10px 0;padding:8px 10px;background:rgba(255,205,80,0.08);border-left:2px solid #ffcd50;border-radius:6px;font-size:12px;line-height:1.5;">
+      <span style="color:#ffcd50;font-weight:700;">${item.effect.icon} ${item.effect.name}</span>
+      <span style="color:#9aadcc;margin-left:6px;">${item.effect.desc}</span>
+    </div>` : ''}
+    ${category === 'skill' ? `<div style="font-size:12px;color:var(--text2);margin:8px 0;">${item.desc}</div>` : ''}
+    ${progressHtml}
+    <div style="margin-top:14px;">${actionBtn}</div>`;
+  document.getElementById('item-modal').classList.add('open');
+}
+
 // ── Character panel: single equipment slot card ───────────────────────────────
 function _buildEquipSlotCard(slotKey, label, defaultIcon) {
-  const eq = heroGearState.equippedGear;
+  const eq = cmdGearState.equippedGear;
   const itemId = eq[slotKey];
   const item = GEAR_WEAPON_DEFS[itemId] || GEAR_ITEM_DEFS[itemId];
   const rc = item ? (GEAR_RARITY_COLORS[item.rarity] || '#8a8a8a') : null;
@@ -6523,10 +6506,12 @@ function _buildEquipSlotCard(slotKey, label, defaultIcon) {
     .slice(0, 2)
     .map(k => { const sl = GEAR_STAT_LABELS[k]; return sl ? `${sl.icon}${item.stats[k] > 0 ? '+' : ''}${item.stats[k]}` : null; })
     .filter(Boolean).join(' ');
-  const rgb = _heroHexToRgb(rc);
+  const rgb = _hexToRgb(rc);
+  const modalCat = slotKey === 'mainHand' ? 'weapon' : 'gear';
   return `
-    <div class="equip-slot equip-slot-filled" style="border-color:${rc};background:rgba(${rgb},0.08)">
-      <button class="equip-slot-unequip" onclick="unequipGearSlot('${slotKey}')" title="Unequip">✕</button>
+    <div class="equip-slot equip-slot-filled" style="border-color:${rc};background:rgba(${rgb},0.08)"
+         onclick="openCommanderItemModal('${modalCat}','${itemId}')">
+      <button class="equip-slot-unequip" onclick="event.stopPropagation();unequipGearSlot('${slotKey}')" title="Unequip">✕</button>
       <div class="equip-slot-icon">${item.icon}</div>
       <div class="equip-slot-label">${label}</div>
       <div class="equip-slot-name" style="color:${rc}">${item.name}</div>
@@ -6536,14 +6521,42 @@ function _buildEquipSlotCard(slotKey, label, defaultIcon) {
 }
 
 // ── Character panel: Equipped Gear tab ───────────────────────────────────────
-function _buildEquippedGearTab(hd) {
-  const totals  = getEquippedStats();
-  const statRows = Object.entries(totals)
+function _buildEquippedGearTab() {
+  const s    = getFinalCommanderStats();   // final stat values the commander will have
+  const b    = COMMANDER_BASE_STATS;
+  const gear = getEquippedStats();
+
+  // Helper: show base → final with green/red delta
+  function statRow(icon, label, base, final, decimals = 0, suffix = '') {
+    const diff = final - base;
+    const diffStr = diff === 0 ? '' : ` <span style="color:${diff > 0 ? '#3ecf8e' : '#f55a5a'};font-size:10px;">(${diff > 0 ? '+' : ''}${diff.toFixed(decimals)}${suffix})</span>`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
+      <span style="color:var(--text2);font-size:11px;">${icon} ${label}</span>
+      <span style="color:#e4e8ff;font-weight:700;font-size:11px;">${final.toFixed(decimals)}${suffix}${diffStr}</span>
+    </div>`;
+  }
+
+  const effSpd  = (s.attackSpeed / 1000).toFixed(2);
+  const baseSpd = (b.attackSpeed / 1000).toFixed(2);
+  const spdDiff = s.attackSpeed - b.attackSpeed;
+  const spdDiffStr = spdDiff === 0 ? '' : ` <span style="color:${spdDiff < 0 ? '#3ecf8e' : '#f55a5a'};font-size:10px;">(${spdDiff < 0 ? '' : '+'}${(spdDiff/1000).toFixed(2)}s)</span>`;
+
+  // Gear bonus rows (only stats that are non-zero)
+  const PCT_STATS = new Set(['critChance','critDmg','expBonus','atkSpeed']);
+  const bonusRows = Object.entries(gear)
     .filter(([, v]) => v !== 0)
     .map(([k, v]) => {
       const sl = GEAR_STAT_LABELS[k]; if (!sl) return '';
-      return `<div class="gear-total-stat">${sl.icon} ${sl.label}: <b style="color:#e4e8ff">${v > 0 ? '+' : ''}${v}</b></div>`;
+      const suffix = PCT_STATS.has(k) ? '%' : '';
+      return `<div class="gear-total-stat">${sl.icon} ${sl.label}: <b style="color:#3ecf8e">${v > 0 ? '+' : ''}${v}${suffix}</b></div>`;
     }).join('');
+
+  // Unique item effects
+  const eq = cmdGearState?.equippedGear || {};
+  const effects = Object.values(eq)
+    .map(id => id ? (GEAR_WEAPON_DEFS[id] || GEAR_ITEM_DEFS[id]) : null)
+    .filter(item => item?.effect);
+
   return `
     <div class="equip-layout-body">
       <div class="equip-row-single">
@@ -6562,16 +6575,38 @@ function _buildEquippedGearTab(hd) {
       </div>
     </div>
     <div class="gear-stats-summary">
-      <div class="gear-stats-summary-title">⚡ Total Gear Stats</div>
-      <div class="gear-total-stats-row">
-        ${statRows || '<div style="color:var(--text3);font-size:12px;text-align:center;width:100%;padding:4px 0;">No gear equipped</div>'}
+      <div class="gear-stats-summary-title">⚔️ Commander Stats</div>
+      <div style="padding:2px 0 6px;">
+        ${statRow('❤️', 'HP',            b.maxHP,        s.maxHP)}
+        ${statRow('🛡️', 'Defense',       b.defense,      s.defense)}
+        ${statRow('⚔️', 'Attack Damage', b.attackDamage, s.attackDamage)}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
+          <span style="color:var(--text2);font-size:11px;">⚡ Attack Speed</span>
+          <span style="color:#e4e8ff;font-weight:700;font-size:11px;">${effSpd}s${spdDiffStr}</span>
+        </div>
+        ${statRow('📏', 'Attack Range',  b.attackRange,  s.attackRange, 1, ' tiles')}
+        ${gear.critChance ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;"><span style="color:var(--text2);font-size:11px;">🎯 Crit Chance</span><span style="color:#3ecf8e;font-weight:700;font-size:11px;">+${gear.critChance}%</span></div>` : ''}
+        ${gear.critDmg    ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;"><span style="color:var(--text2);font-size:11px;">💥 Crit DMG</span><span style="color:#3ecf8e;font-weight:700;font-size:11px;">+${gear.critDmg}%</span></div>` : ''}
+        ${gear.expBonus   ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;"><span style="color:var(--text2);font-size:11px;">⭐ EXP Bonus</span><span style="color:#3ecf8e;font-weight:700;font-size:11px;">+${gear.expBonus}%</span></div>` : ''}
       </div>
+      ${bonusRows ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Gear Bonuses</div>
+        <div class="gear-total-stats-row">${bonusRows}</div>
+      </div>` : ''}
+      ${effects.length ? `<div style="margin-top:0.55rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;">✨ Unique Effects</div>
+        ${effects.map(item => `
+          <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;">
+            <span style="color:#ffcd50;font-size:11px;font-weight:700;white-space:nowrap;">${item.effect.icon} ${item.effect.name}</span>
+            <span style="font-size:10px;color:#7a8fa8;line-height:1.4;">${item.effect.desc}</span>
+          </div>`).join('')}
+      </div>` : ''}
     </div>`;
 }
 
 // ── Character panel: Skills tab ───────────────────────────────────────────────
 function _buildSkillsTab() {
-  const skills    = heroGearState.skills;
+  const skills    = cmdGearState.skills;
   const slotNames = ['Skill 1', 'Skill 2', 'Skill 3'];
   return `
     <div class="skills-layout">
@@ -6596,14 +6631,74 @@ function _buildSkillsTab() {
     </div>`;
 }
 
+// ── Inventory panel: Pets/Heroes grid ────────────────────────────────────────
+function _buildPetsInvGrid() {
+  if (!marketState) loadMarketState();
+  const maxLv = GACHA_LV_THRESH.length;
+
+  const slots = GACHA_HEROES.map(gh => {
+    const h    = marketState.heroes?.[gh.id];
+    const pts  = h?.pts || 0;
+    const lv   = pts ? _gachaHeroLevel(pts) : 0;
+    const owned = !!pts;
+    const rar  = GACHA_RARITIES.find(r => r.id === gh.rarity) || GACHA_RARITIES[0];
+    const nxtThr = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const curThr = owned && lv > 0 ? (GACHA_LV_THRESH[lv - 1] ?? 0) : 0;
+    const prog = (owned && nxtThr) ? Math.min(100, Math.round((pts - curThr) / (nxtThr - curThr) * 100)) : 100;
+
+    const rgb = _hexRgb(rar.color);
+    const ownedStyle = owned ? `border:1px solid ${rar.color};background:rgba(${rgb},0.07);` : 'opacity:0.4;';
+    return `
+      <div class="inv-slot${owned ? ' filled' : ''}" style="${ownedStyle}"
+           onclick="openCommanderItemModal('pet','${gh.id}')">
+        ${owned ? `<div class="inv-slot-level">Lv${lv}${lv >= maxLv ? '★' : ''}</div>` : ''}
+        <div class="inv-slot-icon">${gh.icon}</div>
+        <div class="inv-slot-name">${gh.name}</div>
+        ${owned ? `<div class="hinv-slot-progress"><div class="hinv-slot-progress-fill" style="width:${prog}%;background:${rar.color}"></div></div>` : ''}
+        ${!owned ? `<div class="inv-slot-empty-text" style="font-size:8px;">Not obtained</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `<div class="inv-grid">${slots}</div>`;
+}
+
+// ── Inventory panel: Relics grid ─────────────────────────────────────────────
+function _buildRelicsInvGrid() {
+  if (!marketState) loadMarketState();
+  if (!cmdGearState) loadCmdGearState();
+
+  // Owned relics from marketState
+  const maxLv = GACHA_LV_THRESH.length;
+  const relicSlots = RELIC_DEFS.map(rd => {
+    const e    = marketState.relics?.[rd.id];
+    const pts  = e?.pts || 0;
+    const lv   = pts ? _gachaHeroLevel(pts) : 0;
+    const owned = !!pts;
+    const rar  = GACHA_RARITIES.find(r => r.id === rd.rarity) || GACHA_RARITIES[0];
+    const rgb  = _hexRgb(rar.color);
+    const nxtThr = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const curThr = owned && lv > 0 ? (GACHA_LV_THRESH[lv - 1] ?? 0) : 0;
+    const prog = (owned && nxtThr) ? Math.min(100, Math.round((pts - curThr) / (nxtThr - curThr) * 100)) : 100;
+    const ownedStyle = owned ? `border:1px solid ${rar.color};background:rgba(${rgb},0.07);` : 'opacity:0.4;';
+    return `
+      <div class="inv-slot${owned ? ' filled' : ''}" style="${ownedStyle}"
+           onclick="openCommanderItemModal('relic','${rd.id}')">
+        ${owned ? `<div class="inv-slot-level">Lv${lv}${lv >= maxLv ? '★' : ''}</div>` : ''}
+        <div class="inv-slot-icon">${rd.icon}</div>
+        <div class="inv-slot-name">${rd.name}</div>
+        ${owned ? `<div class="hinv-slot-progress"><div class="hinv-slot-progress-fill" style="width:${prog}%;background:${rar.color}"></div></div>` : ''}
+        ${!owned ? `<div class="inv-slot-empty-text" style="font-size:8px;">Not obtained</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `<div class="inv-grid">${relicSlots}</div>`;
+}
+
 // ── Main panel builder ────────────────────────────────────────────────────────
-function buildHeroPanel() {
+function buildCommanderPanel() {
   const el = document.getElementById('hero-content');
   if (!el) return;
-  if (!heroGearState) loadHeroGearState();
-  if (!heroState)     loadHeroState();
-  const selId = heroState?.heroId;
-  const hd    = selId ? HERO_DEFS[selId] : null;
+  if (!cmdGearState) loadCmdGearState();
 
   el.innerHTML = `
     <div class="hero-page-wrap">
@@ -6612,63 +6707,109 @@ function buildHeroPanel() {
       <div class="hero-inv-panel">
         <div class="hero-panel-header">
           <span class="hero-panel-title">Inventory</span>
-          <div class="hero-tab-row">
-            <button class="hero-tab-btn${heroActiveInvTab === 'weapons' ? ' active' : ''}" onclick="heroSetInvTab('weapons')">⚔️ Weapons</button>
-            <button class="hero-tab-btn${heroActiveInvTab === 'gear'    ? ' active' : ''}" onclick="heroSetInvTab('gear')">🛡️ Gear</button>
-            <button class="hero-tab-btn${heroActiveInvTab === 'skills'  ? ' active' : ''}" onclick="heroSetInvTab('skills')">✨ Skills</button>
-          </div>
+        </div>
+        <div class="hero-tab-row hero-inv-tab-row">
+          <button class="hero-tab-btn${cmdActiveInvTab === 'weapons' ? ' active' : ''}" onclick="cmdSetInvTab('weapons')">⚔️ Weapons</button>
+          <button class="hero-tab-btn${cmdActiveInvTab === 'gear'    ? ' active' : ''}" onclick="cmdSetInvTab('gear')">🛡️ Gear</button>
+          <button class="hero-tab-btn${cmdActiveInvTab === 'skills'  ? ' active' : ''}" onclick="cmdSetInvTab('skills')">✨ Skills</button>
+          <button class="hero-tab-btn${cmdActiveInvTab === 'pets'    ? ' active' : ''}" onclick="cmdSetInvTab('pets')">🐾 Pets</button>
+          <button class="hero-tab-btn${cmdActiveInvTab === 'relics'  ? ' active' : ''}" onclick="cmdSetInvTab('relics')">🪬 Relics</button>
         </div>
         <div class="hero-inv-grid-area">
-          ${heroActiveInvTab === 'weapons' ? _buildWeaponsGrid() :
-            heroActiveInvTab === 'gear'    ? _buildGearGrid()    :
+          ${cmdActiveInvTab === 'weapons' ? _buildWeaponsGrid()    :
+            cmdActiveInvTab === 'gear'    ? _buildGearGrid()      :
+            cmdActiveInvTab === 'pets'    ? _buildPetsInvGrid() :
+            cmdActiveInvTab === 'relics'  ? _buildRelicsInvGrid() :
             _buildSkillsInvGrid()}
         </div>
-        ${_buildInvDetailPanel()}
       </div>
 
       <!-- ══ RIGHT: Character Panel ══ -->
       <div class="hero-char-panel">
         <div class="hero-panel-header">
-          <span class="hero-panel-title">${hd ? hd.icon + ' ' + hd.name : '🦸 Commander'}</span>
+          <span class="hero-panel-title">🪖 Commander</span>
           <div class="hero-tab-row">
-            <button class="hero-tab-btn${heroActiveCharTab === 'equipped' ? ' active' : ''}" onclick="heroSetCharTab('equipped')">🎽 Equipped</button>
-            <button class="hero-tab-btn${heroActiveCharTab === 'skills'   ? ' active' : ''}" onclick="heroSetCharTab('skills')">✨ Skills</button>
+            <button class="hero-tab-btn${cmdActiveCharTab === 'equipped' ? ' active' : ''}" onclick="cmdSetCharTab('equipped')">🎽 Equipped</button>
+            <button class="hero-tab-btn${cmdActiveCharTab === 'skills'   ? ' active' : ''}" onclick="cmdSetCharTab('skills')">✨ Skills</button>
           </div>
         </div>
         <div class="hero-char-body">
-          ${heroActiveCharTab === 'equipped' ? _buildEquippedGearTab(hd) : _buildSkillsTab()}
+          ${cmdActiveCharTab === 'equipped' ? _buildEquippedGearTab() : _buildSkillsTab()}
         </div>
       </div>
 
     </div>`;
 }
 
-// ── END HERO SYSTEM ──────────────────────────────────────────────────────────
-
 // ═══════════════════════════════════════════════════════════════════════════
 // MARKET / GACHA SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Each pet has its own rarity — rarity determines pull weight & color only.
+// Every copy gives exactly 1 pt regardless of rarity.
 const GACHA_HEROES = [
-  { id:'iron_paladin',     name:'Iron Paladin',      icon:'🛡️', color:'#7aaad0',
-    passive:'Tower Defense',  passiveStat:'towerArmor',  desc:'+{v}% tower armor',          basePerLv:0.5 },
-  { id:'storm_archer',     name:'Storm Archer',      icon:'🏹', color:'#4a90d9',
-    passive:'Precision Aura', passiveStat:'towerDamage', desc:'+{v}% tower damage',         basePerLv:0.8 },
-  { id:'ember_witch',      name:'Ember Witch',        icon:'🔥', color:'#d9721e',
-    passive:'Gold Rush',      passiveStat:'goldBonus',   desc:'+{v}% gold from enemies',    basePerLv:1.0 },
-  { id:'shadow_rogue',     name:'Shadow Rogue',       icon:'🌑', color:'#8844c0',
-    passive:'Swift Strikes',  passiveStat:'towerSpeed',  desc:'+{v}% tower attack speed',   basePerLv:0.5 },
-  { id:'celestial_dragon', name:'Celestial Dragon',   icon:'🐉', color:'#d4a010',
-    passive:'Dragon Aura',    passiveStat:'allDamage',   desc:'+{v}% all damage',           basePerLv:1.5 },
+  // ── Common ───────────────────────────────────────────────────────────────
+  { id:'iron_paladin',     name:'Iron Paladin',      icon:'🛡️', color:'#8a8a8a', rarity:'common',
+    passive:'Fortified Strike',
+    passiveStat:'tower_dmg',  basePerLv:0.4,
+    desc:'+{v}% tower damage to all turrets' },
+  { id:'ember_witch',      name:'Ember Witch',        icon:'🔥', color:'#8a8a8a', rarity:'common',
+    passive:"Witch's Bounty",
+    passiveStat:'wave_gold',  basePerLv:0.5,
+    desc:'+{v}% gold earned from wave clears' },
+  // ── Uncommon ─────────────────────────────────────────────────────────────
+  { id:'storm_archer',     name:'Storm Archer',       icon:'🏹', color:'#2dba4e', rarity:'uncommon',
+    passive:'Eagle Eye',
+    passiveStat:'tower_dmg',  basePerLv:0.7,
+    desc:'+{v}% tower damage to all turrets' },
+  { id:'shadow_rogue',     name:'Shadow Rogue',        icon:'🌑', color:'#2dba4e', rarity:'uncommon',
+    passive:'Blur',
+    passiveStat:'tower_spd',  basePerLv:0.6,
+    desc:'+{v}% attack speed for all turrets' },
+  // ── Rare ─────────────────────────────────────────────────────────────────
+  { id:'frost_golem',      name:'Frost Golem',         icon:'🧊', color:'#1e90ff', rarity:'rare',
+    passive:'Glacial Sight',
+    passiveStat:'tower_range', basePerLv:1.0,
+    desc:'+{v}% attack range for all turrets' },
+  { id:'arcane_fox',       name:'Arcane Fox',           icon:'🦊', color:'#1e90ff', rarity:'rare',
+    passive:'Arcane Amplifier',
+    passiveStat:'tower_dmg',  basePerLv:1.2,
+    desc:'+{v}% tower damage to all turrets' },
+  // ── Epic ─────────────────────────────────────────────────────────────────
+  { id:'void_panther',     name:'Void Panther',         icon:'🐆', color:'#b94cff', rarity:'epic',
+    passive:'Shadow Haste',
+    passiveStat:'tower_spd',  basePerLv:1.5,
+    desc:'+{v}% attack speed for all turrets' },
+  { id:'storm_phoenix',    name:'Storm Phoenix',         icon:'🦅', color:'#b94cff', rarity:'epic',
+    passive:'Blazing Barrage',
+    passiveStat:'tower_dmg',  basePerLv:1.8,
+    desc:'+{v}% tower damage · affects all turret types' },
+  // ── Legendary ────────────────────────────────────────────────────────────
+  { id:'celestial_dragon', name:'Celestial Dragon',     icon:'🐉', color:'#f0a020', rarity:'legendary',
+    passive:'Dragon Supremacy',
+    passiveStat:'tower_dmg',  basePerLv:2.5,
+    passiveStat2:'tower_spd', basePerLv2:1.0,
+    desc:'+{v}% tower damage  +{v2}% attack speed' },
+  { id:'titan_wolf',       name:'Titan Wolf',            icon:'🐺', color:'#f0a020', rarity:'legendary',
+    passive:'Alpha Predator',
+    passiveStat:'wave_gold',  basePerLv:3.0,
+    passiveStat2:'tower_dmg', basePerLv2:1.0,
+    desc:'+{v}% wave gold  +{v2}% tower damage' },
+  // ── Mystic ───────────────────────────────────────────────────────────────
+  { id:'cosmos_serpent',   name:'Cosmos Serpent',        icon:'🐍', color:'#ff3d7f', rarity:'mystic',
+    passive:'Cosmic Dominion',
+    passiveStat:'tower_dmg',  basePerLv:4.0,
+    passiveStat2:'tower_spd', basePerLv2:2.0,
+    desc:'+{v}% tower damage  +{v2}% attack speed  (all turrets)' },
 ];
 
 const GACHA_RARITIES = [
-  { id:'common',    name:'Common',    color:'#8a8a8a', pts:1,  weight:550 },
-  { id:'uncommon',  name:'Uncommon',  color:'#2dba4e', pts:2,  weight:250 },
-  { id:'rare',      name:'Rare',      color:'#1e90ff', pts:4,  weight:120 },
-  { id:'epic',      name:'Epic',      color:'#b94cff', pts:8,  weight:50  },
-  { id:'legendary', name:'Legendary', color:'#f0a020', pts:15, weight:25  },
-  { id:'mystic',    name:'Mystic',    color:'#ff3d7f', pts:25, weight:5   },
+  { id:'common',    name:'Common',    color:'#8a8a8a', pts:1, weight:550 },
+  { id:'uncommon',  name:'Uncommon',  color:'#2dba4e', pts:1, weight:250 },
+  { id:'rare',      name:'Rare',      color:'#1e90ff', pts:1, weight:120 },
+  { id:'epic',      name:'Epic',      color:'#b94cff', pts:1, weight:50  },
+  { id:'legendary', name:'Legendary', color:'#f0a020', pts:1, weight:25  },
+  { id:'mystic',    name:'Mystic',    color:'#ff3d7f', pts:1, weight:5   },
 ];
 
 // Cumulative power-point thresholds for each level (index 0 = Lv1 needs 0 pts)
@@ -6695,10 +6836,15 @@ function loadMarketState() {
   try { marketState = JSON.parse(localStorage.getItem('idw_market')) || null; } catch(e) {}
   if (!marketState) marketState = { gems:100000, totalRolls:0, pityCount:0, epicPity:0, heroes:{}, gearPityCount:0, gearEpicPity:0 };
   // Migrate older saves that don't have gear pity yet
-  if (!('gearPityCount' in marketState)) { marketState.gearPityCount = 0; marketState.gearEpicPity = 0; }
+  if (!('gearPityCount'  in marketState)) { marketState.gearPityCount  = 0; marketState.gearEpicPity  = 0; }
+  if (!('relicPityCount' in marketState)) { marketState.relicPityCount = 0; marketState.relicEpicPity = 0; }
+  if (!('relics'         in marketState)) { marketState.relics = {}; }
+  if (!('skillPityCount' in marketState)) { marketState.skillPityCount = 0; marketState.skillEpicPity = 0; }
+  if (!('marketSkills'   in marketState)) { marketState.marketSkills = {}; }
 }
 
 function saveMarketState() {
+  invalidateResearchCache();
   localStorage.setItem('idw_market', JSON.stringify(marketState));
   if (currentUser) {
     Promise.resolve(sb.rpc('idw_save_market_state', { p_market: marketState })).catch(e => console.warn('market sync failed', e));
@@ -6715,16 +6861,19 @@ function _gachaPassiveVal(gh, lv) {
   return (gh.basePerLv * lv).toFixed(1);
 }
 
-// Returns all active passive bonus percentages from collected Market heroes
+// Returns all active passive bonuses from collected pets as fractions (e.g. 5% → 0.05).
+// Keys match the research bonus object: tower_dmg, tower_spd, tower_range, wave_gold.
 function getMarketPassiveBonuses() {
   if (!marketState) return {};
   const out = {};
   GACHA_HEROES.forEach(gh => {
-    const h = marketState.heroes[gh.id];
-    if (!h) return;
-    const lv  = _gachaHeroLevel(h.pts);
-    const val = gh.basePerLv * lv;
-    out[gh.passiveStat] = (out[gh.passiveStat] || 0) + val;
+    const h = marketState.heroes?.[gh.id];
+    if (!h?.pts) return;
+    const lv = _gachaHeroLevel(h.pts);
+    if (!lv) return;
+    out[gh.passiveStat]  = (out[gh.passiveStat]  || 0) + gh.basePerLv  * lv / 100;
+    if (gh.passiveStat2)
+      out[gh.passiveStat2] = (out[gh.passiveStat2] || 0) + gh.basePerLv2 * lv / 100;
   });
   return out;
 }
@@ -6760,8 +6909,12 @@ function _gachaRollRarity() {
 
 function _gachaDoRoll() {
   const rarityId = _gachaRollRarity();
-  const hero   = GACHA_HEROES[Math.floor(Math.random() * GACHA_HEROES.length)];
   const rarity = GACHA_RARITIES.find(r => r.id === rarityId);
+  // Pick from pets that belong to this rarity tier
+  const pool = GACHA_HEROES.filter(h => h.rarity === rarityId);
+  const hero = pool.length
+    ? pool[Math.floor(Math.random() * pool.length)]
+    : GACHA_HEROES[Math.floor(Math.random() * GACHA_HEROES.length)];
 
   // Update pity counters
   marketState.pityCount++;
@@ -6843,16 +6996,16 @@ function _gachaSpinWheel(winnerResult, onDone) {
   strip.style.transition = 'none';
   strip.innerHTML = '';
   for (let i = 0; i < TOTAL; i++) {
-    const r = (i === _WINNER_I) ? winnerResult : {
-      hero:   GACHA_HEROES[Math.floor(Math.random() * GACHA_HEROES.length)],
-      rarity: (() => {
-        const fw = [60, 25, 10, 4, 1, 0.1];
-        const ft = fw.reduce((s, w) => s + w, 0);
-        let rr = Math.random() * ft;
-        for (let j = 0; j < GACHA_RARITIES.length; j++) { rr -= fw[j]; if (rr <= 0) return GACHA_RARITIES[j]; }
-        return GACHA_RARITIES[0];
-      })(),
-    };
+    const r = (i === _WINNER_I) ? winnerResult : (() => {
+      const fw = [60, 25, 10, 4, 1, 0.1];
+      const ft = fw.reduce((s, w) => s + w, 0);
+      let rr = Math.random() * ft;
+      let rar = GACHA_RARITIES[0];
+      for (let j = 0; j < GACHA_RARITIES.length; j++) { rr -= fw[j]; if (rr <= 0) { rar = GACHA_RARITIES[j]; break; } }
+      const pool = GACHA_HEROES.filter(h => h.rarity === rar.id);
+      const hero = pool.length ? pool[Math.floor(Math.random() * pool.length)] : GACHA_HEROES[0];
+      return { hero, rarity: rar };
+    })();
     strip.appendChild(_gachaMakeItem(r, false));
   }
 
@@ -6919,8 +7072,8 @@ function _gachaMakeItem({ hero, rarity } = {}, isWinner) {
       ${isWinner?`filter:drop-shadow(0 0 8px rgba(${rgb},0.7));`:'opacity:0.6;'}">${hero.icon}</span>
     <div style="flex:1;min-width:0;">
       <div style="font-size:${isWinner?'13':'11'}px;font-weight:${isWinner?'700':'500'};
-           color:${isWinner?rarity.color:'#606878'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
-      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':'#404858'};
+           color:${isWinner?rarity.color:`rgba(${rgb},0.75)`};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
+      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':`rgba(${rgb},0.55)`};
            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${hero.name}</div>
     </div>
     ${isWinner ? `<span style="color:${rarity.color};font-size:14px;">✦</span>` : ''}
@@ -7111,15 +7264,16 @@ function _gachaGearDoRoll() {
   if (['epic','legendary','mystic'].includes(rarityId)) marketState.gearEpicPity  = 0;
 
   // Grant item: add copy to existing entry, or add new entry with 1 copy
-  if (!heroGearState) loadHeroGearState();
-  const ownedArr = category === 'weapon' ? heroGearState.ownedWeapons : heroGearState.ownedGear;
+  if (!cmdGearState) loadCmdGearState();
+  const ownedArr = category === 'weapon' ? cmdGearState.ownedWeapons : cmdGearState.ownedGear;
   const existing = ownedArr.find(e => e.id === itemId);
   if (existing) {
     existing.copies++;
+    tryGearLevelUp(existing); // auto level-up if threshold reached
   } else {
     ownedArr.push({ id: itemId, level: 1, copies: 1 });
   }
-  saveHeroGearState();
+  saveCmdGearState();
 
   return { item, rarity, category, itemId };
 }
@@ -7152,8 +7306,8 @@ function _gachaGearMakeItem({ item, rarity } = {}, isWinner) {
       ${isWinner?`filter:drop-shadow(0 0 8px rgba(${rgb},0.7));`:'opacity:0.6;'}">${item.icon}</span>
     <div style="flex:1;min-width:0;">
       <div style="font-size:${isWinner?'13':'11'}px;font-weight:${isWinner?'700':'500'};
-           color:${isWinner?rarity.color:'#606878'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
-      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':'#404858'};
+           color:${isWinner?rarity.color:`rgba(${rgb},0.75)`};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
+      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':`rgba(${rgb},0.55)`};
            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
     </div>
     ${isWinner ? `<span style="color:${rarity.color};font-size:14px;">✦</span>` : ''}
@@ -7229,7 +7383,7 @@ function _gachaGearSpinWheel(winnerResult, onDone) {
 function _gachaGearShowSingleResult({ item, rarity, itemId, category }) {
   const modal = document.getElementById('gacha-result-modal');
   if (!modal) return;
-  const ownedArr = category === 'weapon' ? heroGearState.ownedWeapons : heroGearState.ownedGear;
+  const ownedArr = category === 'weapon' ? cmdGearState.ownedWeapons : cmdGearState.ownedGear;
   const entry = ownedArr.find(e => e.id === itemId);
   const rc  = rarity.color;
   const rgb = _hexRgb(rc);
@@ -7307,9 +7461,9 @@ function updateGearPityBar() {
 function renderGachaGearCollection() {
   const el = document.getElementById('gacha-gear-collection');
   if (!el) return;
-  if (!heroGearState) loadHeroGearState();
+  if (!cmdGearState) loadCmdGearState();
 
-  const allOwned = [...(heroGearState.ownedWeapons || []), ...(heroGearState.ownedGear || [])];
+  const allOwned = [...(cmdGearState.ownedWeapons || []), ...(cmdGearState.ownedGear || [])];
 
   if (!allOwned.length) {
     el.innerHTML = `<div style="margin-top:2rem;text-align:center;color:var(--text3);font-size:13px;">No gear collected yet. Roll to get started!</div>`;
@@ -7385,7 +7539,7 @@ function rollGachaGear(count) {
     updateMarketGemDisplay();
     updateGearPityBar();
     // Refresh hero panel live if it's currently open
-    if (document.getElementById('section-hero')?.style.display !== 'none') buildHeroPanel();
+    if (document.getElementById('section-hero')?.style.display !== 'none') buildCommanderPanel();
     if (count > 1) _gachaGearShowMultiResult(results);
     else            _gachaGearShowSingleResult(results[0]);
   };
@@ -7397,8 +7551,745 @@ function rollGachaGear(count) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RELIC GACHA SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+const RELIC_DEFS = [
+  // ── Common (10) ──────────────────────────────────────────────────────────
+  { id:'iron_crest',        name:'Iron Crest',         icon:'🔩', rarity:'common',    passive:'Steady Barrage',    passiveStat:'tower_dmg',  basePerLv:0.30, desc:'+{v}% tower damage' },
+  { id:'copper_coin',       name:'Copper Coin',         icon:'🪙', rarity:'common',    passive:'Small Fortune',     passiveStat:'wave_gold',  basePerLv:0.40, desc:'+{v}% gold from waves' },
+  { id:'stone_tablet',      name:'Stone Tablet',        icon:'🪨', rarity:'common',    passive:'Engraved Might',    passiveStat:'tower_dmg',  basePerLv:0.25, desc:'+{v}% tower damage' },
+  { id:'wooden_totem',      name:'Wooden Totem',        icon:'🪵', rarity:'common',    passive:'Tribal Tempo',      passiveStat:'tower_spd',  basePerLv:0.30, desc:'+{v}% tower attack speed' },
+  { id:'rusted_arrowhead',  name:'Rusted Arrowhead',    icon:'🏹', rarity:'common',    passive:'Long Shot',         passiveStat:'tower_range', basePerLv:0.25, desc:'+{v}% tower range' },
+  { id:'tarnished_medal',   name:'Tarnished Medal',     icon:'🎖️', rarity:'common',    passive:'Veteran\'s Cut',   passiveStat:'wave_gold',  basePerLv:0.35, desc:'+{v}% gold from waves' },
+  { id:'cracked_crystal',   name:'Cracked Crystal',     icon:'💎', rarity:'common',    passive:'Fractured Power',   passiveStat:'tower_dmg',  basePerLv:0.30, desc:'+{v}% tower damage' },
+  { id:'forest_seed',       name:'Forest Seed',         icon:'🌱', rarity:'common',    passive:'Growth Pulse',      passiveStat:'tower_spd',  basePerLv:0.25, desc:'+{v}% tower attack speed' },
+  { id:'old_compass',       name:'Old Compass',         icon:'🧭', rarity:'common',    passive:'True North',        passiveStat:'tower_range', basePerLv:0.30, desc:'+{v}% tower range' },
+  { id:'dusty_scroll',      name:'Dusty Scroll',        icon:'📜', rarity:'common',    passive:'Ancient Words',     passiveStat:'wave_gold',  basePerLv:0.30, desc:'+{v}% gold from waves' },
+  // ── Uncommon (10) ────────────────────────────────────────────────────────
+  { id:'ancient_tome',      name:'Ancient Tome',        icon:'📖', rarity:'uncommon',  passive:'Arcane Insight',    passiveStat:'tower_dmg',  basePerLv:0.60, desc:'+{v}% tower damage' },
+  { id:'scrapper_seal',     name:'Scrapper Seal',       icon:'🔥', rarity:'uncommon',  passive:'Forge Profit',      disenchantStat:'wave_gold', disenchantPerItem:0.10, desc:'+0.10% wave gold per disenchanted item' },
+  { id:'wind_charm',        name:'Wind Charm',           icon:'💨', rarity:'uncommon',  passive:'Gale Force',        passiveStat:'tower_spd',  basePerLv:0.50, desc:'+{v}% tower attack speed' },
+  { id:'silver_ring',       name:'Silver Ring',          icon:'💍', rarity:'uncommon',  passive:'Ring of Power',     passiveStat:'tower_dmg',  basePerLv:0.55, desc:'+{v}% tower damage' },
+  { id:'storm_feather',     name:'Storm Feather',        icon:'🪶', rarity:'uncommon',  passive:'Gust Wing',         passiveStat:'tower_spd',  basePerLv:0.60, desc:'+{v}% tower attack speed' },
+  { id:'jade_fragment',     name:'Jade Fragment',        icon:'🟢', rarity:'uncommon',  passive:'Jade Reach',        passiveStat:'tower_range', basePerLv:0.70, desc:'+{v}% tower range' },
+  { id:'merchants_coin',    name:"Merchant's Coin",      icon:'💰', rarity:'uncommon',  passive:'Trade Routes',      passiveStat:'wave_gold',  basePerLv:0.65, desc:'+{v}% gold from waves' },
+  { id:'hunters_mark',      name:"Hunter's Mark",        icon:'🎯', rarity:'uncommon',  passive:'Marked Target',     passiveStat:'tower_dmg',  basePerLv:0.65, desc:'+{v}% tower damage' },
+  { id:'speed_rune',        name:'Speed Rune',           icon:'⚡', rarity:'uncommon',  passive:'Haste Inscription', passiveStat:'tower_spd',  basePerLv:0.55, desc:'+{v}% tower attack speed' },
+  { id:'watchers_eye',      name:"Watcher's Eye",        icon:'👁️', rarity:'uncommon',  passive:'Keen Sight',        passiveStat:'tower_range', basePerLv:0.60, desc:'+{v}% tower range' },
+  { id:'lucky_charm',       name:'Lucky Charm',          icon:'🍀', rarity:'uncommon',  passive:'Fortune Smiles',    passiveStat:'wave_gold',  basePerLv:0.70, desc:'+{v}% gold from waves' },
+  // ── Rare (10) ────────────────────────────────────────────────────────────
+  { id:'moonstone',         name:'Moonstone',            icon:'🌙', rarity:'rare',      passive:'Lunar Blessing',    passiveStat:'wave_gold',  basePerLv:1.00, desc:'+{v}% gold from waves' },
+  { id:'breakers_mark',     name:"Breaker's Mark",       icon:'⚒️', rarity:'rare',      passive:'Shatter Might',     disenchantStat:'tower_dmg', disenchantPerItem:0.15, desc:'+0.15% tower damage per disenchanted item' },
+  { id:'war_drum',          name:'War Drum',              icon:'🥁', rarity:'rare',      passive:'Battle Rhythm',     passiveStat:'tower_spd',  basePerLv:1.00, desc:'+{v}% tower attack speed' },
+  { id:'battle_crest',      name:'Battle Crest',         icon:'⚔️', rarity:'rare',      passive:'Combat Edge',       passiveStat:'tower_dmg',  basePerLv:1.10, desc:'+{v}% tower damage' },
+  { id:'elemental_core',    name:'Elemental Core',       icon:'🌀', rarity:'rare',      passive:'Elemental Surge',   passiveStat:'tower_dmg',  basePerLv:0.80, passiveStat2:'tower_spd',  basePerLv2:0.40, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'rangers_lens',      name:"Ranger's Lens",        icon:'🔭', rarity:'rare',      passive:'Eagle Sight',       passiveStat:'tower_range', basePerLv:1.20, desc:'+{v}% tower range' },
+  { id:'golden_scale',      name:'Golden Scale',         icon:'⚖️', rarity:'rare',      passive:'Balanced Wealth',   passiveStat:'wave_gold',  basePerLv:1.10, desc:'+{v}% gold from waves' },
+  { id:'thunder_rune',      name:'Thunder Rune',         icon:'🌩️', rarity:'rare',      passive:'Storm Cadence',     passiveStat:'tower_spd',  basePerLv:1.10, desc:'+{v}% tower attack speed' },
+  { id:'iron_will',         name:'Iron Will',            icon:'🛡️', rarity:'rare',      passive:'Unbreakable',       passiveStat:'tower_dmg',  basePerLv:1.00, desc:'+{v}% tower damage' },
+  { id:'focus_crystal',     name:'Focus Crystal',        icon:'🔷', rarity:'rare',      passive:'Precision Lock',    passiveStat:'tower_range', basePerLv:0.80, passiveStat2:'tower_dmg',  basePerLv2:0.40, desc:'+{v}% range  +{v2}% tower dmg' },
+  { id:'traders_codex',     name:"Trader's Codex",       icon:'📊', rarity:'rare',      passive:'Market Mastery',    passiveStat:'wave_gold',  basePerLv:0.90, passiveStat2:'tower_dmg',  basePerLv2:0.40, desc:'+{v}% wave gold  +{v2}% tower dmg' },
+  // ── Epic (10) ────────────────────────────────────────────────────────────
+  { id:'phoenix_feather',   name:'Phoenix Feather',      icon:'🪶', rarity:'epic',      passive:'Rebirth Aura',      passiveStat:'tower_dmg',  basePerLv:1.60, passiveStat2:'tower_spd',  basePerLv2:0.60, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'dissolution_core',  name:'Dissolution Core',     icon:'💀', rarity:'epic',      passive:'Entropy Engine',    disenchantStat:'tower_dmg', disenchantPerItem:0.20, disenchantStat2:'tower_spd', disenchantPerItem2:0.10, desc:'+0.20% tower dmg & +0.10% atk speed per disenchanted item' },
+  { id:'time_shard',        name:'Time Shard',            icon:'⌛', rarity:'epic',      passive:'Temporal Shift',    passiveStat:'tower_spd',  basePerLv:2.00, desc:'+{v}% tower attack speed' },
+  { id:'chaos_orb',         name:'Chaos Orb',            icon:'🌑', rarity:'epic',      passive:'Chaotic Surge',     passiveStat:'tower_dmg',  basePerLv:1.80, passiveStat2:'tower_spd',  basePerLv2:0.80, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'rift_stone',        name:'Rift Stone',            icon:'🔮', rarity:'epic',      passive:'Dimensional Tear',  passiveStat:'tower_dmg',  basePerLv:2.00, desc:'+{v}% tower damage' },
+  { id:'eclipse_gem',       name:'Eclipse Gem',           icon:'🌒', rarity:'epic',      passive:'Dark Eclipse',      passiveStat:'tower_spd',  basePerLv:1.80, passiveStat2:'wave_gold',  basePerLv2:0.80, desc:'+{v}% atk speed  +{v2}% wave gold' },
+  { id:'dragon_scale',      name:'Dragon Scale',         icon:'🐲', rarity:'epic',      passive:'Drake\'s Reach',    passiveStat:'tower_dmg',  basePerLv:1.70, passiveStat2:'tower_range', basePerLv2:0.70, desc:'+{v}% tower dmg  +{v2}% range' },
+  { id:'venom_crystal',     name:'Venom Crystal',        icon:'🟣', rarity:'epic',      passive:'Toxic Tempo',       passiveStat:'tower_spd',  basePerLv:1.60, passiveStat2:'tower_dmg',  basePerLv2:0.80, desc:'+{v}% atk speed  +{v2}% tower dmg' },
+  { id:'storm_prism',       name:'Storm Prism',           icon:'🌩️', rarity:'epic',      passive:'Lightning Lens',    passiveStat:'tower_range', basePerLv:1.50, passiveStat2:'tower_dmg',  basePerLv2:0.90, desc:'+{v}% range  +{v2}% tower dmg' },
+  { id:'arcane_codex',      name:'Arcane Codex',         icon:'📚', rarity:'epic',      passive:'Forbidden Arts',    passiveStat:'tower_dmg',  basePerLv:1.90, passiveStat2:'wave_gold',  basePerLv2:0.70, desc:'+{v}% tower dmg  +{v2}% wave gold' },
+  { id:'warlords_seal',     name:"Warlord's Seal",       icon:'🗡️', rarity:'epic',      passive:'Iron Command',      passiveStat:'tower_dmg',  basePerLv:2.20, desc:'+{v}% tower damage' },
+  // ── Legendary (7) ────────────────────────────────────────────────────────
+  { id:'emperors_seal',     name:"Emperor's Seal",       icon:'🏯', rarity:'legendary', passive:'Imperial Decree',   passiveStat:'tower_dmg',  basePerLv:2.00, passiveStat2:'wave_gold',  basePerLv2:2.00, desc:'+{v}% tower dmg  +{v2}% wave gold' },
+  { id:'void_remnant',      name:'Void Remnant',         icon:'🌑', rarity:'legendary', passive:'Annihilation Rite', disenchantStat:'tower_dmg', disenchantPerItem:0.30, disenchantStat2:'wave_gold', disenchantPerItem2:0.15, desc:'+0.30% tower dmg & +0.15% wave gold per disenchanted item' },
+  { id:'ancient_dragon_heart', name:'Ancient Dragon Heart', icon:'🐉', rarity:'legendary', passive:'Draconic Might', passiveStat:'tower_dmg',  basePerLv:2.50, passiveStat2:'tower_spd',  basePerLv2:1.50, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'celestial_map',     name:'Celestial Map',        icon:'🗺️', rarity:'legendary', passive:'Star Navigation',   passiveStat:'tower_range', basePerLv:2.00, passiveStat2:'wave_gold',  basePerLv2:1.50, desc:'+{v}% range  +{v2}% wave gold' },
+  { id:'war_gods_crest',    name:"War God's Crest",      icon:'⚡', rarity:'legendary', passive:'Divine Onslaught',  passiveStat:'tower_dmg',  basePerLv:3.00, passiveStat2:'tower_spd',  basePerLv2:1.00, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'fortune_crown',     name:'Fortune Crown',        icon:'👑', rarity:'legendary', passive:'Royal Treasury',    passiveStat:'wave_gold',  basePerLv:3.00, passiveStat2:'tower_dmg',  basePerLv2:1.00, desc:'+{v}% wave gold  +{v2}% tower dmg' },
+  { id:'eternal_flame',     name:'Eternal Flame',        icon:'🔥', rarity:'legendary', passive:'Undying Blaze',     passiveStat:'tower_dmg',  basePerLv:2.80, passiveStat2:'tower_spd',  basePerLv2:1.20, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'universe_core',     name:'Universe Core',        icon:'🌌', rarity:'legendary', passive:'Galactic Power',    passiveStat:'tower_dmg',  basePerLv:2.50, passiveStat2:'tower_range', basePerLv2:1.50, desc:'+{v}% tower dmg  +{v2}% range' },
+  // ── Mystic (3) ───────────────────────────────────────────────────────────
+  { id:'void_crystal',      name:'Void Crystal',         icon:'💠', rarity:'mystic',    passive:'Void Resonance',    passiveStat:'tower_dmg',  basePerLv:3.50, passiveStat2:'tower_spd',  basePerLv2:1.50, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'cosmic_shard',      name:'Cosmic Shard',         icon:'✨', rarity:'mystic',    passive:'Stellar Collapse',  passiveStat:'tower_dmg',  basePerLv:4.50, passiveStat2:'tower_spd',  basePerLv2:2.00, desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'eternity_stone',    name:'Eternity Stone',       icon:'🌀', rarity:'mystic',    passive:'Infinite Loop',     passiveStat:'tower_dmg',  basePerLv:4.00, passiveStat2:'wave_gold',  basePerLv2:2.50, desc:'+{v}% tower dmg  +{v2}% wave gold' },
+];
+
+// Relic rarity pool: one relic per rarity, picked by weight
+const RELIC_POOL = (() => {
+  const out = {};
+  RELIC_DEFS.forEach(r => { if (!out[r.rarity]) out[r.rarity] = []; out[r.rarity].push(r.id); });
+  return out;
+})();
+
+let _gachaRelicAnimating = false;
+
+function _gachaRelicRollRarity() {
+  if (marketState.relicPityCount >= GACHA_HARD_PITY) {
+    marketState.relicPityCount = 0; marketState.relicEpicPity = 0;
+    return Math.random() < 0.8 ? 'legendary' : 'mystic';
+  }
+  if (marketState.relicEpicPity >= GACHA_EPIC_PITY) {
+    marketState.relicEpicPity = 0;
+    const r = Math.random();
+    if (r < 0.60) return 'epic';
+    if (r < 0.85) return 'legendary';
+    return 'mystic';
+  }
+  const wt = GACHA_RARITIES.map(r => ({ id:r.id, w:r.weight }));
+  if (marketState.relicPityCount >= GACHA_SOFT_PITY) {
+    const sp = (marketState.relicPityCount - GACHA_SOFT_PITY) / (GACHA_HARD_PITY - GACHA_SOFT_PITY);
+    wt.find(w => w.id === 'legendary').w += sp * 400;
+    wt.find(w => w.id === 'mystic').w    += sp * 100;
+  }
+  const total = wt.reduce((s, w) => s + w.w, 0);
+  let roll = Math.random() * total;
+  for (const w of wt) { roll -= w.w; if (roll <= 0) return w.id; }
+  return 'common';
+}
+
+function _gachaRelicDoRoll() {
+  const rarityId = _gachaRelicRollRarity();
+  const pool   = RELIC_POOL[rarityId] || RELIC_POOL.common;
+  const itemId = pool[Math.floor(Math.random() * pool.length)];
+  const item   = RELIC_DEFS.find(r => r.id === itemId);
+  const rarity = GACHA_RARITIES.find(r => r.id === rarityId);
+
+  marketState.relicPityCount++;
+  marketState.relicEpicPity++;
+  if (['legendary','mystic'].includes(rarityId))        marketState.relicPityCount = 0;
+  if (['epic','legendary','mystic'].includes(rarityId)) marketState.relicEpicPity  = 0;
+
+  if (!marketState.relics) marketState.relics = {};
+  const existing = marketState.relics[itemId];
+  if (existing) existing.pts++;
+  else          marketState.relics[itemId] = { pts: 1 };
+  saveMarketState();
+
+  return { item, rarity, itemId };
+}
+
+function _gachaRelicMakeItem({ item, rarity } = {}, isWinner) {
+  if (!item)   item   = RELIC_DEFS[0];
+  if (!rarity) rarity = GACHA_RARITIES[0];
+  const div = document.createElement('div');
+  const rgb = _hexRgb(rarity.color);
+  div.style.cssText = `
+    height:${_ITEM_H}px;width:100%;display:flex;align-items:center;
+    padding:0 16px;gap:12px;box-sizing:border-box;
+    background:${isWinner ? `linear-gradient(135deg,rgba(${rgb},0.28),rgba(${rgb},0.07))` : 'rgba(255,255,255,0.02)'};
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    border-left:3px solid ${isWinner ? rarity.color : 'rgba(255,255,255,0.06)'};
+    ${isWinner ? `box-shadow:inset 0 0 22px rgba(${rgb},0.15);` : ''}
+  `;
+  div.innerHTML = `
+    <span style="font-size:${isWinner?'1.85':'1.45'}rem;line-height:1;flex-shrink:0;
+      ${isWinner?`filter:drop-shadow(0 0 8px rgba(${rgb},0.7));`:'opacity:0.6;'}">${item.icon}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:${isWinner?'13':'11'}px;font-weight:${isWinner?'700':'500'};
+           color:${isWinner?rarity.color:`rgba(${rgb},0.75)`};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
+      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':`rgba(${rgb},0.55)`};
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+    </div>
+    ${isWinner ? `<span style="color:${rarity.color};font-size:14px;">✦</span>` : ''}
+  `;
+  return div;
+}
+
+function _gachaRelicSpinWheel(winnerResult, onDone) {
+  const strip = document.getElementById('gacha-relic-strip');
+  if (!strip) { onDone(); return; }
+
+  const TOTAL = 40;
+  strip.style.transition = 'none';
+  strip.innerHTML = '';
+  for (let i = 0; i < TOTAL; i++) {
+    const r = (i === _WINNER_I) ? winnerResult : {
+      item: RELIC_DEFS[Math.floor(Math.random() * RELIC_DEFS.length)],
+      rarity: (() => {
+        const fw = [60, 25, 10, 4, 1, 0.1];
+        const ft = fw.reduce((s, w) => s + w, 0);
+        let rr = Math.random() * ft;
+        for (let j = 0; j < GACHA_RARITIES.length; j++) { rr -= fw[j]; if (rr <= 0) return GACHA_RARITIES[j]; }
+        return GACHA_RARITIES[0];
+      })(),
+    };
+    strip.appendChild(_gachaRelicMakeItem(r, false));
+  }
+
+  const containerCenter = Math.floor(_VISIBLE / 2) * _ITEM_H + _ITEM_H / 2;
+  const winnerCenter    = _WINNER_I * _ITEM_H + _ITEM_H / 2;
+  const finalY          = -(winnerCenter - containerCenter);
+  const spinItems       = TOTAL - _WINNER_I - _VISIBLE - 1;
+  const startY          = finalY - spinItems * _ITEM_H;
+  const totalDist       = finalY - startY;
+
+  strip.style.transform = `translateY(${startY}px)`;
+  void strip.offsetWidth;
+
+  const DURATION = 4200;
+  const t0 = performance.now();
+  (function animate(now) {
+    const t = Math.min((now - t0) / DURATION, 1);
+    const p = 1 - Math.pow(1 - t, 3);
+    strip.style.transform = `translateY(${startY + totalDist * p}px)`;
+    if (t < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      strip.style.transform = `translateY(${finalY}px)`;
+      const winnerEl = strip.children[_WINNER_I];
+      if (winnerEl) {
+        const revealed = _gachaRelicMakeItem(winnerResult, true);
+        revealed.style.opacity = '0';
+        strip.replaceChild(revealed, winnerEl);
+        requestAnimationFrame(() => { revealed.style.transition = 'opacity 0.4s ease'; revealed.style.opacity = '1'; });
+      }
+      setTimeout(onDone, 450);
+    }
+  })(performance.now());
+}
+
+function _gachaRelicShowSingleResult({ item, rarity }) {
+  const modal = document.getElementById('gacha-result-modal');
+  if (!modal) return;
+  const rc  = rarity.color;
+  const rgb = _hexRgb(rc);
+  const pts = marketState.relics?.[item.id]?.pts || 1;
+  const lv  = _gachaHeroLevel(pts);
+  const maxLv = GACHA_LV_THRESH.length;
+  const needed = lv < maxLv ? GACHA_LV_THRESH[lv] - GACHA_LV_THRESH[lv-1 >= 0 ? lv-1 : 0] : 0;
+  const curThr = lv > 0 ? (GACHA_LV_THRESH[lv-1] ?? 0) : 0;
+  const pct = needed ? Math.min(100, Math.round((pts - curThr) / (GACHA_LV_THRESH[lv] - curThr) * 100)) : 100;
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div style="background:#0e1220;border:2px solid ${rc};border-radius:18px;padding:2rem 2.5rem;
+         text-align:center;max-width:300px;animation:gachaPopIn 0.28s ease;
+         box-shadow:0 0 60px rgba(${rgb},0.5),0 8px 32px rgba(0,0,0,0.6);">
+      <div style="font-size:3.5rem;margin-bottom:0.5rem;filter:drop-shadow(0 0 16px rgba(${rgb},0.9));">${item.icon}</div>
+      <div style="font-size:11px;font-weight:800;color:${rc};letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;">${rarity.name}</div>
+      <div style="font-size:1.35rem;font-weight:800;color:#e8eeff;margin-bottom:4px;">${item.name}</div>
+      <div style="font-size:11px;color:#607080;margin-bottom:8px;">Lv ${lv} — ${pts}/${GACHA_LV_THRESH[lv] || '★'}</div>
+      <div style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-bottom:1.25rem;">
+        <div style="height:100%;width:${pct}%;background:${rc};border-radius:3px;"></div>
+      </div>
+      <button onclick="document.getElementById('gacha-result-modal').style.display='none'"
+        style="background:${rc};color:#fff;border:none;padding:10px 34px;border-radius:9px;
+               cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;">✓ Collect</button>
+    </div>`;
+}
+
+function _gachaRelicShowMultiResult(results) {
+  const modal = document.getElementById('gacha-result-modal');
+  if (!modal) return;
+  const grid = results.map(({ item, rarity }) => {
+    const rgb = _hexRgb(rarity.color);
+    return `<div style="background:rgba(${rgb},0.1);border:1px solid rgba(${rgb},0.35);border-radius:10px;
+                 padding:10px 4px;text-align:center;border-top:3px solid ${rarity.color};">
+      <div style="font-size:1.5rem;line-height:1;">${item.icon}</div>
+      <div style="font-size:9px;color:${rarity.color};font-weight:700;margin-top:4px;letter-spacing:0.5px;">${rarity.name}</div>
+      <div style="font-size:9px;color:#8090a8;margin-top:2px;">${item.name}</div>
+    </div>`;
+  }).join('');
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div style="background:#0e1220;border:1px solid rgba(255,255,255,0.12);border-radius:18px;
+         padding:1.5rem;max-width:420px;width:calc(100% - 2rem);animation:gachaPopIn 0.28s ease;">
+      <div style="font-size:1rem;font-weight:700;color:#e0e8ff;text-align:center;margin-bottom:1rem;">🪬 10-Roll Results</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:1.25rem;">${grid}</div>
+      <div style="text-align:center;">
+        <button onclick="document.getElementById('gacha-result-modal').style.display='none'"
+          style="background:linear-gradient(135deg,#2a4888,#3a2e80);color:#fff;border:none;
+                 padding:10px 38px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;">
+          ✓ Collect All
+        </button>
+      </div>
+    </div>`;
+}
+
+function updateRelicPityBar() {
+  if (!marketState) return;
+  const fill  = document.getElementById('relic-pity-bar-fill');
+  const label = document.getElementById('relic-pity-bar-label');
+  const pct  = Math.min(100, (marketState.relicPityCount / GACHA_HARD_PITY) * 100);
+  const soft = marketState.relicPityCount >= GACHA_SOFT_PITY;
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.style.background = soft ? 'linear-gradient(90deg,#f0a020,#ff4020)' : 'linear-gradient(90deg,#7c3aed,#ff3d7f)';
+  }
+  if (label) label.textContent = soft ? `⚠️ Soft Pity! ${marketState.relicPityCount} / ${GACHA_HARD_PITY}` : `${marketState.relicPityCount} / ${GACHA_HARD_PITY} rolls`;
+}
+
+function renderRelicCollection() {
+  const el = document.getElementById('relic-collection');
+  if (!el) return;
+  if (!marketState) loadMarketState();
+  const relics = marketState.relics || {};
+  const owned = RELIC_DEFS.filter(r => relics[r.id]?.pts > 0);
+  if (!owned.length) {
+    el.innerHTML = `<div style="margin-top:2rem;text-align:center;color:var(--text3);font-size:13px;">No relics collected yet. Roll to get started!</div>`;
+    return;
+  }
+  const rar = id => GACHA_RARITIES.find(r => r.id === id) || GACHA_RARITIES[0];
+  let html = `<div style="margin-top:2rem;max-width:560px;margin-left:auto;margin-right:auto;">
+    <div style="font-size:11px;font-weight:700;color:#404e68;text-transform:uppercase;letter-spacing:1.5px;
+         margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid rgba(255,255,255,0.06);">
+      Your Relic Collection
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">`;
+  owned.forEach(relic => {
+    const r    = rar(relic.rarity);
+    const rgb  = _hexRgb(r.color);
+    const pts  = relics[relic.id].pts;
+    const lv   = _gachaHeroLevel(pts);
+    const maxLv = GACHA_LV_THRESH.length;
+    const nxt  = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const cur  = lv > 0 ? (GACHA_LV_THRESH[lv-1] ?? 0) : 0;
+    const pct  = nxt ? Math.min(100, Math.round((pts - cur) / (nxt - cur) * 100)) : 100;
+    html += `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(${rgb},0.3);
+           border-top:2px solid ${r.color};border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:1.6rem;line-height:1;margin-bottom:4px;filter:drop-shadow(0 0 6px rgba(${rgb},0.5));">${relic.icon}</div>
+        <div style="font-size:11px;font-weight:700;color:#d8e4ff;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${relic.name}</div>
+        <div style="font-size:9px;color:${r.color};margin-bottom:5px;text-transform:capitalize;">${r.name}</div>
+        <div style="font-size:9px;color:#7080a0;margin-bottom:3px;">Lv ${lv}${lv >= maxLv ? ' ★' : ''}</div>
+        <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-bottom:2px;">
+          <div style="height:100%;width:${pct}%;background:${r.color};border-radius:2px;"></div>
+        </div>
+        <div style="font-size:9px;color:#404e68;">${relic.desc.replace('{v}',(relic.basePerLv*lv).toFixed(1)).replace('{v2}',relic.passiveStat2?(relic.basePerLv2*lv).toFixed(1):'')}</div>
+      </div>`;
+  });
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function _gachaRelicSetBtns(disabled) {
+  ['relic-roll-btn-1','relic-roll-btn-10'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = disabled; el.style.opacity = disabled ? '0.5' : '1'; }
+  });
+}
+
+function rollGachaRelic(count) {
+  if (_gachaRelicAnimating) return;
+  if (!marketState) loadMarketState();
+  const cost = count === 1 ? 1 : 9;
+  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+
+  _gachaRelicAnimating = true;
+  marketState.gems -= cost;
+
+  let results;
+  try {
+    results = [];
+    for (let i = 0; i < count; i++) results.push(_gachaRelicDoRoll());
+  } catch(e) {
+    _gachaRelicAnimating = false;
+    marketState.gems += cost;
+    console.error('Relic roll error:', e);
+    showToast('Roll failed, please try again.');
+    return;
+  }
+  saveMarketState();
+
+  _gachaRelicSetBtns(true);
+  const _relicDone = () => {
+    _gachaRelicAnimating = false;
+    _gachaRelicSetBtns(false);
+    renderRelicCollection();
+    updateMarketGemDisplay();
+    updateRelicPityBar();
+  };
+  try {
+    _gachaRelicSpinWheel(results[0], () => {
+      _relicDone();
+      if (count > 1) _gachaRelicShowMultiResult(results);
+      else            _gachaRelicShowSingleResult(results[0]);
+    });
+  } catch(e) {
+    console.error('Relic spin error:', e);
+    _relicDone();
+  }
+}
+
+// ── END RELIC GACHA SYSTEM ────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PASSIVE SKILL GACHA SYSTEM  (Market → Skills tab)
+// 20 passive skills; stored in marketState.marketSkills
+// Bonuses feed into getResearchBonuses() same as pets & relics.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MARKET_SKILL_DEFS = [
+  // ── Common (4) ───────────────────────────────────────────────────────────
+  { id:'sk_basic_fortify',   name:'Basic Fortify',      icon:'🛡️', rarity:'common',
+    passive:'Reinforce',        passiveStat:'tower_dmg',   basePerLv:0.35,
+    desc:'+{v}% tower damage' },
+  { id:'sk_quick_hands',     name:'Quick Hands',         icon:'✋', rarity:'common',
+    passive:'Fast Reload',      passiveStat:'tower_spd',   basePerLv:0.30,
+    desc:'+{v}% tower attack speed' },
+  { id:'sk_scavenge',        name:'Scavenge',            icon:'🪣', rarity:'common',
+    passive:'Loot Instinct',    passiveStat:'wave_gold',   basePerLv:0.40,
+    desc:'+{v}% gold from waves' },
+  { id:'sk_field_vision',    name:'Field Vision',        icon:'🔍', rarity:'common',
+    passive:'Wide Angle',       passiveStat:'tower_range', basePerLv:0.30,
+    desc:'+{v}% tower range' },
+  // ── Uncommon (5) ─────────────────────────────────────────────────────────
+  { id:'sk_battle_cry',      name:'Battle Cry',          icon:'📣', rarity:'uncommon',
+    passive:'Rally',            passiveStat:'tower_dmg',   basePerLv:0.60,
+    desc:'+{v}% tower damage' },
+  { id:'sk_swift_reload',    name:'Swift Reload',        icon:'🔄', rarity:'uncommon',
+    passive:'Speed Loader',     passiveStat:'tower_spd',   basePerLv:0.60,
+    desc:'+{v}% tower attack speed' },
+  { id:'sk_gold_finder',     name:'Gold Finder',         icon:'🏅', rarity:'uncommon',
+    passive:'Cache Hunter',     passiveStat:'wave_gold',   basePerLv:0.70,
+    desc:'+{v}% gold from waves' },
+  { id:'sk_sharpshot',       name:'Sharpshot',           icon:'🎯', rarity:'uncommon',
+    passive:'Long Barrel',      passiveStat:'tower_range', basePerLv:0.70,
+    desc:'+{v}% tower range' },
+  { id:'sk_output_boost',    name:'Output Boost',        icon:'⚙️', rarity:'uncommon',
+    passive:'Efficiency Drive', passiveStat:'tower_dmg',   basePerLv:0.55,
+    passiveStat2:'tower_spd',  basePerLv2:0.25,
+    desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  // ── Rare (4) ─────────────────────────────────────────────────────────────
+  { id:'sk_war_tactics',     name:'War Tactics',         icon:'⚔️', rarity:'rare',
+    passive:'Coordinated Fire', passiveStat:'tower_dmg',   basePerLv:1.00,
+    passiveStat2:'tower_spd',  basePerLv2:0.40,
+    desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'sk_economic_mastery',name:'Economic Mastery',    icon:'📈', rarity:'rare',
+    passive:'Efficiency',       passiveStat:'wave_gold',   basePerLv:1.00,
+    passiveStat2:'tower_dmg',  basePerLv2:0.40,
+    desc:'+{v}% wave gold  +{v2}% tower dmg' },
+  { id:'sk_sniper_training', name:'Sniper Training',     icon:'🔭', rarity:'rare',
+    passive:'Marksman',         passiveStat:'tower_range', basePerLv:1.20,
+    passiveStat2:'tower_dmg',  basePerLv2:0.40,
+    desc:'+{v}% range  +{v2}% tower dmg' },
+  { id:'sk_rapid_fire',      name:'Rapid Fire',          icon:'🔥', rarity:'rare',
+    passive:'Suppression',      passiveStat:'tower_spd',   basePerLv:1.20,
+    passiveStat2:'tower_dmg',  basePerLv2:0.40,
+    desc:'+{v}% atk speed  +{v2}% tower dmg' },
+  // ── Epic (4) ─────────────────────────────────────────────────────────────
+  { id:'sk_supreme_command', name:'Supreme Command',     icon:'👑', rarity:'epic',
+    passive:'Full Control',     passiveStat:'tower_dmg',   basePerLv:1.80,
+    passiveStat2:'tower_spd',  basePerLv2:0.80,
+    desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  { id:'sk_plunderers_mark', name:"Plunderer's Mark",    icon:'💸', rarity:'epic',
+    passive:'Marked for Loot',  passiveStat:'wave_gold',   basePerLv:1.60,
+    passiveStat2:'tower_dmg',  basePerLv2:0.80,
+    desc:'+{v}% wave gold  +{v2}% tower dmg' },
+  { id:'sk_siege_mastery',   name:'Siege Mastery',       icon:'🏰', rarity:'epic',
+    passive:'Siege Expert',     passiveStat:'tower_dmg',   basePerLv:1.60,
+    passiveStat2:'tower_range', basePerLv2:0.80,
+    desc:'+{v}% tower dmg  +{v2}% range' },
+  { id:'sk_overdrive',       name:'Overdrive',           icon:'⚡', rarity:'epic',
+    passive:'Red Line',         passiveStat:'tower_spd',   basePerLv:2.00,
+    passiveStat2:'tower_range', basePerLv2:0.60,
+    desc:'+{v}% atk speed  +{v2}% range' },
+  // ── Legendary (2) ────────────────────────────────────────────────────────
+  { id:'sk_gods_eye',        name:"God's Eye",           icon:'🌟', rarity:'legendary',
+    passive:'Omniscience',      passiveStat:'tower_dmg',   basePerLv:2.50,
+    passiveStat2:'tower_range', basePerLv2:1.50,
+    desc:'+{v}% tower dmg  +{v2}% range' },
+  { id:'sk_war_god_blessing',name:"War God's Blessing",  icon:'🌠', rarity:'legendary',
+    passive:'Divine Combat',    passiveStat:'tower_dmg',   basePerLv:3.00,
+    passiveStat2:'tower_spd',  basePerLv2:1.50,
+    desc:'+{v}% tower dmg  +{v2}% atk speed' },
+  // ── Mystic (1) ───────────────────────────────────────────────────────────
+  { id:'sk_transcendence',   name:'Transcendence',       icon:'🌌', rarity:'mystic',
+    passive:'Beyond Limits',    passiveStat:'tower_dmg',   basePerLv:4.00,
+    passiveStat2:'tower_spd',  basePerLv2:2.50,
+    desc:'+{v}% tower dmg  +{v2}% atk speed' },
+];
+
+const MARKET_SKILL_POOL = (() => {
+  const out = {};
+  MARKET_SKILL_DEFS.forEach(s => { if (!out[s.rarity]) out[s.rarity] = []; out[s.rarity].push(s.id); });
+  return out;
+})();
+
+let _gachaSkillAnimating = false;
+
+function _gachaSkillRollRarity() {
+  if (marketState.skillPityCount >= GACHA_HARD_PITY) {
+    marketState.skillPityCount = 0; marketState.skillEpicPity = 0;
+    return Math.random() < 0.8 ? 'legendary' : 'mystic';
+  }
+  if (marketState.skillEpicPity >= GACHA_EPIC_PITY) {
+    marketState.skillEpicPity = 0;
+    const r = Math.random();
+    if (r < 0.60) return 'epic';
+    if (r < 0.85) return 'legendary';
+    return 'mystic';
+  }
+  const wt = GACHA_RARITIES.map(r => ({ id:r.id, w:r.weight }));
+  if (marketState.skillPityCount >= GACHA_SOFT_PITY) {
+    const sp = (marketState.skillPityCount - GACHA_SOFT_PITY) / (GACHA_HARD_PITY - GACHA_SOFT_PITY);
+    wt.find(w => w.id === 'legendary').w += sp * 400;
+    wt.find(w => w.id === 'mystic').w    += sp * 100;
+  }
+  const total = wt.reduce((s, w) => s + w.w, 0);
+  let roll = Math.random() * total;
+  for (const w of wt) { roll -= w.w; if (roll <= 0) return w.id; }
+  return 'common';
+}
+
+function _gachaSkillDoRoll() {
+  const rarityId = _gachaSkillRollRarity();
+  const pool   = MARKET_SKILL_POOL[rarityId] || MARKET_SKILL_POOL.common;
+  const itemId = pool[Math.floor(Math.random() * pool.length)];
+  const item   = MARKET_SKILL_DEFS.find(s => s.id === itemId);
+  const rarity = GACHA_RARITIES.find(r => r.id === rarityId);
+
+  marketState.skillPityCount++;
+  marketState.skillEpicPity++;
+  if (['legendary','mystic'].includes(rarityId))        marketState.skillPityCount = 0;
+  if (['epic','legendary','mystic'].includes(rarityId)) marketState.skillEpicPity  = 0;
+
+  if (!marketState.marketSkills) marketState.marketSkills = {};
+  const existing = marketState.marketSkills[itemId];
+  if (existing) existing.pts++;
+  else          marketState.marketSkills[itemId] = { pts: 1 };
+  saveMarketState();
+
+  return { item, rarity, itemId };
+}
+
+function _gachaSkillMakeItem({ item, rarity } = {}, isWinner) {
+  if (!item)   item   = MARKET_SKILL_DEFS[0];
+  if (!rarity) rarity = GACHA_RARITIES[0];
+  const div = document.createElement('div');
+  const rgb = _hexRgb(rarity.color);
+  div.style.cssText = `
+    height:${_ITEM_H}px;width:100%;display:flex;align-items:center;
+    padding:0 16px;gap:12px;box-sizing:border-box;
+    background:${isWinner ? `linear-gradient(135deg,rgba(${rgb},0.28),rgba(${rgb},0.07))` : 'rgba(255,255,255,0.02)'};
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    border-left:3px solid ${isWinner ? rarity.color : 'rgba(255,255,255,0.06)'};
+    ${isWinner ? `box-shadow:inset 0 0 22px rgba(${rgb},0.15);` : ''}
+  `;
+  div.innerHTML = `
+    <span style="font-size:${isWinner?'1.85':'1.45'}rem;line-height:1;flex-shrink:0;
+      ${isWinner?`filter:drop-shadow(0 0 8px rgba(${rgb},0.7));`:'opacity:0.6;'}">${item.icon}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:${isWinner?'13':'11'}px;font-weight:${isWinner?'700':'500'};
+           color:${isWinner?rarity.color:`rgba(${rgb},0.75)`};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rarity.name}</div>
+      <div style="font-size:${isWinner?'12':'10'}px;color:${isWinner?'#b0bcd8':`rgba(${rgb},0.55)`};
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+    </div>
+    ${isWinner ? `<span style="color:${rarity.color};font-size:14px;">✦</span>` : ''}
+  `;
+  return div;
+}
+
+function _gachaSkillSpinWheel(winnerResult, onDone) {
+  const strip = document.getElementById('gacha-skill-strip');
+  if (!strip) { onDone(); return; }
+  const TOTAL = 40;
+  strip.style.transition = 'none';
+  strip.innerHTML = '';
+  for (let i = 0; i < TOTAL; i++) {
+    const r = (i === _WINNER_I) ? winnerResult : {
+      item: MARKET_SKILL_DEFS[Math.floor(Math.random() * MARKET_SKILL_DEFS.length)],
+      rarity: (() => {
+        const fw = [60, 25, 10, 4, 1, 0.1]; const ft = fw.reduce((s,w)=>s+w,0);
+        let rr = Math.random()*ft;
+        for (let j=0;j<GACHA_RARITIES.length;j++){rr-=fw[j];if(rr<=0)return GACHA_RARITIES[j];}
+        return GACHA_RARITIES[0];
+      })(),
+    };
+    strip.appendChild(_gachaSkillMakeItem(r, false));
+  }
+  const containerCenter = Math.floor(_VISIBLE/2)*_ITEM_H + _ITEM_H/2;
+  const winnerCenter    = _WINNER_I*_ITEM_H + _ITEM_H/2;
+  const finalY          = -(winnerCenter - containerCenter);
+  const spinItems       = TOTAL - _WINNER_I - _VISIBLE - 1;
+  const startY          = finalY - spinItems*_ITEM_H;
+  const totalDist       = finalY - startY;
+  strip.style.transform = `translateY(${startY}px)`;
+  void strip.offsetWidth;
+  const DURATION = 4200; const t0 = performance.now();
+  (function animate(now) {
+    const t = Math.min((now-t0)/DURATION,1);
+    const p = 1-Math.pow(1-t,3);
+    strip.style.transform = `translateY(${startY+totalDist*p}px)`;
+    if (t<1) { requestAnimationFrame(animate); } else {
+      strip.style.transform = `translateY(${finalY}px)`;
+      const winnerEl = strip.children[_WINNER_I];
+      if (winnerEl) {
+        const revealed = _gachaSkillMakeItem(winnerResult, true);
+        revealed.style.opacity = '0';
+        strip.replaceChild(revealed, winnerEl);
+        requestAnimationFrame(()=>{ revealed.style.transition='opacity 0.4s ease'; revealed.style.opacity='1'; });
+      }
+      setTimeout(onDone, 450);
+    }
+  })(performance.now());
+}
+
+function _gachaSkillShowSingleResult({ item, rarity }) {
+  const modal = document.getElementById('gacha-result-modal');
+  if (!modal) return;
+  const rc = rarity.color; const rgb = _hexRgb(rc);
+  const pts = marketState.marketSkills?.[item.id]?.pts || 1;
+  const lv  = _gachaHeroLevel(pts);
+  const maxLv = GACHA_LV_THRESH.length;
+  const nxt = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+  const cur = lv > 0 ? (GACHA_LV_THRESH[lv-1]??0) : 0;
+  const pct = nxt ? Math.min(100,Math.round((pts-cur)/(nxt-cur)*100)) : 100;
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div style="background:#0e1220;border:2px solid ${rc};border-radius:18px;padding:2rem 2.5rem;
+         text-align:center;max-width:300px;animation:gachaPopIn 0.28s ease;
+         box-shadow:0 0 60px rgba(${rgb},0.5),0 8px 32px rgba(0,0,0,0.6);">
+      <div style="font-size:3.5rem;margin-bottom:0.5rem;filter:drop-shadow(0 0 16px rgba(${rgb},0.9));">${item.icon}</div>
+      <div style="font-size:11px;font-weight:800;color:${rc};letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;">${rarity.name}</div>
+      <div style="font-size:1.35rem;font-weight:800;color:#e8eeff;margin-bottom:4px;">${item.name}</div>
+      <div style="font-size:11px;color:#607080;margin-bottom:8px;">Lv ${lv} — ${pts}/${nxt||'★'}</div>
+      <div style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-bottom:1.25rem;">
+        <div style="height:100%;width:${pct}%;background:${rc};border-radius:3px;"></div>
+      </div>
+      <button onclick="document.getElementById('gacha-result-modal').style.display='none'"
+        style="background:${rc};color:#fff;border:none;padding:10px 34px;border-radius:9px;
+               cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;">✓ Collect</button>
+    </div>`;
+}
+
+function _gachaSkillShowMultiResult(results) {
+  const modal = document.getElementById('gacha-result-modal');
+  if (!modal) return;
+  const grid = results.map(({ item, rarity }) => {
+    const rgb = _hexRgb(rarity.color);
+    return `<div style="background:rgba(${rgb},0.1);border:1px solid rgba(${rgb},0.35);border-radius:10px;
+                 padding:10px 4px;text-align:center;border-top:3px solid ${rarity.color};">
+      <div style="font-size:1.5rem;line-height:1;">${item.icon}</div>
+      <div style="font-size:9px;color:${rarity.color};font-weight:700;margin-top:4px;">${rarity.name}</div>
+      <div style="font-size:9px;color:#8090a8;margin-top:2px;">${item.name}</div>
+    </div>`;
+  }).join('');
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div style="background:#0e1220;border:1px solid rgba(255,255,255,0.12);border-radius:18px;
+         padding:1.5rem;max-width:420px;width:calc(100% - 2rem);animation:gachaPopIn 0.28s ease;">
+      <div style="font-size:1rem;font-weight:700;color:#e0e8ff;text-align:center;margin-bottom:1rem;">💫 10-Roll Results</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:1.25rem;">${grid}</div>
+      <div style="text-align:center;">
+        <button onclick="document.getElementById('gacha-result-modal').style.display='none'"
+          style="background:linear-gradient(135deg,#2a4888,#3a2e80);color:#fff;border:none;
+                 padding:10px 38px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;">
+          ✓ Collect All
+        </button>
+      </div>
+    </div>`;
+}
+
+function updateSkillPityBar() {
+  if (!marketState) return;
+  const fill  = document.getElementById('skill-pity-bar-fill');
+  const label = document.getElementById('skill-pity-bar-label');
+  const pct  = Math.min(100, (marketState.skillPityCount / GACHA_HARD_PITY) * 100);
+  const soft = marketState.skillPityCount >= GACHA_SOFT_PITY;
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.style.background = soft ? 'linear-gradient(90deg,#f0a020,#ff4020)' : 'linear-gradient(90deg,#00c8ff,#7c3aed)';
+  }
+  if (label) label.textContent = soft ? `⚠️ Soft Pity! ${marketState.skillPityCount} / ${GACHA_HARD_PITY}` : `${marketState.skillPityCount} / ${GACHA_HARD_PITY} rolls`;
+}
+
+function renderSkillCollection() {
+  const el = document.getElementById('skill-market-collection');
+  if (!el) return;
+  if (!marketState) loadMarketState();
+  const skills = marketState.marketSkills || {};
+  const owned = MARKET_SKILL_DEFS.filter(s => skills[s.id]?.pts > 0);
+  if (!owned.length) {
+    el.innerHTML = `<div style="margin-top:2rem;text-align:center;color:var(--text3);font-size:13px;">No skills collected yet. Roll to get started!</div>`;
+    return;
+  }
+  const rar = id => GACHA_RARITIES.find(r => r.id === id) || GACHA_RARITIES[0];
+  let html = `<div style="margin-top:2rem;max-width:560px;margin-left:auto;margin-right:auto;">
+    <div style="font-size:11px;font-weight:700;color:#404e68;text-transform:uppercase;letter-spacing:1.5px;
+         margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid rgba(255,255,255,0.06);">
+      Your Skill Collection
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">`;
+  owned.forEach(skill => {
+    const r   = rar(skill.rarity);
+    const rgb = _hexRgb(r.color);
+    const pts = skills[skill.id].pts;
+    const lv  = _gachaHeroLevel(pts);
+    const maxLv = GACHA_LV_THRESH.length;
+    const nxt = lv < maxLv ? GACHA_LV_THRESH[lv] : null;
+    const cur = lv > 0 ? (GACHA_LV_THRESH[lv-1]??0) : 0;
+    const pct = nxt ? Math.min(100,Math.round((pts-cur)/(nxt-cur)*100)) : 100;
+    html += `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(${rgb},0.3);
+           border-top:2px solid ${r.color};border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:1.6rem;line-height:1;margin-bottom:4px;filter:drop-shadow(0 0 6px rgba(${rgb},0.5));">${skill.icon}</div>
+        <div style="font-size:11px;font-weight:700;color:#d8e4ff;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${skill.name}</div>
+        <div style="font-size:9px;color:${r.color};margin-bottom:5px;text-transform:capitalize;">${r.name}</div>
+        <div style="font-size:9px;color:#7080a0;margin-bottom:3px;">Lv ${lv}${lv>=maxLv?' ★':''}</div>
+        <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-bottom:2px;">
+          <div style="height:100%;width:${pct}%;background:${r.color};border-radius:2px;"></div>
+        </div>
+        <div style="font-size:9px;color:#404e68;">${skill.desc.replace('{v}',(skill.basePerLv*lv).toFixed(1)).replace('{v2}',skill.passiveStat2?(skill.basePerLv2*lv).toFixed(1):'')}</div>
+      </div>`;
+  });
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function _gachaSkillSetBtns(disabled) {
+  ['skill-roll-btn-1','skill-roll-btn-10'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = disabled; el.style.opacity = disabled ? '0.5' : '1'; }
+  });
+}
+
+function rollGachaSkill(count) {
+  if (_gachaSkillAnimating) return;
+  if (!marketState) loadMarketState();
+  const cost = count === 1 ? 1 : 9;
+  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+  _gachaSkillAnimating = true;
+  marketState.gems -= cost;
+  let results;
+  try {
+    results = [];
+    for (let i = 0; i < count; i++) results.push(_gachaSkillDoRoll());
+  } catch(e) {
+    _gachaSkillAnimating = false;
+    marketState.gems += cost;
+    console.error('Skill roll error:', e);
+    showToast('Roll failed, please try again.');
+    return;
+  }
+  saveMarketState();
+  _gachaSkillSetBtns(true);
+  const _done = () => {
+    _gachaSkillAnimating = false;
+    _gachaSkillSetBtns(false);
+    renderSkillCollection();
+    updateMarketGemDisplay();
+    updateSkillPityBar();
+  };
+  try {
+    _gachaSkillSpinWheel(results[0], () => {
+      _done();
+      if (count > 1) _gachaSkillShowMultiResult(results);
+      else            _gachaSkillShowSingleResult(results[0]);
+    });
+  } catch(e) {
+    console.error('Skill spin error:', e);
+    _done();
+  }
+}
+
+// ── END PASSIVE SKILL GACHA SYSTEM ───────────────────────────────────────────
+
 function switchMarketTab(tab) {
-  ['heroes','gear','skills'].forEach(t => {
+  ['heroes','gear','skills','relics'].forEach(t => {
     const panel = document.getElementById(`market-tab-${t}`);
     const btn   = document.getElementById(`mktab-${t}`);
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
@@ -7412,10 +8303,22 @@ function switchMarketTab(tab) {
   }
   if (tab === 'gear') {
     if (!marketState) loadMarketState();
-    if (!heroGearState) loadHeroGearState();
+    if (!cmdGearState) loadCmdGearState();
     updateMarketGemDisplay();
     updateGearPityBar();
     renderGachaGearCollection();
+  }
+  if (tab === 'relics') {
+    if (!marketState) loadMarketState();
+    updateMarketGemDisplay();
+    updateRelicPityBar();
+    renderRelicCollection();
+  }
+  if (tab === 'skills') {
+    if (!marketState) loadMarketState();
+    updateMarketGemDisplay();
+    updateSkillPityBar();
+    renderSkillCollection();
   }
 }
 
@@ -7452,19 +8355,41 @@ const COMMANDER_BASE_STATS = {
 };
 
 /**
- * Aggregate Commander stats from all sources.
- * Currently: base only.
- * Future hook: getFinalCommanderStats(baseStats, gear, passiveHeroes, skills, relics, territoryBuffs)
+ * Aggregate Commander stats from base stats + equipped gear.
+ * Gear atk → attackDamage, gear defense/hp → defense/maxHP,
+ * gear range → attackRange, gear atkSpeed% → attackSpeed divisor.
  */
 function getFinalCommanderStats(overrides = {}) {
   const b = COMMANDER_BASE_STATS;
+  if (!cmdGearState) loadCmdGearState();
+  const g = getEquippedStats();
   return {
-    maxHP:        overrides.maxHP        ?? b.maxHP,
-    defense:      overrides.defense      ?? b.defense,
-    attackDamage: overrides.attackDamage ?? b.attackDamage,
-    attackSpeed:  overrides.attackSpeed  ?? b.attackSpeed,
-    attackRange:  overrides.attackRange  ?? b.attackRange,
+    maxHP:        overrides.maxHP        ?? (b.maxHP        + (g.hp      || 0)),
+    defense:      overrides.defense      ?? (b.defense      + (g.defense || 0)),
+    attackDamage: overrides.attackDamage ?? (b.attackDamage + (g.atk     || 0)),
+    // Positive atkSpeed% reduces cooldown (same formula as turrets and old hero)
+    attackSpeed:  overrides.attackSpeed  ?? Math.max(200, Math.round(b.attackSpeed / (1 + (g.atkSpeed || 0) / 100))),
+    attackRange:  overrides.attackRange  ?? (b.attackRange  + (g.range   || 0)),
   };
+}
+
+/**
+ * Produce a compact fingerprint of the commander's equipped gear at battle start.
+ * Sent to the server with idw_submit_battle_result so it can cross-check
+ * against the gear saved in idw_save_hero_gear — any mid-battle console tampering
+ * (e.g. swapping items into equippedGear) would produce a mismatch.
+ * Format: sorted "slot:itemId:level" pairs joined by "|".
+ */
+function _buildGearFingerprint() {
+  if (!cmdGearState) loadCmdGearState();
+  const eq  = cmdGearState.equippedGear ?? {};
+  const all = [...(cmdGearState.ownedWeapons ?? []), ...(cmdGearState.ownedGear ?? [])];
+  const levelOf = id => all.find(e => e.id === id)?.level ?? 1;
+  return Object.entries(eq)
+    .filter(([, v]) => v != null)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([slot, id]) => `${slot}:${id}:${levelOf(id)}`)
+    .join('|');
 }
 
 // ── Placement state ──────────────────────────────────────────────────────────
@@ -7595,6 +8520,7 @@ function placeCommander(snap) {
     hp: stats.maxHP, maxHp: stats.maxHP,
     stats,
     state: 'active',              // 'active' | 'dead'
+    targeting: bs.commander?.targeting || 'first',  // preserve targeting across re-placement
     atkCooldown: 0, attackTarget: null,
     dmgFlashTimer: 0, _shotFlash: 0,
     _lastShotX: snap.x, _lastShotY: snap.y,
@@ -7628,6 +8554,96 @@ function _cmdUpdatePreview(px, py) {
   _cmdPreview = { ...snap, ...loss };
 }
 
+// ── Gear effect helpers ───────────────────────────────────────────────────────
+
+/** Returns Set of active effect IDs from currently equipped gear. */
+function _cmdGetEquippedEffects() {
+  if (!cmdGearState) return new Set();
+  const eq = cmdGearState.equippedGear;
+  const ids = new Set();
+  const allDefs = { ...GEAR_WEAPON_DEFS, ...GEAR_ITEM_DEFS };
+  Object.values(eq).forEach(itemId => {
+    if (itemId && allDefs[itemId]?.effect?.id) ids.add(allDefs[itemId].effect.id);
+  });
+  return ids;
+}
+
+/**
+ * Called every frame when commander is alive. Applies passive effects:
+ *   radiant    — 4 HP/sec regen
+ *   void_aura  — slow enemies within 2 tiles by 20%
+ */
+function _cmdTickPassiveEffects(dt, effects) {
+  const cmd = bs.commander;
+
+  // Radiant: 4 HP/sec regen
+  if (effects.has('radiant') && cmd.hp < cmd.maxHp) {
+    cmd.hp = Math.min(cmd.maxHp, cmd.hp + 4 * dt);
+    updateCommanderHUD();
+  }
+
+  // Void Aura: slow enemies within 2 tiles by 20%
+  if (effects.has('void_aura')) {
+    const auraR = bs.tw * 2;
+    bs.enemies.forEach(e => {
+      if (e.isDead || e.isReached) return;
+      const inAura = Math.sqrt((e.x-cmd.x)**2+(e.y-cmd.y)**2) <= auraR;
+      if (inAura) {
+        e._voidSlowed = true;
+        e._voidSlowTimer = 200; // refresh each frame while in range
+      }
+    });
+  }
+
+  // Tick void slow timers on all enemies
+  bs.enemies.forEach(e => {
+    if ((e._voidSlowTimer ?? 0) > 0) {
+      e._voidSlowTimer -= dt * 1000;
+      if (e._voidSlowTimer <= 0) { e._voidSlowed = false; e._voidSlowTimer = 0; }
+    }
+  });
+}
+
+/**
+ * Called on every commander attack hit. Applies on-hit effects:
+ *   soul_drain       — burn 2 stacks + heal 8 HP
+ *   chain_lightning  — 25% chance to arc to enemies within 2 tiles at 60% dmg
+ */
+function _cmdApplyHitEffects(target, dmg, effects) {
+  const cmd = bs.commander;
+
+  // Soul Drain
+  if (effects.has('soul_drain')) {
+    target.burnStacks = Math.min((target.burnStacks || 0) + 2, 8);
+    target.burnTimer  = Math.max(target.burnTimer || 0, 3000);
+    cmd.hp = Math.min(cmd.maxHp, cmd.hp + 8);
+    updateCommanderHUD();
+  }
+
+  // Chain Lightning — 25% chance
+  if (effects.has('chain_lightning') && Math.random() < 0.25) {
+    const arcR   = bs.tw * 2;
+    const arcDmg = Math.round(dmg * 0.6);
+    bs.enemies.forEach(e => {
+      if (e === target || e.isDead || e.isReached) return;
+      if (Math.sqrt((e.x-target.x)**2+(e.y-target.y)**2) > arcR) return;
+      applyDmgToEnemy(e, Math.max(1, arcDmg));
+      if (e.hp <= 0 && !e.isDead) killEnemy(e, null);
+    });
+  }
+}
+
+/**
+ * Called when an enemy deals melee damage to the commander.
+ *   thorns — reflect 30% of incoming damage back to attacker
+ */
+function _cmdApplyThorns(attacker, incomingDmg, effects) {
+  if (!effects.has('thorns')) return;
+  const reflected = Math.max(1, Math.round(incomingDmg * 0.3));
+  applyDmgToEnemy(attacker, reflected);
+  if (attacker.hp <= 0 && !attacker.isDead) killEnemy(attacker, null);
+}
+
 // ── Combat (called every frame from startBattleLoop) ─────────────────────────
 function updateCommander(dt) {
   if (!bs?.commander || !bs.commanderMode) return;
@@ -7637,23 +8653,39 @@ function updateCommander(dt) {
   if (cmd.dmgFlashTimer > 0) cmd.dmgFlashTimer -= dt*1000;
   if (cmd._shotFlash    > 0) cmd._shotFlash    -= dt*1000;
 
+  // Phoenix: reset revive flag at start of each wave
+  if (cmd._phoenixWave == null) cmd._phoenixWave = -1;
+
   if (cmd.state === 'dead') return;
   cmd.atkCooldown = Math.max(0, cmd.atkCooldown - dt*1000);
 
-  // ── Find attack target: highest wpIdx (closest to loss zone) within range ──
+  const effects = _cmdGetEquippedEffects();
+
+  // ── Passive effects tick ──
+  _cmdTickPassiveEffects(dt, effects);
+
+  // ── Find attack target within range, sorted by targeting mode ──
   const rangePx = cmd.stats.attackRange * bs.tw;
   const alive = bs.enemies.filter(e =>
     !e.isDead && !e.isReached &&
     Math.sqrt((e.x-cmd.x)**2+(e.y-cmd.y)**2) <= rangePx
   );
-  alive.sort((a,b) => b.wpIdx !== a.wpIdx ? b.wpIdx-a.wpIdx : b.dist-a.dist);
+  switch (cmd.targeting || 'first') {
+    case 'first':    alive.sort((a,b) => b.wpIdx !== a.wpIdx ? b.wpIdx-a.wpIdx : b.dist-a.dist); break;
+    case 'last':     alive.sort((a,b) => a.wpIdx !== b.wpIdx ? a.wpIdx-b.wpIdx : a.dist-b.dist); break;
+    case 'strongest':alive.sort((a,b) => b.hp - a.hp);  break;
+    case 'weakest':  alive.sort((a,b) => a.hp - b.hp);  break;
+    default:         alive.sort((a,b) => b.wpIdx !== a.wpIdx ? b.wpIdx-a.wpIdx : b.dist-a.dist);
+  }
   const target = alive[0] ?? null;
   cmd.attackTarget = target?.id ?? null;
 
   // ── Attack ──
   if (target && cmd.atkCooldown <= 0) {
-    cmd.atkCooldown  = cmd.stats.attackSpeed;
-    applyDmgToEnemy(target, Math.max(1, cmd.stats.attackDamage));
+    cmd.atkCooldown = cmd.stats.attackSpeed;
+    const dmg = Math.max(1, _cmdRollCrit(cmd.stats.attackDamage));
+    applyDmgToEnemy(target, dmg);
+    _cmdApplyHitEffects(target, dmg, effects);
     if (target.hp <= 0 && !target.isDead) killEnemy(target, null);
     cmd._lastShotX = target.x;
     cmd._lastShotY = target.y;
@@ -7661,7 +8693,6 @@ function updateCommander(dt) {
   }
 
   // ── Take damage from adjacent enemies (melee reach ≈ 0.9 tiles) ──
-  // damageReductionDefense formula: separate from pathDefenseDistance
   const meleeR = bs.tw * 0.9;
   bs.enemies.forEach(e => {
     if (e.isDead || e.isReached) return;
@@ -7672,13 +8703,21 @@ function updateCommander(dt) {
     const baseAtk = Math.max(3, Math.round((ENEMY_TYPES[e.type]?.hp ?? 30) * 0.04));
     const reduc   = Math.min(Math.floor(baseAtk*0.8), Math.floor(cmd.stats.defense * 0.3));
     const dmg     = Math.max(1, baseAtk - reduc);
+    _cmdApplyThorns(e, dmg, effects); // thorns reflects before hp deduction
     cmd.hp -= dmg;
     cmd.dmgFlashTimer = 220;
     updateCommanderHUD();
     if (cmd.hp <= 0) {
+      // Phoenix: revive once per wave at 40% HP
+      if (effects.has('phoenix') && cmd._phoenixWave !== (bs.wave ?? 0)) {
+        cmd._phoenixWave = bs.wave ?? 0;
+        cmd.hp = Math.round(cmd.maxHp * 0.4);
+        showToast('🔥 Phoenix revives the Commander at 40% HP!');
+        updateCommanderHUD();
+        return;
+      }
       cmd.hp = 0;
       cmd.state = 'dead';
-      // Commander death: disables combat, does NOT end battle (leak zone stays)
       showToast('💀 Commander defeated! Hold the line with towers!');
     }
   });
@@ -7702,7 +8741,9 @@ function drawCommanderZone(ctx) {
   const rgb    = _cmdHexRgb(rc);
   const roadW  = bs.tw * bs.mapDef.pathWidth;
 
-  // Colored zone overlay
+  // Colored zone overlay — ends exactly at the interpolated loss point
+  const lossEndX = bs.dynamicLossPoint?.x ?? wps[endIdx].x;
+  const lossEndY = bs.dynamicLossPoint?.y ?? wps[endIdx].y;
   ctx.save();
   ctx.strokeStyle = `rgba(${rgb},0.28)`;
   ctx.lineWidth   = roadW * 0.72;
@@ -7710,7 +8751,10 @@ function drawCommanderZone(ctx) {
   ctx.setLineDash([10, 8]);
   ctx.beginPath();
   ctx.moveTo(cmd.x, cmd.y);
-  for (let i = cmd.pathIdx+1; i <= endIdx; i++) ctx.lineTo(wps[i].x, wps[i].y);
+  // Draw through intermediate waypoints up to (but not including) lossIdx
+  for (let i = cmd.pathIdx+1; i < endIdx; i++) ctx.lineTo(wps[i].x, wps[i].y);
+  // End at the exact interpolated loss point
+  ctx.lineTo(lossEndX, lossEndY);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
@@ -7732,7 +8776,7 @@ function drawCommanderZone(ctx) {
   ctx.beginPath();
 }
 
-/** Draw the Commander unit itself. Called after drawHero, before projectiles. */
+/** Draw the Commander unit itself. */
 function drawCommander(ctx) {
   if (!bs?.commander) return;
   const cmd  = bs.commander;
@@ -7740,6 +8784,20 @@ function drawCommander(ctx) {
   const dead = state === 'dead';
 
   ctx.save();
+
+  // Attack range circle
+  if (!dead) {
+    const rangeR = cmd.stats.attackRange * bs.tw;
+    ctx.beginPath();
+    ctx.arc(x, y, rangeR, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(240,192,64,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(240,192,64,0.04)';
+    ctx.fill();
+    ctx.setLineDash([]);
+  }
 
   // Ambient glow ring when alive
   if (!dead) {
@@ -7816,6 +8874,15 @@ function drawCommanderPlacementPreview(ctx) {
   for (let i = segIdx+1; i <= endI; i++) ctx.lineTo(wps[i].x, wps[i].y);
   ctx.stroke(); ctx.setLineDash([]); ctx.restore();
 
+  // Attack range circle preview
+  const rangeR = getFinalCommanderStats().attackRange * bs.tw;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, rangeR, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(240,192,64,0.55)';
+  ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.stroke();
+  ctx.fillStyle = 'rgba(240,192,64,0.06)'; ctx.fill();
+  ctx.setLineDash([]); ctx.restore();
+
   // Ghost Commander body
   ctx.save(); ctx.globalAlpha = 0.62;
   ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI*2);
@@ -7882,6 +8949,8 @@ function updateCommanderHUD() {
   const rLabel = tiles>=20?'Safe':tiles>=10?'Risky':'Danger';
 
   widget.style.display = 'flex';
+  widget.style.flexDirection = '';
+  widget.style.gap = '';
   widget.innerHTML = `
     <span style="font-size:1.1rem;line-height:1;flex-shrink:0;">${cmd.state==='dead'?'💀':'⚔️'}</span>
     <div style="flex:1;min-width:0;">
@@ -8130,10 +9199,24 @@ function toggleSpeed() {
 }
 
 let enemyIdCounter = 0;
+// Returns the HP multiplier for campaign stage difficulty scaling.
+// Every 5 stages (globally across all worlds) enemies gain +5% max HP.
+// Stages 1-5 → 1.0×, 6-10 → 1.05×, 11-15 → 1.10×, etc.
+function getCampaignHpMult(stageId) {
+  if (!stageId || stageId === 'sandbox') return 1;
+  const parts = stageId.split('-');
+  const w = parseInt(parts[0], 10);
+  const s = parseInt(parts[1], 10);
+  if (!w || !s) return 1;
+  const globalStage = (w - 1) * 10 + s;   // 1-1→1, 1-6→6, 2-1→11, 2-6→16 …
+  return 1 + Math.floor((globalStage - 1) / 5) * 0.05;
+}
+
 function spawnEnemy(template) {
   const wp = bs.waypoints;
-  const mobHpMult = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
-  const spawnHp = Math.max(1, Math.round(template.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1)));
+  const mobHpMult    = Math.max(0, 1 - (getAllianceBuffs().mob_hp_reduce || 0));
+  const campaignMult = getCampaignHpMult(bs.stageId);
+  const spawnHp = Math.max(1, Math.round(template.hp * mobHpMult * (bs.eliteCfg?.hpMult ?? 1) * campaignMult));
   const enemy = {
     id: ++enemyIdCounter,
     type: template.type,
@@ -8369,7 +9452,7 @@ function startBattleLoop() {
       bs.lastTime = now;
       const dt = rawDt * battleSpeed;
       updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateHero(dt); updateCommander(dt); checkWaveEnd();
+      updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateCommander(dt); checkWaveEnd();
     }
     // Always draw so the canvas stays live during the victory/defeat delay window
     if (bs) drawBattle();
@@ -8388,7 +9471,7 @@ function startBattleLoop() {
     bs.lastTime = now;
     const dt = rawDt * battleSpeed;
     updateSpawn(dt); updateEnemies(dt); updateTowers(dt);
-    updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); updateHero(dt); checkWaveEnd();
+    updateProjectiles(dt); updateDelayedClusterShells(dt); updateExplosions(dt); updateGroundEffects(dt); checkWaveEnd();
   }, 50); // 20fps keepalive — fast enough for 4x speed in background
 }
 function stopBattleLoop() {
@@ -8457,6 +9540,8 @@ function updateEnemies(dt) {
     let _speedMult = 1.0;
     if (e.slowTimer   > 0) { _speedMult *= 0.80;                        e.slowTimer   -= dt * 1000; }
     if (e.alSlowTimer > 0) { _speedMult *= (1 - (e.alSlowPct || 0.25)); e.alSlowTimer -= dt * 1000; }
+    // Void Aura (commander gear): 20% slow while within 2 tiles of commander
+    if (e._voidSlowed) _speedMult *= 0.80;
     // Frostbite: flat 25% slow, stacks used for visual intensity only
     if ((e.frostbiteStacks || 0) > 0) {
       _speedMult *= 0.75;
@@ -8474,9 +9559,6 @@ function updateEnemies(dt) {
         e.spriteFrame = (e.spriteFrame + 1) % 8; // 8 frames in witch sprite
       }
     }
-
-    // Hero blocking: stop enemy, let hero fight it; skip path movement this frame
-    if (_processHeroBlock(e, dt)) return;
 
     const speed = e.speed * _speedMult;
 
@@ -9117,11 +10199,14 @@ function updateProjectiles(dt) {
 
 function applyDmgToEnemy(e, dmg) {
   const reduce = bs.eliteCfg?.dmgReduce ?? 0;
-  // Shaman Ancestral Wrath: enemies in hero's range take 3× damage
-  if ((bs.hero?.ancestralWrathTimer || 0) > 0 &&
-      dist(e.x, e.y, bs.hero.x, bs.hero.y) <= bs.hero.effectiveStats.range * bs.tw)
-    dmg = Math.round(dmg * 3);
   e.hp -= reduce > 0 ? Math.max(1, Math.round(dmg * (1 - reduce))) : dmg;
+}
+
+// Commander crit roll — applied only on commander auto-attacks, not tower damage.
+function _cmdRollCrit(dmg) {
+  if (_gearCritCache.critChance > 0 && Math.random() * 100 < _gearCritCache.critChance)
+    return Math.round(dmg * (1 + _gearCritCache.critDmg / 100));
+  return dmg;
 }
 
 function killEnemy(e, tower) {
@@ -9145,11 +10230,6 @@ function killEnemy(e, tower) {
   }
   updateBattleHUD();
   renderShop();
-  // Hero: release enemy from blocked set when it dies
-  if (bs.hero && bs.hero.blockedSet && bs.hero.blockedSet.has(e.id)) {
-    bs.hero.blockedSet.delete(e.id);
-    e.blockedBy = null;
-  }
 }
 
 function updateExplosions(dt) {
@@ -9263,8 +10343,7 @@ function drawBattle() {
   drawWitchSummonFx(ctx);
   bs.enemies.filter(e => !ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
   bs.enemies.filter(e =>  ENEMY_TYPES[e.type]?.isElite).forEach(e => drawEnemy(ctx, e));
-  if (bs.hero) drawHero(ctx);
-  drawCommander(ctx);              // Commander unit (on top of enemies, same layer as hero)
+  drawCommander(ctx);
   bs.projectiles.forEach(p => drawProjectile(ctx, p));
   if (bs.explosions) bs.explosions.forEach(ex => drawExplosion(ctx, ex));
   if (placingTower) drawPlacementPreview(ctx);
@@ -10071,8 +11150,12 @@ async function showResultScreen(won) {
         p_won: !!won,
         p_waves: bs.wave || 0,
         p_lives: bs.lives || 0,
-        p_client_gold: bs.gold || 0
+        p_client_gold: bs.gold || 0,
+        // Gear fingerprint: server cross-checks this against idw_save_hero_gear
+        // to detect mid-battle tampering of equipped items or item levels.
+        p_gear_fingerprint: _battleGearFingerprint ?? '',
       });
+      _battleGearFingerprint = null;
 
       console.log('🎯 DEBUG: Server response:', result);
 
@@ -12541,7 +13624,7 @@ function switchSection(name){
   if (name === 'sandbox') buildSandboxMap();
 
   // Build hero panel when switching to it
-  if (name === 'hero') buildHeroPanel();
+  if (name === 'hero') buildCommanderPanel();
 
   // Build market when switching to it
   if (name === 'market') buildMarketSection();
