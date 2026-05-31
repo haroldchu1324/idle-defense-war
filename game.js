@@ -19,6 +19,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
 // ═══════════════════════════════════════════════
 let currentBattleId = null;
 let _battleGearFingerprint = null; // snapshot of equipped gear at battle start — sent to server for validation
+let _armoryPlacements    = [];   // {armoryIdx, col, row} — consumed armory towers placed on the grid
+let _commanderPlacement  = null; // {col, row} — last commander placement position
 
 // ═══════════════════════════════════════════════
 // SPRITE ANIMATION ASSETS
@@ -160,7 +162,7 @@ const XP_PER_UPGRADE = 15;
 const MAX_NODE_LEVEL = 15;
 const GUEST_MAX_LEVEL = 9;
 
-function xpForLevel(n) { return Math.floor(100 * Math.pow(1.35, n - 1)); }
+function xpForLevel(n) { return Math.floor(100 * Math.pow(1.073, n - 1)); }
 
 // Level bonuses (multipliers, e.g. 0.05 = +5%)
 function bonusProd(lvl)     { return (lvl - 1) * 0.001; }
@@ -302,6 +304,7 @@ RESOURCE_DEFS.forEach(r => {
 let currentUser = null, saveTimer = null, rafId = null, intervalId = null, lastHiddenAt = null;
 let gameFullyLoaded = false;
 let isGuestUser = false;
+let isAdminUser = false;
 let sessionId = null, sessionRealtime = null, kickedCountdown = null;
 // True after this tab's user explicitly logs out — prevents TOKEN_REFRESHED from re-triggering startGame.
 // Reset to false at the top of startGame() so a fresh login clears it.
@@ -625,7 +628,7 @@ async function doKickedLogout() {
   if (sessionRealtime) { sb.removeChannel(sessionRealtime); sessionRealtime = null; }
   stopLoop(); clearTimeout(saveTimer);
   saveToDB().catch(()=>{});
-  currentUser=null; isGuestUser=false; gameFullyLoaded=false;
+  currentUser=null; isGuestUser=false; isAdminUser=false; gameFullyLoaded=false;
   stopLoop(); clearTimeout(saveTimer); resetState();
   // Clear the local Supabase session so token auto-refresh can't fire
   // TOKEN_REFRESHED and re-trigger startGame() with currentUser=null.
@@ -721,6 +724,7 @@ async function startGame(user) {
   currentUser=user;
   gameFullyLoaded=false;
   isGuestUser = !!(user.user_metadata?.is_guest);
+  isAdminUser = false; // will be set after DB check
 
   // ── Single-session enforcement ──────────────────────────────────────────
   sessionId = crypto.randomUUID();
@@ -775,6 +779,8 @@ async function startGame(user) {
     console.log('[startGame] profile loaded successfully');
     // Pre-load alliance state so territory buffs apply from game start
     serverRpc('idw_get_alliance_state').then(s=>{ allianceState=s; renderTowerGrid(); }).catch(()=>{});
+    // Check admin status
+    serverRpc('idw_check_admin').then(result=>{ isAdminUser=!!result; buildSettingsPanel(); }).catch(()=>{});
   }
   catch(e){console.warn('[startGame] load failed or timed out:', e);}
   finally{
@@ -798,6 +804,7 @@ async function startGame(user) {
       buildInventoryPanel();
       buildCraftingPanel();
       buildCampaignMap();
+      buildSettingsPanel();
       updateResourcePills();
       updatePlayerLevelUI();
     } catch(e) {
@@ -3700,7 +3707,7 @@ const TOWER_DEFS = [
   },
   {
     id:'sniper', name:'Sniper Tower', icon:'🔭', color:'#f0c040',
-    unlockLevel:20,
+    unlockLevel:10,
     desc:'Extreme range single-target tower with massive damage.',
     type:'Long Range',
     typeBadge:{bg:'rgba(240,192,64,0.15)',color:'#f0c040',border:'#c89a20'},
@@ -3712,7 +3719,7 @@ const TOWER_DEFS = [
   },
   {
     id:'inferno', name:'Inferno Core', icon:'🔥', color:'#f0a040',
-    unlockLevel:40,
+    unlockLevel:10,
     desc:'A devastating AoE tower that continuously burns all nearby enemies.',
     type:'AoE Burn',
     typeBadge:{bg:'rgba(240,160,64,0.15)',color:'#f0a040',border:'#7a4a10'},
@@ -3721,6 +3728,59 @@ const TOWER_DEFS = [
     cost:{ore:350, stone:200, leather:150, fiber:100},
     upgPctPerLevel:0.15,
     upgCostMult:0.5,
+  },
+  {
+    id:'ballista', name:'Ballista', icon:'🪃', color:'#8b5e3c',
+    unlockLevel:10,
+    desc:'Fires heavy piercing bolts that travel through multiple enemies in a line.',
+    type:'Piercing',
+    typeBadge:{bg:'rgba(139,94,60,0.18)',color:'#cd8f5a',border:'rgba(139,94,60,0.5)'},
+    baseStats:{dmg:90,atkSpeed:3.2,range:3.8,projectiles:1},
+    special:'Bolt pierces up to 3 enemies in a straight line',
+    cost:{ore:180, wood:120, leather:60},
+    upgPctPerLevel:0.15,
+    upgCostMult:0.5,
+  },
+  {
+    id:'poison_tower', name:'Venom Spire', icon:'☠️', color:'#4caf50',
+    unlockLevel:10,
+    desc:'Lobs toxic projectiles that apply poison stacks, dealing damage over time.',
+    type:'Poison DoT',
+    typeBadge:{bg:'rgba(76,175,80,0.18)',color:'#81c784',border:'rgba(76,175,80,0.5)'},
+    baseStats:{dmg:18,atkSpeed:2.0,range:2.5,projectiles:1},
+    special:'Applies 2 poison stacks on hit — stacks tick every 0.5s for 3 seconds',
+    cost:{fiber:200, leather:150, stone:80},
+    upgPctPerLevel:0.12,
+    upgCostMult:0.5,
+  },
+  {
+    id:'tesla_tower', name:'Tesla Tower', icon:'🌩️', color:'#00bcd4',
+    unlockLevel:10,
+    desc:'Marks 2 enemies simultaneously with Lightning Stacks. Stacked enemies take +25% bonus damage from the next non-lightning hit.',
+    type:'Lightning',
+    typeBadge:{bg:'rgba(0,188,212,0.18)',color:'#00e5ff',border:'rgba(0,188,212,0.5)'},
+    baseStats:{dmg:25,atkSpeed:2.0,range:2.8,projectiles:2},
+    special:'Hits 2 targets · Lightning Stack: next non-lightning hit deals +25% bonus dmg (6s duration)',
+    cost:{ore:250, stone:150, fiber:100},
+    upgPctPerLevel:0.10,
+    upgCostMult:0.5,
+  },
+  {
+    id:'barricade', name:'Barricade', icon:'🛡️', color:'#607d8b',
+    unlockLevel:10,
+    desc:'A defensive barrier that stuns enemies whose HP fits within its resource pool. Recovers automatically after depletion.',
+    type:'Blocker',
+    typeBadge:{bg:'rgba(96,125,139,0.18)',color:'#90a4ae',border:'rgba(96,125,139,0.5)'},
+    baseStats:{dmg:0,atkSpeed:99,range:1.5,projectiles:0},
+    special:'Stuns enemies for 3s if their HP ≤ remaining shield resource · Recovers after 10s',
+    cost:{stone:200, leather:100, ore:50},
+    upgPctPerLevel:0.10,
+    upgCostMult:0.5,
+    barricadeCapacity:200,
+    recoveryThreshold:50,
+    recoveryDuration:10000,
+    stunDuration:3000,
+    immunityDuration:20000,
   },
 ];
 
@@ -3759,6 +3819,164 @@ function buildCraftingPanel() {
   renderTowerGrid();
 }
 
+// ── Settings Panel ──────────────────────────────────────────────────────────
+function buildSettingsPanel() {
+  const panel = document.getElementById('base-panel-settings');
+  if (!panel) return;
+  let adminHTML = '';
+  if (isAdminUser) {
+    adminHTML = `
+      <div class="admin-section">
+        <div class="admin-title">🛡️ Admin Controls</div>
+        <div class="admin-row">
+          <label class="admin-label">Set Player Level</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="admin-level-input" type="number" min="1" max="200" value="${playerLevel}"
+              style="width:80px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:#fff;font-size:14px;font-family:'Inter',sans-serif;">
+            <button onclick="adminSetLevel()" class="admin-btn">Set Level</button>
+          </div>
+        </div>
+        <div class="admin-row">
+          <label class="admin-label">Reset Account</label>
+          <button onclick="adminResetAccount()" class="admin-btn admin-btn-danger">Reset to Fresh Account</button>
+        </div>
+      </div>`;
+  }
+  panel.innerHTML = `
+    <div class="settings-page">
+      <div class="settings-title">⚙️ Settings</div>
+      <div class="settings-section">
+        <div class="settings-label">Account</div>
+        <div class="settings-row">
+          <span class="settings-row-label">Username</span>
+          <span class="settings-row-value">${currentUser?.user_metadata?.username || ''}</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label">Email</span>
+          <span class="settings-row-value">${currentUser?.email || ''}</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label">Player Level</span>
+          <span class="settings-row-value">${playerLevel}</span>
+        </div>
+      </div>
+      ${adminHTML}
+    </div>`;
+}
+
+// ── Gems Panel (Crafting) ───────────────────────────────────────────────────
+const GEM_DEFS = [
+  { key: 'petGems',    icon: '🔷', name: 'Pet Gem',    color: '#4fc3f7', bg: 'rgba(79,195,247,0.1)',  border: 'rgba(79,195,247,0.3)',
+    cost: { wood:200, fiber:100 },        costLabel: '200 🪵 + 100 🌿' },
+  { key: 'weaponGems', icon: '🔸', name: 'Weapon Gem', color: '#ffb74d', bg: 'rgba(255,183,77,0.1)',  border: 'rgba(255,183,77,0.3)',
+    cost: { ore:200, stone:100 },         costLabel: '200 ⛏️ + 100 🪨' },
+  { key: 'relicGems',  icon: '🟣', name: 'Relic Gem',  color: '#ce93d8', bg: 'rgba(206,147,216,0.1)', border: 'rgba(206,147,216,0.3)',
+    cost: { leather:200, fiber:100 },     costLabel: '200 🟫 + 100 🌿' },
+  { key: 'skillGems',  icon: '⭐', name: 'Skill Gem',  color: '#fff176', bg: 'rgba(255,241,118,0.1)', border: 'rgba(255,241,118,0.3)',
+    cost: { wood:100, stone:100, fiber:100, leather:100, ore:100 }, costLabel: '100 each resource' },
+];
+
+function _gemCanAfford(cost, amount) {
+  for (const [res, qty] of Object.entries(cost)) {
+    if ((resources[res] || 0) < qty * amount) return false;
+  }
+  return true;
+}
+
+function buildGemsPanel() {
+  const panel = document.getElementById('craft-gems');
+  if (!panel) return;
+  if (!marketState) loadMarketState();
+  const grid = document.createElement('div');
+  grid.className = 'tower-grid';
+  GEM_DEFS.forEach(g => {
+    const can1  = _gemCanAfford(g.cost, 1);
+    const can10 = _gemCanAfford(g.cost, 10);
+    const costChips = Object.entries(g.cost).map(([res, qty]) => {
+      const def = RESOURCE_DEFS.find(r => r.id === res);
+      const ok = (resources[res] || 0) >= qty;
+      return `<span class="tower-cost-chip ${ok?'ok':'bad'}">${def?.icon||''} ${qty.toLocaleString()}</span>`;
+    }).join('');
+    const card = document.createElement('div');
+    card.className = 'tower-card';
+    card.innerHTML = `
+      <div class="tower-icon-wrap" style="background:${g.color}22;border:1px solid ${g.color}44;">${g.icon}</div>
+      <div class="tower-info">
+        <div class="tower-name">${g.name}</div>
+        <div class="tower-stats">
+          <span class="tower-stat">Owned: <span>${(marketState[g.key]||0).toLocaleString()}</span></span>
+          <span class="tower-stat">Market: <span>${g.name.replace(' Gem','s')} wheel</span></span>
+        </div>
+        <div class="tower-cost-row">${costChips}</div>
+      </div>
+      <div class="tower-right">
+        <button class="tower-craft-btn" onclick="event.stopPropagation();craftGem('${g.key}',1)" ${!can1?'disabled':''}>×1</button>
+        <button class="tower-craft-btn" onclick="event.stopPropagation();craftGem('${g.key}',10)" ${!can10?'disabled':''}>×10</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  panel.innerHTML = '';
+  panel.appendChild(grid);
+}
+
+async function craftGem(gemKey, amount) {
+  try {
+    const data = await serverRpc('idw_craft_gem', { p_gem_type: gemKey, p_amount: amount });
+    // Apply returned resources
+    if (data?.resources) {
+      Object.assign(resources, data.resources);
+      updateResourcePills();
+    }
+    // Apply returned gem count
+    if (data?.gemType && data?.gemCount != null) {
+      marketState[data.gemType] = data.gemCount;
+      saveMarketState();
+      updateMarketGemDisplay();
+    }
+    showToast(`Crafted ${amount} ${GEM_DEFS.find(g=>g.key===gemKey)?.icon || ''} ${amount===1?'gem':'gems'}!`);
+    buildGemsPanel(); // refresh affordability
+  } catch(e) {
+    showToast('Craft failed: ' + (e?.message || e));
+  }
+}
+
+async function adminSetLevel() {
+  const input = document.getElementById('admin-level-input');
+  const level = parseInt(input?.value);
+  if (!level || level < 1 || level > 200) { alert('Enter a level between 1 and 200.'); return; }
+  try {
+    await serverRpc('idw_admin_set_level', { p_level: level });
+    playerLevel = level;
+    playerXP = 0;
+    updatePlayerLevelUI();
+    buildSettingsPanel();
+    alert(`Level set to ${level}!`);
+  } catch(e) {
+    alert('Failed to set level: ' + (e?.message || e));
+  }
+}
+
+async function adminResetAccount() {
+  if (!confirm('Reset your account to a completely fresh state? This cannot be undone.')) return;
+  try {
+    await serverRpc('idw_admin_reset_account');
+    // Reload local state from server
+    await loadFromDB();
+    buildResourcesPanel();
+    buildResearchPanel();
+    buildInventoryPanel();
+    buildCraftingPanel();
+    buildCampaignMap();
+    updateResourcePills();
+    updatePlayerLevelUI();
+    buildSettingsPanel();
+    alert('Account reset to fresh state!');
+  } catch(e) {
+    alert('Failed to reset account: ' + (e?.message || e));
+  }
+}
+
 function renderTowerGrid() {
   const grid = document.getElementById('tower-grid');
   if (!grid) return;
@@ -3782,7 +4000,12 @@ function renderTowerGrid() {
     const craftResLv2 = towerResearchLevels[td.id] || 0;
     const effDmg = (td.baseStats.dmg * (1 + rb.tower_dmg + ab.tower_dmg + craftResLv2 * 0.05)).toFixed(2);
     const effSpd = (td.baseStats.atkSpeed / (1 + rb.tower_spd + ab.tower_spd + craftResLv2 * 0.05)).toFixed(2);
-    const statsHtml = `
+    const statsHtml = td.id === 'barricade' ? `
+      <span class="tower-stat">🛡️ <span>${td.barricadeCapacity}</span></span>
+      <span class="tower-stat">⏱️ <span>${td.stunDuration/1000}s stun</span></span>
+      <span class="tower-stat">📏 <span>${td.baseStats.range} tiles</span></span>
+      <span class="tower-stat">🔄 <span>${td.recoveryDuration/1000}s recover</span></span>
+    ` : `
       <span class="tower-stat">⚔️ <span>${effDmg}</span></span>
       <span class="tower-stat">⚡ <span>${effSpd}s</span></span>
       <span class="tower-stat">📏 <span>${(td.baseStats.range * (1 + craftResLv2 * 0.05)).toFixed(2)}</span></span>
@@ -3851,10 +4074,17 @@ function openTowerModal(towerId) {
       <button class="bmodal-close" onclick="closeItemModal()">✕</button>
     </div>
     <div class="bmodal-stat-grid">
+      ${td.id === 'barricade' ? `
+      <div class="bmodal-stat"><div class="bmodal-stat-label">🛡️ Shield Pool</div><div class="bmodal-stat-value">${td.barricadeCapacity}</div></div>
+      <div class="bmodal-stat"><div class="bmodal-stat-label">⏱️ Stun Duration</div><div class="bmodal-stat-value">${(td.stunDuration/1000).toFixed(0)}s</div></div>
+      <div class="bmodal-stat"><div class="bmodal-stat-label">📏 Range</div><div class="bmodal-stat-value">${stats.range} tiles</div></div>
+      <div class="bmodal-stat"><div class="bmodal-stat-label">🔄 Recovery</div><div class="bmodal-stat-value">${(td.recoveryDuration/1000).toFixed(0)}s</div></div>
+      ` : `
       <div class="bmodal-stat"><div class="bmodal-stat-label">⚔️ Damage</div><div class="bmodal-stat-value">${stats.dmg}</div></div>
       <div class="bmodal-stat"><div class="bmodal-stat-label">⚡ Atk Speed</div><div class="bmodal-stat-value">${stats.atkSpeed}s</div></div>
       <div class="bmodal-stat"><div class="bmodal-stat-label">📏 Range</div><div class="bmodal-stat-value">${stats.range} tiles</div></div>
       <div class="bmodal-stat"><div class="bmodal-stat-label">🎯 Projectiles</div><div class="bmodal-stat-value">×${stats.projectiles}</div></div>
+      `}
     </div>
     ${td.special ? `<div style="background:rgba(240,160,64,0.1);border:1px solid rgba(240,160,64,0.3);border-radius:9px;padding:0.7rem 1rem;font-size:12px;color:var(--orange);margin-bottom:1rem;">⚡ ${td.special}</div>` : ''}
     <div class="bmodal-section">
@@ -3878,12 +4108,13 @@ async function craftTower(towerId) {
 }
 
 function switchCraftTab(name) {
-  ['towers','enchants'].forEach(t => {
+  ['towers','enchants','gems'].forEach(t => {
     const p = document.getElementById('craft-' + t);
     const btn = document.getElementById('crafttab-' + t);
     if (p) p.classList.toggle('active', t === name);
     if (btn) btn.classList.toggle('active', t === name);
   });
+  if (name === 'gems') { buildGemsPanel(); return; }
 
   // Build enchanting interface when enchants tab is selected
   if (name === 'enchants') {
@@ -4906,6 +5137,7 @@ function closeBattleScreen(goToNextStage) {
       }
       // If cancelled from setup screen, tile was never locked — just clear pending
       pvpPendingTile = null;
+      pvpPlacements  = [];
     }
     switchSection('pvp');
     return;
@@ -4959,29 +5191,30 @@ async function startBattle() {
     serverBattle = { battleId: null, consumedTowers: [] };
     currentBattleId = null;
   } else if (isPvpBattle) {
-    // Lock the tile as under attack now that the battle is actually starting
+    // Lock the tile server-side and get a battle ID (prevents console exploit)
+    let pvpServerTowers = null; // will hold server-snapshotted tower list
     if (pvpPendingTile) {
       try {
-        // Check if another player locked this tile while we were on the setup screen
-        const { data: liveTile } = await sb.from('pvp_world')
-          .select('attacking_until, owner_id')
-          .eq('tile_idx', pvpPendingTile.idx)
-          .maybeSingle();
-        if (liveTile?.attacking_until && new Date(liveTile.attacking_until) > new Date()) {
-          showToast('⚔️ This territory is already under attack by another player!');
-          pvpPendingTile = null;
-          closeBattleScreen();
-          return;
-        }
-        const attackingUntil = new Date(Date.now() + 10*60*1000).toISOString();
-        await sb.from('pvp_world').upsert({tile_idx:pvpPendingTile.idx, owner_id:pvpTiles[pvpPendingTile.idx]?.owner||null, attacking_until:attackingUntil});
+        const pvpStart = await serverRpc('pvp_start_battle', {
+          p_tile_idx:      pvpPendingTile.idx,
+          p_tower_indexes: battleSelectedTowers,
+          p_stage_id:      stageId,
+        });
+        currentBattleId  = pvpStart.battleId;
+        pvpServerTowers  = pvpStart.consumedTowers || null; // authoritative tower list from server
         if (!pvpTiles[pvpPendingTile.idx]) pvpTiles[pvpPendingTile.idx] = {owner:null, color:null};
         pvpTiles[pvpPendingTile.idx].attackingUntil = Date.now() + 10*60*1000;
-      } catch(e) { console.warn('attack lock failed:', e.message); }
+      } catch(e) {
+        showToast('⚔️ ' + (e?.message || 'Could not start PVP battle'));
+        pvpPendingTile = null;
+        closeBattleScreen();
+        return;
+      }
     }
-    // PVP battles don't go through idw_start_battle — use a simple local setup
-    serverBattle = { battleId: null, consumedTowers: battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean) };
-    currentBattleId = null;
+    // Use server's tower snapshot if available, else fall back to local armory selection
+    const pvpTowerList = (pvpServerTowers?.length ? pvpServerTowers : battleSelectedTowers.map(i => armoryTowers[i])).filter(Boolean);
+    serverBattle = { battleId: currentBattleId, consumedTowers: pvpTowerList };
+    currentBattleId = currentBattleId ?? null;
     // Remove consumed towers from armory locally
     battleSelectedTowers.sort((a,b)=>b-a).forEach(i => armoryTowers.splice(i, 1));
     renderArmoryGrid();
@@ -5009,11 +5242,13 @@ async function startBattle() {
     toConsume = battleSelectedTowers.map(i => armoryTowers[i]).filter(Boolean);
     console.log('Using fallback: consuming armory towers directly', toConsume);
   }
-  pendingTowersQueue = toConsume.map(entry => ({
+  pendingTowersQueue = toConsume.map((entry, i) => ({
     entry,
     td: TOWER_DEFS.find(t=>t.id===entry.towerId),
     level: entry.level,
+    consumedIndex: i, // index in serverBattle.consumedTowers — sent to Edge Function
   })).filter(x=>x.td);
+  pvpPlacements = []; // reset for new battle
   pendingPlacingIdx = 0;
 
   // Hide wave + speed buttons before battle-game becomes visible to avoid a flash
@@ -5063,8 +5298,10 @@ async function startBattle() {
   // (hud-wave-count dropdown removed — single send-wave button now used)
   canvas.onclick = handleCanvasClick; canvas.onmousemove = handleCanvasMouseMove;
   canvas.oncontextmenu = (e) => { e.preventDefault(); placingTower = null; selectedTowerId = null; showShopPanel(); };
-  // Snapshot gear at battle start — used for server-side cheat validation
+  // Snapshot gear and reset shop placements at battle start — used for server-side cheat validation
   _battleGearFingerprint = _buildGearFingerprint();
+  _armoryPlacements      = [];
+  _commanderPlacement    = null;
 
   startBattleLoop();
   // Show pending towers bar so player knows to place their armory towers
@@ -5201,10 +5438,10 @@ function makeTower(td, level, x, y, entry) {
   const rb = getResearchBonuses();
   const ab = getAllianceBuffs();
   const _makeResLv = towerResearchLevels[td.id] || 0;
-  const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower');
+  const isAoeTower = (td.id === 'catapult' || td.id === 'inferno' || td.id === 'god_tower' || td.id === 'barricade');
   const finalDmg = Math.round(dmg * (1 + rb.tower_dmg + ab.tower_dmg + _makeResLv * 0.05));
   const finalAtkSpeed = atkSpeed / (1 + rb.tower_spd + ab.tower_spd + _makeResLv * 0.05) * (bs?.eliteCfg?.turretSlowMult ?? 1);
-  return {
+  const tower = {
     id: Math.random(),
     towerId: td.id,
     td, level,
@@ -5224,6 +5461,14 @@ function makeTower(td, level, x, y, entry) {
     targeting: 'first',
     upgrades: [0, 0, 0],
   };
+  // Barricade: initialize shield resource pool
+  if (td.id === 'barricade') {
+    tower.barricadeResource   = td.barricadeCapacity   || 200;
+    tower.barricadeRecovering = false;
+    tower.barricadeRecoveryTimer = 0;
+    tower.barricadeImmunity   = {}; // enemyId → ms remaining
+  }
+  return tower;
 }
 
 function isTooCloseToPath(px, py, towerR) {
@@ -5344,7 +5589,10 @@ function handleCanvasClick(e) {
   const rawY = e.clientY - rect.top;
 
   // Commander placement: intercept click before anything else
-  if (commanderPlacing && _cmdTryPlace(rawX, rawY)) return;
+  if (commanderPlacing && _cmdTryPlace(rawX, rawY)) {
+    _commanderPlacement = { col: Math.floor(rawX / bs.tw), row: Math.floor(rawY / bs.th) };
+    return;
+  }
 
   if (placingTower) {
     const x = mousePos.x, y = mousePos.y;
@@ -5354,9 +5602,25 @@ function handleCanvasClick(e) {
     if (x < 0 || y < 0 || x > bs.tw*bs.COLS || y > bs.th*bs.ROWS) {
       showToast('Place within the map!'); return;
     }
+    const _pCol = Math.floor(x / bs.tw), _pRow = Math.floor(y / bs.th);
     if (!placingTower.fromPending) {
       bs.gold -= placingTower.cost;
+      if (currentBattleId) sb.rpc('idw_battle_purchase', { p_battle_id: currentBattleId, p_purchase: { type: 'shopTower', towerId: placingTower.towerId, col: _pCol, row: _pRow, wave: bs.wave || 0 } }).then(({error}) => { if (error) console.warn('battle_purchase failed:', error.message); });
       updateBattleHUD();
+    }
+    // Track placement for PVP server-side validation
+    if (bs.stageId?.startsWith('pvp-') && placingTower.fromPending) {
+      const pq = pendingTowersQueue[pendingPlacingIdx];
+      pvpPlacements.push({
+        consumedIndex: pq?.consumedIndex ?? pendingPlacingIdx,
+        tx: x / bs.tw,   // normalised tile col (0–22)
+        ty: y / bs.th,   // normalised tile row (0–10)
+        battleTowerIdx: bs.towers.length, // before push → will be this index
+      });
+    }
+    // Track campaign armory placements for server-side tick simulation
+    if (placingTower.fromPending && !bs.stageId?.startsWith('pvp-')) {
+      _armoryPlacements.push({ armoryIdx: pendingPlacingIdx, col: _pCol, row: _pRow });
     }
     bs.towers.push(makeTower(placingTower.td, placingTower.level, x, y, placingTower.entry));
     if (placingTower.fromPending) {
@@ -5679,6 +5943,35 @@ const ASCEND_DEFS = {
       apply(tower) {
         tower.ascendRailgun = true;
         tower.projectileSpeed = 2000;
+      }
+    }
+  },
+  tesla_tower: {
+    0: {
+      name: 'Storm Network',
+      icon: '🌐',
+      desc: 'Hits 3 targets instead of 2. Lightning Stack lasts 9s instead of 6s. Strongly prioritizes enemies without a stack.',
+      apply(tower) {
+        tower.ascendStormNetwork = true;
+        tower.projectiles = 3;
+      }
+    },
+    1: {
+      name: 'Rapid Discharge',
+      icon: '⚡',
+      desc: 'Attack speed ×2. Recent-hit avoidance window reduced to 1.5s. Spreads Lightning Stacks across waves rapidly.',
+      apply(tower) {
+        tower._ascendAtkMult = 0.5;
+        tower.atkSpeed *= 0.5;
+        tower.ascendRapidDischarge = true;
+      }
+    },
+    2: {
+      name: 'Chain Reaction',
+      icon: '🔗',
+      desc: 'When a Lightning Stack is consumed, nearby enemies take 20% of the bonus damage as lightning splash. Splash cannot trigger stacks.',
+      apply(tower) {
+        tower.ascendChainReaction = true;
       }
     }
   },
@@ -6834,13 +7127,18 @@ let marketState = null;
 
 function loadMarketState() {
   try { marketState = JSON.parse(localStorage.getItem('idw_market')) || null; } catch(e) {}
-  if (!marketState) marketState = { gems:100000, totalRolls:0, pityCount:0, epicPity:0, heroes:{}, gearPityCount:0, gearEpicPity:0 };
+  if (!marketState) marketState = { gems:0, totalRolls:0, pityCount:0, epicPity:0, heroes:{}, gearPityCount:0, gearEpicPity:0 };
   // Migrate older saves that don't have gear pity yet
   if (!('gearPityCount'  in marketState)) { marketState.gearPityCount  = 0; marketState.gearEpicPity  = 0; }
   if (!('relicPityCount' in marketState)) { marketState.relicPityCount = 0; marketState.relicEpicPity = 0; }
   if (!('relics'         in marketState)) { marketState.relics = {}; }
   if (!('skillPityCount' in marketState)) { marketState.skillPityCount = 0; marketState.skillEpicPity = 0; }
   if (!('marketSkills'   in marketState)) { marketState.marketSkills = {}; }
+  // Migrate to per-category gems (old single 'gems' field → petGems)
+  if (!('petGems'    in marketState)) { marketState.petGems    = marketState.gems || 0; }
+  if (!('weaponGems' in marketState)) { marketState.weaponGems = 0; }
+  if (!('relicGems'  in marketState)) { marketState.relicGems  = 0; }
+  if (!('skillGems'  in marketState)) { marketState.skillGems  = 0; }
 }
 
 function saveMarketState() {
@@ -6943,10 +7241,10 @@ function rollGacha(count) {
   if (_gachaAnimating) return;
   if (!marketState) loadMarketState();
   const cost = count === 1 ? 1 : 9;
-  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+  if (marketState.petGems < cost) { showToast('Not enough 🔷 Pet Gems!'); return; }
 
   _gachaAnimating = true;
-  marketState.gems -= cost;
+  marketState.petGems -= cost;
 
   let results;
   try {
@@ -6954,7 +7252,7 @@ function rollGacha(count) {
     for (let i = 0; i < count; i++) results.push(_gachaDoRoll());
   } catch(e) {
     _gachaAnimating = false;
-    marketState.gems += cost;
+    marketState.petGems += cost;
     console.error('Hero roll error:', e);
     showToast('Roll failed, please try again.');
     return;
@@ -7145,8 +7443,14 @@ function _gachaShowMultiResult(results) {
 
 function updateMarketGemDisplay() {
   if (!marketState) return;
-  const el = document.getElementById('market-gem-count');
-  if (el) el.textContent = marketState.gems.toLocaleString();
+  const ids = { petGems:'gem-count-pets', weaponGems:'gem-count-weapons', relicGems:'gem-count-relics', skillGems:'gem-count-skills' };
+  for (const [key, id] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (marketState[key] || 0).toLocaleString();
+  }
+  // Also update the crafting gems panel if it's the active tab
+  const gemsPanel = document.getElementById('craft-gems');
+  if (gemsPanel?.classList.contains('active')) buildGemsPanel();
 }
 
 function updatePityBar() {
@@ -7512,10 +7816,10 @@ function rollGachaGear(count) {
   if (_gachaGearAnimating) return;
   if (!marketState) loadMarketState();
   const cost = count === 1 ? 1 : 9;
-  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+  if (marketState.weaponGems < cost) { showToast('Not enough 🔸 Weapon Gems!'); return; }
 
   _gachaGearAnimating = true;
-  marketState.gems -= cost;
+  marketState.weaponGems -= cost;
 
   let results;
   try {
@@ -7524,7 +7828,7 @@ function rollGachaGear(count) {
   } catch(e) {
     // Roll logic failed — reset flag, refund gems, do not proceed to animation
     _gachaGearAnimating = false;
-    marketState.gems += cost;
+    marketState.weaponGems += cost;
     console.error('Gear roll error:', e);
     showToast('Roll failed, please try again.');
     return;
@@ -7876,10 +8180,10 @@ function rollGachaRelic(count) {
   if (_gachaRelicAnimating) return;
   if (!marketState) loadMarketState();
   const cost = count === 1 ? 1 : 9;
-  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+  if (marketState.relicGems < cost) { showToast('Not enough 🟣 Relic Gems!'); return; }
 
   _gachaRelicAnimating = true;
-  marketState.gems -= cost;
+  marketState.relicGems -= cost;
 
   let results;
   try {
@@ -7887,7 +8191,7 @@ function rollGachaRelic(count) {
     for (let i = 0; i < count; i++) results.push(_gachaRelicDoRoll());
   } catch(e) {
     _gachaRelicAnimating = false;
-    marketState.gems += cost;
+    marketState.relicGems += cost;
     console.error('Relic roll error:', e);
     showToast('Roll failed, please try again.');
     return;
@@ -8251,16 +8555,16 @@ function rollGachaSkill(count) {
   if (_gachaSkillAnimating) return;
   if (!marketState) loadMarketState();
   const cost = count === 1 ? 1 : 9;
-  if (marketState.gems < cost) { showToast('Not enough 💎 Gems!'); return; }
+  if (marketState.skillGems < cost) { showToast('Not enough ⭐ Skill Gems!'); return; }
   _gachaSkillAnimating = true;
-  marketState.gems -= cost;
+  marketState.skillGems -= cost;
   let results;
   try {
     results = [];
     for (let i = 0; i < count; i++) results.push(_gachaSkillDoRoll());
   } catch(e) {
     _gachaSkillAnimating = false;
-    marketState.gems += cost;
+    marketState.skillGems += cost;
     console.error('Skill roll error:', e);
     showToast('Roll failed, please try again.');
     return;
@@ -9121,6 +9425,7 @@ function applyTowerUpgrade(towerId, pathIdx) {
   const cost = path.levels[currentLvl].cost;
   if ((bs.gold||0) < cost) { showToast('Not enough gold!'); return; }
   bs.gold -= cost;
+  if (currentBattleId) sb.rpc('idw_battle_purchase', { p_battle_id: currentBattleId, p_purchase: { type: 'upgrade', upgradeKey: path.key, level: currentLvl + 1, wave: bs.wave || 0, col: Math.floor(tower.x / bs.tw), row: Math.floor(tower.y / bs.th) } }).then(({error}) => { if (error) console.warn('battle_purchase failed:', error.message); });
   tower.upgrades[pathIdx]++;
   UPGRADE_PATHS.forEach((p, i) => { for (let l=1; l<=tower.upgrades[i]; l++) p.apply(tower, l); });
   if (tower._ascendAtkMult !== undefined) tower.atkSpeed *= tower._ascendAtkMult;
@@ -9137,6 +9442,7 @@ function applyAscension(towerId, pathIdx) {
   if (!def) return;
   if ((bs.gold||0) < 100) { showToast('Not enough gold!'); return; }
   bs.gold -= 100;
+  if (currentBattleId) sb.rpc('idw_battle_purchase', { p_battle_id: currentBattleId, p_purchase: { type: 'ascension', towerId: tower.towerId, pathIdx, wave: bs.wave || 0, col: Math.floor(tower.x / bs.tw), row: Math.floor(tower.y / bs.th) } }).then(({error}) => { if (error) console.warn('battle_purchase failed:', error.message); });
   tower.ascended = true;
   tower.ascendPath = pathIdx;
   def.apply(tower);
@@ -9325,6 +9631,26 @@ function makeProjectile(tower, target, dmg) {
   }
   if (tower.ascendTierDmg) p.ascendTierDmg = true;
 
+  // Tesla Tower: mark as lightning so it doesn't consume its own stack
+  if (tower.towerId === 'tesla_tower') {
+    p.isLightning    = true;
+    p.stackDuration  = tower.ascendStormNetwork   ? 9000 : 6000;
+    p.stackBonus     = 0.25;
+    p.chainReaction  = !!(tower.ascendChainReaction);
+    p.color          = '#00e5ff';
+  }
+
+  // Ballista: base pierce-travel through up to 3 enemies
+  if (tower.towerId === 'ballista') {
+    const dx = target.x - tower.x, dy = target.y - tower.y;
+    const d = Math.sqrt(dx*dx+dy*dy)||1;
+    p.pierceTravel = true;
+    p.pierce = 3;
+    p.pierceHit = new Set();
+    p.maxRange = tower.range;
+    p.ox = tower.x; p.oy = tower.y;
+    p.pdx = dx/d; p.pdy = dy/d;
+  }
   if (tower.ascendPierceTravel > 0) {
     const dx = target.x - tower.x, dy = target.y - tower.y;
     const d = Math.sqrt(dx*dx + dy*dy) || 1;
@@ -9389,6 +9715,54 @@ function makeProjectile(tower, target, dmg) {
 }
 
 // Process delayed cluster shell explosions (individual mini-explosions)
+// ── Barricade shield logic ───────────────────────────────────────────────────
+function updateBarricade(t, dt) {
+  const td = t.td;
+  const capacity          = td.barricadeCapacity   || 200;
+  const recoverThreshold  = td.recoveryThreshold   || 50;
+  const recoverDuration   = td.recoveryDuration    || 10000;
+  const stunDuration      = td.stunDuration        || 3000;
+  const immunityDuration  = td.immunityDuration    || 20000;
+
+  // Tick immunity timers, removing expired ones
+  for (const eid in t.barricadeImmunity) {
+    t.barricadeImmunity[eid] -= dt * 1000;
+    if (t.barricadeImmunity[eid] <= 0) delete t.barricadeImmunity[eid];
+  }
+
+  // Recovery state
+  if (t.barricadeRecovering) {
+    t.barricadeRecoveryTimer -= dt * 1000;
+    if (t.barricadeRecoveryTimer <= 0) {
+      t.barricadeResource   = capacity;
+      t.barricadeRecovering = false;
+    }
+    return;
+  }
+
+  // Enter recovery when depleted or low
+  if (t.barricadeResource <= recoverThreshold) {
+    t.barricadeRecovering    = true;
+    t.barricadeRecoveryTimer = recoverDuration;
+    return;
+  }
+
+  // Check enemies in range
+  const inRange = bs.enemies.filter(e => !e.isDead && !e.isReached && dist(t.x, t.y, e.x, e.y) <= t.range);
+  for (const e of inRange) {
+    if (t.barricadeImmunity[e.id]) continue; // immune — pass through
+    if (e.hp <= t.barricadeResource) {
+      // Block: stun the enemy and subtract its HP from the shield pool
+      t.barricadeResource -= e.hp;
+      e.staggerTimer = Math.max(e.staggerTimer || 0, stunDuration);
+      t.barricadeImmunity[e.id] = immunityDuration;
+      // Small visual pulse
+      bs.explosions.push({ x: t.x, y: t.y, r: t.r * 0.3, maxR: t.range * 0.4, age: 0, maxAge: 0.3 });
+    }
+    // If e.hp > resource, enemy passes through — no action
+  }
+}
+
 function updateDelayedClusterShells(dt) {
   if (!bs.delayedClusterShells) return;
   bs.delayedClusterShells.forEach(cs => { cs.age += dt; });
@@ -9532,6 +9906,11 @@ function updateEnemies(dt) {
     if ((e.pinnedTimer || 0) > 0) e.pinnedTimer -= dt * 1000;
     // Heavy Ballista stun cooldown decay
     if ((e.ballistaStunCooldown || 0) > 0) e.ballistaStunCooldown -= dt * 1000;
+    // Lightning Stack (Tesla Tower) decay
+    if ((e.lightningStackTimer || 0) > 0) {
+      e.lightningStackTimer -= dt * 1000;
+      if (e.lightningStackTimer <= 0) { e.lightningStack = 0; e.lightningStackBonus = 0; delete e._lightningChainReaction; }
+    }
     // Spawn scale-in animation
     if ((e._spawnAnim || 0) > 0) e._spawnAnim = Math.max(0, e._spawnAnim - dt * 1000);
     // Witch summoning halo timer
@@ -9698,6 +10077,14 @@ function updateTowers(dt) {
       }
     }
 
+    // Tesla Tower: tick per-target recent-hit avoidance timers
+    if (t.towerId === 'tesla_tower' && t._teslaRecentHits) {
+      for (const eid in t._teslaRecentHits) {
+        t._teslaRecentHits[eid] -= dt * 1000;
+        if (t._teslaRecentHits[eid] <= 0) delete t._teslaRecentHits[eid];
+      }
+    }
+
     // Deadeye: kill-streak speed buff timer
     if (t.ascendKillStreakTimer > 0) t.ascendKillStreakTimer -= dt * 1000;
 
@@ -9714,6 +10101,9 @@ function updateTowers(dt) {
         if (t.ascendHeat >= 20) t.ascendSupernovaReady = true;
       }
     }
+
+    // ── BARRICADE: custom blocking logic — does not fire projectiles ──
+    if (t.towerId === 'barricade') { updateBarricade(t, dt); return; }
 
     t.cooldown -= dt;
     if (t.cooldown > 0) return;
@@ -9791,6 +10181,34 @@ function updateTowers(dt) {
       inRange.forEach(e => {
         applyDmgToEnemy(e, t.dmg);
         if (e.hp <= 0) killEnemy(e, t);
+      });
+      t.cooldown = t.atkSpeed;
+      return;
+    }
+
+    // ── TESLA TOWER: smart dual-target lightning stack attack ──
+    if (t.towerId === 'tesla_tower') {
+      if (!t._teslaRecentHits) t._teslaRecentHits = {};
+      const maxTargets  = t.ascendStormNetwork    ? 3    : 2;
+      const avoidMs     = t.ascendRapidDischarge  ? 1500 : 3000;
+      const stackMs     = t.ascendStormNetwork    ? 9000 : 6000;
+      const stackBonus  = 0.25;
+
+      // Build prioritized pool: prefer no-stack + not recently hit
+      const notRecent = arr => arr.filter(e => !t._teslaRecentHits[e.id]);
+      const noStack   = inRange.filter(e => !(e.lightningStack > 0));
+      const withStack = inRange.filter(e =>   e.lightningStack > 0);
+
+      const chosen = [];
+      const add = (arr) => { for (const e of arr) { if (chosen.length < maxTargets && !chosen.includes(e)) chosen.push(e); } };
+      add(notRecent(noStack));
+      add(notRecent(withStack));
+      add(noStack);
+      add(inRange);
+
+      chosen.forEach(target => {
+        bs.projectiles.push(makeProjectile(t, target, t.dmg));
+        t._teslaRecentHits[target.id] = avoidMs;
       });
       t.cooldown = t.atkSpeed;
       return;
@@ -10046,10 +10464,24 @@ function updateProjectiles(dt) {
           // Watchtower mark bonus
           if (target.markedTimer > 0) hitDmg = Math.round(hitDmg * (target.markedMult || 1.35));
 
-          if (!shatterKill) applyDmgToEnemy(target, hitDmg);
+          if (!shatterKill) applyDmgToEnemy(target, hitDmg, p.isLightning);
 
           // Alliance slow
           if (_abHit.slow > 0) { target.alSlowTimer = Math.max(target.alSlowTimer||0, 1500); target.alSlowPct = _abHit.slow; }
+
+          // Tesla Tower: apply Lightning Stack on hit
+          if (p.isLightning && !target.isDead) {
+            target.lightningStack      = 1;
+            target.lightningStackTimer = p.stackDuration || 6000;
+            target.lightningStackBonus = p.stackBonus    || 0.25;
+            target._lightningChainReaction = !!(p.chainReaction);
+          }
+
+          // Venom Spire: apply poison stacks (reuses burn system)
+          if (p.special === 'poison_tower') {
+            target.burnStacks = Math.min((target.burnStacks || 0) + 2, 8);
+            target.burnTimer  = Math.max(target.burnTimer  || 0, 3000);
+          }
 
           // Ice tower slow application + Blizzard Spire Ice Nova
           if (p.special === 'ice_tower') {
@@ -10197,7 +10629,23 @@ function updateProjectiles(dt) {
   bs.projectiles = bs.projectiles.filter(p => !p._done);
 }
 
-function applyDmgToEnemy(e, dmg) {
+function applyDmgToEnemy(e, dmg, isLightning) {
+  // Lightning Stack: consumed by any non-lightning hit (once only, no recursion)
+  if (!isLightning && !e._lightningConsuming && (e.lightningStack || 0) > 0) {
+    e._lightningConsuming = true;
+    const bonus = e.lightningStackBonus || 0.25;
+    dmg = Math.round(dmg * (1 + bonus));
+    // Chain Reaction ascension: splash nearby enemies (isLightning=true → no stack trigger)
+    if (e._lightningChainReaction && bs) {
+      const splashDmg = Math.round(dmg * 0.20);
+      bs.enemies
+        .filter(en => !en.isDead && en.id !== e.id && dist(e.x, e.y, en.x, en.y) <= bs.tw * 1.5)
+        .forEach(en => applyDmgToEnemy(en, splashDmg, true));
+      bs.explosions.push({ x:e.x, y:e.y, r:bs.tw*0.2, maxR:bs.tw*1.5, age:0, maxAge:0.3 });
+    }
+    e.lightningStack = 0; e.lightningStackTimer = 0; e.lightningStackBonus = 0;
+    delete e._lightningChainReaction; delete e._lightningConsuming;
+  }
   const reduce = bs.eliteCfg?.dmgReduce ?? 0;
   e.hp -= reduce > 0 ? Math.max(1, Math.round(dmg * (1 - reduce))) : dmg;
 }
@@ -10501,6 +10949,33 @@ function drawTower(ctx, t) {
   ctx.textBaseline = 'middle';
   ctx.fillText(towerResearchLevels[t.towerId] || 0, t.x + t.r - 5, t.y - t.r + 5);
 
+  // Barricade: resource bar above tower + recovering indicator
+  if (t.towerId === 'barricade') {
+    const cap    = t.td.barricadeCapacity || 200;
+    const pct    = t.barricadeRecovering ? 0 : Math.max(0, t.barricadeResource / cap);
+    const bw     = t.r * 2.2;
+    const bx     = t.x - bw / 2;
+    const by     = t.y - t.r - 10;
+    const bh     = 5;
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.roundRect(bx - 1, by - 1, bw + 2, bh + 2, 2); ctx.fill();
+    // Fill
+    const barColor = t.barricadeRecovering ? '#f06030' : (pct > 0.5 ? '#90a4ae' : '#f0a040');
+    ctx.fillStyle = barColor;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw * pct, bh, 2); ctx.fill();
+    // Recovering label
+    if (t.barricadeRecovering) {
+      ctx.fillStyle = '#f06030';
+      ctx.font = 'bold 8px Inter';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('RECOVERING', t.x, by - 6);
+    }
+    // Dim the tower icon when recovering
+    if (t.barricadeRecovering) ctx.globalAlpha = 0.45;
+  }
+
   // Bombardment Engine attack counter
   if (t.ascendBombardment && t.ascendShotCount > 0) {
     const count = (t.ascendShotCount % 5) || 5; // Show 1-5
@@ -10599,6 +11074,8 @@ function drawEnemy(ctx, e) {
     ctx.shadowColor = '#f0c040'; ctx.shadowBlur = 12;
   } else if (e.slowTimer > 0) {
     ctx.shadowColor = '#a050ff'; ctx.shadowBlur = 8;
+  } else if ((e.lightningStack || 0) > 0) {
+    ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 10;
   }
 
   // Witch purple aura — only while summoning, radial gradient fill, no outline
@@ -10727,6 +11204,23 @@ function drawEnemy(ctx, e) {
     ctx.setLineDash([2, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // Lightning Stack — cyan crackling ring + bolt icon
+  if ((e.lightningStack || 0) > 0) {
+    const lsPulse = 0.6 + 0.4 * Math.sin(Date.now() / 180);
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0,229,255,${0.75 * lsPulse})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `bold ${Math.round(e.size * 0.85)}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = `rgba(0,229,255,${0.95 * lsPulse})`;
+    ctx.fillText('⚡', e.x, e.y - e.size - 3);
   }
 
   // HP bar — only show if below 100%
@@ -11145,17 +11639,20 @@ async function showResultScreen(won) {
         lives: bs.lives || 0
       });
 
-      const result = await serverRpc('idw_submit_battle_result', {
-        p_battle_id: currentBattleId,
-        p_won: !!won,
-        p_waves: bs.wave || 0,
-        p_lives: bs.lives || 0,
-        p_client_gold: bs.gold || 0,
-        // Gear fingerprint: server cross-checks this against idw_save_hero_gear
-        // to detect mid-battle tampering of equipped items or item levels.
-        p_gear_fingerprint: _battleGearFingerprint ?? '',
+      // Server runs full battle simulation — outcome is determined server-side
+      const { data: simData, error: simErr } = await sb.functions.invoke('campaign-simulate', {
+        body: {
+          battleId:           currentBattleId,
+          armoryPlacements:   _armoryPlacements,
+          commanderPlacement: _commanderPlacement,
+          gearFingerprint:    _battleGearFingerprint ?? '',
+        },
       });
       _battleGearFingerprint = null;
+      _armoryPlacements      = [];
+      _commanderPlacement    = null;
+      if (simErr) throw simErr;
+      const result = simData;
 
       console.log('🎯 DEBUG: Server response:', result);
 
@@ -11193,26 +11690,16 @@ async function showResultScreen(won) {
         buildCampaignMap(); // unlock next stage right away
       }
     } catch(e) {
-      console.error('🎯 DEBUG: idw_submit_battle_result failed:', e);
-      console.log('🎯 DEBUG: Using fallback completion logic');
-
-      if (won && stage) {
-        console.log(`🎯 DEBUG: FALLBACK - Server call failed, manually updating campaign completion: ${stage}`);
-        campCompletedStages.add(stage); // Only add here since server call failed
-        console.log('🎯 DEBUG: FALLBACK - Completed stages:', [...campCompletedStages]);
-        buildCampaignMap();
-        // Show fallback rewards from CAMPAIGN_REWARDS (client-side source of truth)
-        serverReward = CAMPAIGN_REWARDS[stage] || {};
-        firstClear = !campCompletedStages.has(stage);
-      }
+      // Server simulation failed — no rewards granted, no stage progress recorded.
+      // The player must replay the stage. This prevents offline/network exploits
+      // from bypassing server-side reward validation.
+      console.error('campaign-simulate failed:', e);
+      showToast('Server error — no rewards granted. Please retry the stage.');
     } finally {
       currentBattleId = null;
     }
-  } else if (won && stage && !isPvpStage && !isSandboxStage) {
-    // idw_start_battle failed (no battleId) — record stage locally so map advances
-    firstClear = !campCompletedStages.has(stage);
-    campCompletedStages.add(stage);
-    buildCampaignMap();
+    // Note: no client-side fallback for campaign completion. Server is the only
+    // authority for marking stages complete and granting rewards.
   }
 
   // Build reward display — separate resources from XP
@@ -11466,6 +11953,7 @@ let pvpRefreshTimer = null;
 let pvpHoveredTile  = null;
 let pvpSelectedTile = null;
 let pvpPendingTile  = null;
+let pvpPlacements   = []; // [{consumedIndex, tx, ty, battleTowerIdx}] — filled during PVP battle
 let pvpAttackCooldownUntil = 0;
 let pvpAnimating    = {};
 let pvpAnimRaf      = null;
@@ -12535,28 +13023,61 @@ async function pvpAttackTile(){
   openBattleSetup(`pvp-${effectiveDiff}`,true);
 }
 
-async function pvpBattleEnded(tile,won){
-  if(!tile||!currentUser) return;
-  try{
-    const cooldownUntil=new Date(Date.now()+30*1000).toISOString();
-    if(won){
-      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: true});
-      const oldColor=pvpTiles[tile.idx]?.color||'#13151f';
-      pvpTiles[tile.idx]={owner:currentUser.id,color:'#3ecf8e',isMine:true,attackingUntil:Date.now()+30000};
-      pvpAnimateTile(tile.idx,oldColor,'#3ecf8e',1500);
-      if(!pvpHomeTile) pvpHomeTile={tx:tile.tx, ty:tile.ty};
+async function pvpBattleEnded(tile, clientWon) {
+  if (!tile || !currentUser) return;
+  if (!currentBattleId) { console.warn('[pvp] no battleId — cannot report result'); return; }
+
+  // Collect final targeting modes for each placed tower
+  const finalPlacements = pvpPlacements.map(p => ({
+    consumedIndex: p.consumedIndex,
+    tx:            p.tx,
+    ty:            p.ty,
+    targeting:     bs?.towers?.[p.battleTowerIdx]?.targeting || 'first',
+  }));
+
+  try {
+    // Call the Edge Function — server simulates the battle and decides the outcome
+    const { data: session } = await sb.auth.getSession();
+    const jwt = session?.session?.access_token;
+    const resp = await fetch(
+      'https://gdlkslptehtxudfghhqh.supabase.co/functions/v1/pvp-simulate',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+        body: JSON.stringify({ battleId: currentBattleId, placements: finalPlacements }),
+      }
+    );
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result?.error || `Server error ${resp.status}`);
+
+    // Server is the source of truth for win/loss
+    const won = !!result.won;
+    currentBattleId = null;
+
+    if (won) {
+      const oldColor = pvpTiles[tile.idx]?.color || '#13151f';
+      pvpTiles[tile.idx] = { owner: currentUser.id, color: '#3ecf8e', isMine: true, attackingUntil: Date.now() + 30000 };
+      pvpAnimateTile(tile.idx, oldColor, '#3ecf8e', 1500);
+      if (!pvpHomeTile) pvpHomeTile = { tx: tile.tx, ty: tile.ty };
       showToast(`🟢 Tile (${tile.tx},${tile.ty}) conquered!`);
       pvpUpdateStats();
       await pvpCheckAndApplyChain(tile.tx, tile.ty);
     } else {
-      await serverRpc('pvp_battle_ended', {p_tile_idx: tile.idx, p_won: false});
-      if(pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil=Date.now()+30000;
-      showToast('💀 Attack failed!');
-      pvpAttackCooldownUntil=Date.now()+60*1000;
+      if (pvpTiles[tile.idx]) pvpTiles[tile.idx].attackingUntil = Date.now() + 30000;
+      // Only show "cheat detected" if client thought they won but server disagreed
+      if (clientWon && !won) {
+        showToast('❌ Server validation failed — result not accepted.');
+      } else {
+        showToast('💀 Attack failed!');
+      }
+      pvpAttackCooldownUntil = Date.now() + 60 * 1000;
     }
     pvpDraw();
-    setTimeout(()=>pvpRefresh(),31000);
-  }catch(e){console.warn('pvpBattleEnded failed:',e.message);}
+    setTimeout(() => pvpRefresh(), 31000);
+  } catch(e) {
+    console.warn('[pvp] pvpBattleEnded failed:', e.message);
+    showToast('⚠️ ' + (e?.message || 'Could not record battle result'));
+  }
 }
 
 function pvpSetHome() {
