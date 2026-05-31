@@ -1216,16 +1216,13 @@ begin
     where user_id = p.user_id;
   end if;
 
-  if p_state ? 'playerXP' then
-    update public.idw_player_state
-    set player_xp = coalesce((p_state->>'playerXP')::integer, player_xp), updated_at = now()
-    where user_id = p.user_id;
-  end if;
-
-  if p_state ? 'playerLevel' then
-    update public.idw_player_state
-    set player_level = least(greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), case when (select email from auth.users where id = auth.uid()) is null then 9 else 2147483647 end), updated_at = now()
-    where user_id = p.user_id;
+  -- playerXP / playerLevel: BLOCKED here and in the hardened version below.
+  -- XP and level are awarded exclusively by idw_submit_battle_result,
+  -- idw_unlock_node, idw_tick_silo_upgrades, and alliance RPCs.
+  -- Silently ignore rather than raise so the client cannot probe this gate.
+  -- (The hardened idw_save_state below also blocks and logs these fields.)
+  if p_state ? 'playerXP' or p_state ? 'playerLevel' then
+    null; -- intentional no-op; hardened version logs to idw_anti_cheat_logs
   end if;
 
   if p_state ? 'armoryTowers' then

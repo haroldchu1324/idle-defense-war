@@ -1066,24 +1066,15 @@ function addXP(amount, x, y) {
   if(isGuestUser && playerLevel >= GUEST_MAX_LEVEL) playerXP = Math.min(playerXP, xpForLevel(GUEST_MAX_LEVEL) - 1);
   updatePlayerLevelUI();
   if(x !== undefined) spawnXPFloater(`+${amount} XP`, x, y);
-  // Persist to server — debounced so rapid XP gains batch together
-  scheduleXPSave();
+  // XP and level are persisted exclusively by server-side RPCs
+  // (idw_submit_battle_result, idw_unlock_node, idw_tick_silo_upgrades, etc.).
+  // No client write needed — direct DB writes are also blocked by RLS.
 }
 
-let xpSaveTimer = null;
-function scheduleXPSave() {
-  clearTimeout(xpSaveTimer);
-  xpSaveTimer = setTimeout(async () => {
-    if (!currentUser) return;
-    try {
-      await sb.from('idw_player_state')
-        .update({ player_xp: playerXP, player_level: playerLevel, updated_at: new Date().toISOString() })
-        .eq('user_id', currentUser.id);
-    } catch(e) {
-      console.warn('XP save failed:', e.message);
-    }
-  }, 3000); // batch XP saves every 3 seconds
-}
+// scheduleXPSave was removed. XP/level are authoritative on the server and
+// must never be written directly from the client. All XP-granting actions
+// (battle victory, node unlock, silo completion, alliance actions) already
+// update player_xp / player_level through their respective SECURITY DEFINER RPCs.
 
 function updatePlayerLevelUI(){
   const needed = xpForLevel(playerLevel);
