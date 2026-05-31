@@ -3033,4 +3033,344 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION public.idw_save_hero_gear(jsonb)         TO authenticated;
 GRANT EXECUTE ON FUNCTION public.idw_save_market_state(jsonb)      TO authenticated;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ANTI-CHEAT HARDENING v2: pvp_world RLS, battle-ID reuse, chain-capture
+-- per-battle tracking, direct-RPC-bypass logging.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- ── 1. Enable RLS on pvp_world ───────────────────────────────────────────────
+-- Without RLS an authenticated user can call
+--   supabase.from('pvp_world').update({owner_id: userId}).eq('tile_idx', X)
+-- directly from the browser console and claim any tile with no battle.
+ALTER TABLE public.pvp_world ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS pvp_world_select_all ON public.pvp_world;
+-- All users can read the map for rendering; no INSERT/UPDATE/DELETE policies —
+-- all writes must go through verified RPCs (pvp_battle_ended, pvp_chain_capture).
+CREATE POLICY pvp_world_select_all ON public.pvp_world FOR SELECT USING (true);
+
+-- ── 2. Track battle-ID consumption ──────────────────────────────────────────
+-- territory_claimed_at: stamped when pvp_battle_ended grants a tile.
+--   Prevents calling pvp_battle_ended twice with the same battle_id to claim
+--   two different tiles from a single win.
+-- chain_capture_claimed_at: stamped when pvp_chain_capture uses this battle.
+--   Prevents calling pvp_chain_capture multiple times in the 60-second window
+--   that follows a single PvP victory.
+ALTER TABLE public.idw_battle_attempts
+  ADD COLUMN IF NOT EXISTS territory_claimed_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS chain_capture_claimed_at timestamptz;
+
+-- ── 3. Harden pvp_battle_ended ───────────────────────────────────────────────
+-- Added checks:
+--   a) p_battle_id IS NULL → log (transaction commits) + return error.
+--      RAISE would roll back the log; returning keeps it durable.
+--      The pvp-simulate Edge Function always passes a valid battle_id so this
+--      path is unreachable from the normal game flow.
+--   b) territory_claimed_at IS NOT NULL → log + return error.
+--      Same reasoning: the Edge Function calls this exactly once per simulation.
+CREATE OR REPLACE FUNCTION public.pvp_battle_ended(
+  p_tile_idx  integer,
+  p_won       boolean,
+  p_battle_id uuid DEFAULT NULL
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p                    public.idw_player_state;
+  cooldown_until       timestamptz := now() + interval '30 seconds';
+  v_server_won         boolean := false;
+  b_result             text;
+  b_started_at         timestamptz;
+  b_territory_claimed  timestamptz;
+BEGIN
+  p := public.idw_ensure_player();
+
+  -- Null battle_id means a direct console call with no backing battle record.
+  -- Log + return so the anti-cheat entry commits (RAISE would roll it back).
+  IF p_battle_id IS NULL THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'pvp_battle_ended_no_battle_id', jsonb_build_object(
+      'function',   'pvp_battle_ended',
+      'p_tile_idx', p_tile_idx,
+      'p_won',      p_won,
+      'reason',     'battle_id required — direct RPC call without a battle record'
+    ));
+    RETURN jsonb_build_object('ok', false, 'error', 'battle_id_required');
+  END IF;
+
+  SELECT result, started_at, territory_claimed_at
+    INTO b_result, b_started_at, b_territory_claimed
+    FROM public.idw_battle_attempts
+   WHERE id = p_battle_id AND user_id = p.user_id;
+
+  -- Battle not found or belongs to another user.
+  IF b_result IS NULL THEN
+    RAISE EXCEPTION 'Battle not found or does not belong to this user';
+  END IF;
+
+  IF now() - b_started_at < interval '20 seconds' THEN
+    RAISE EXCEPTION 'Battle completed too quickly';
+  END IF;
+
+  -- Reuse check: the same battle_id cannot be used to claim a second tile.
+  -- The Edge Function never triggers this path; only a direct console call would.
+  IF b_territory_claimed IS NOT NULL THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'pvp_battle_id_reuse', jsonb_build_object(
+      'function',              'pvp_battle_ended',
+      'battle_id',             p_battle_id,
+      'p_tile_idx',            p_tile_idx,
+      'territory_claimed_at',  b_territory_claimed,
+      'reason',                'battle_id already used for a territory claim'
+    ));
+    RETURN jsonb_build_object('ok', false, 'error', 'battle_id_already_used');
+  END IF;
+
+  -- Server simulation result is authoritative; p_won is ignored entirely.
+  v_server_won := (b_result = 'victory');
+
+  IF v_server_won THEN
+    INSERT INTO public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
+    VALUES (p_tile_idx, p.user_id, cooldown_until, now())
+    ON CONFLICT (tile_idx) DO UPDATE
+      SET owner_id        = p.user_id,
+          attacking_until = cooldown_until,
+          claimed_at      = now();
+  ELSE
+    UPDATE public.pvp_world
+       SET attacking_until = cooldown_until
+     WHERE tile_idx = p_tile_idx;
+  END IF;
+
+  -- Mark this battle_id as consumed so it cannot be reused.
+  UPDATE public.idw_battle_attempts
+     SET territory_claimed_at = now()
+   WHERE id = p_battle_id;
+
+  RETURN jsonb_build_object('ok', true, 'won', v_server_won);
+END $$;
+GRANT EXECUTE ON FUNCTION public.pvp_battle_ended(integer, boolean, uuid) TO authenticated;
+
+-- ── 4. Harden pvp_chain_capture ──────────────────────────────────────────────
+-- Old check: any recent PvP victory in the last 60 s.
+--   A player could call pvp_chain_capture N times in that window and capture
+--   N × 20 tiles from a single win.
+-- New check: find the most recent *unclaimed* PvP victory (chain_capture_claimed_at
+--   IS NULL) and mark it used. Each win may only fuel one chain-capture call.
+CREATE OR REPLACE FUNCTION public.pvp_chain_capture(p_tile_idxs integer[])
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p              public.idw_player_state;
+  cooldown_until timestamptz := now() + interval '10 seconds';
+  tidx           integer;
+  v_claim_id     uuid;
+BEGIN
+  p := public.idw_ensure_player();
+
+  -- Require a verified, unclaimed PvP victory within the last 60 seconds.
+  -- Using a specific battle_id and marking it prevents calling this RPC
+  -- multiple times with the same underlying win.
+  SELECT id INTO v_claim_id
+    FROM public.idw_battle_attempts
+   WHERE user_id                  = p.user_id
+     AND result                   = 'victory'
+     AND stage_id                LIKE 'pvp-%'
+     AND finished_at             >= now() - interval '60 seconds'
+     AND chain_capture_claimed_at IS NULL
+   ORDER BY finished_at DESC
+   LIMIT 1;
+
+  IF v_claim_id IS NULL THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'pvp_chain_capture_no_unclaimed_victory', jsonb_build_object(
+      'function',   'pvp_chain_capture',
+      'tile_count', array_length(p_tile_idxs, 1),
+      'reason',     'no unclaimed PvP victory in the last 60 s — direct call or double-claim attempt'
+    ));
+    RAISE EXCEPTION 'Chain capture requires a recent PvP victory';
+  END IF;
+
+  IF array_length(p_tile_idxs, 1) > 20 THEN
+    RAISE EXCEPTION 'Too many tiles in chain capture (max 20)';
+  END IF;
+
+  -- Consume this victory so it cannot fuel a second chain-capture call.
+  UPDATE public.idw_battle_attempts
+     SET chain_capture_claimed_at = now()
+   WHERE id = v_claim_id;
+
+  FOREACH tidx IN ARRAY p_tile_idxs LOOP
+    INSERT INTO public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
+    VALUES (tidx, p.user_id, cooldown_until, now())
+    ON CONFLICT (tile_idx) DO UPDATE
+      SET owner_id        = p.user_id,
+          attacking_until = cooldown_until,
+          claimed_at      = now();
+  END LOOP;
+
+  RETURN jsonb_build_object('ok', true, 'captured', array_length(p_tile_idxs, 1));
+END $$;
+GRANT EXECUTE ON FUNCTION public.pvp_chain_capture(integer[]) TO authenticated;
+
+-- ── 5. Harden idw_submit_battle_result: log direct RPC bypass ────────────────
+-- When a client calls this RPC directly (skipping the campaign-simulate Edge
+-- Function), b.client_report->>'simVerified' is null/false.
+-- Old behaviour: RAISE EXCEPTION — the exception AND the log both roll back,
+--   leaving no trace of the attempt in idw_anti_cheat_logs.
+-- New behaviour: log + consume the battle as 'rejected' + return empty reward.
+--   The transaction commits so the log entry is durable and the battle cannot
+--   be retried (result != 'started').
+-- Same pattern for a client claiming victory when the server recorded defeat.
+CREATE OR REPLACE FUNCTION public.idw_submit_battle_result(
+  p_battle_id        uuid,
+  p_won              boolean,
+  p_waves            int,
+  p_lives            int,
+  p_client_gold      int,
+  p_gear_fingerprint text    DEFAULT '',
+  p_shop_placements  jsonb   DEFAULT '[]'::jsonb
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p                   public.idw_player_state;
+  b                   public.idw_battle_attempts;
+  v_reward            jsonb := '{}'::jsonb;
+  v_resource_reward   jsonb;
+  v_xp_gained         int := 0;
+  max_duration        interval := interval '2 hours';
+  min_duration        interval := interval '10 seconds';
+  v_first_clear       boolean := false;
+  v_server_fingerprint text;
+  v_server_cmd_stats  jsonb;
+  v_anti_cheat        jsonb;
+  v_gold_cap          int;
+  v_gold_spent        int := 0;
+  v_gold_ok           boolean;
+  v_duration_ok       boolean;
+  e                   jsonb;
+  v_cost              int;
+BEGIN
+  p := public.idw_ensure_player();
+  SELECT * INTO b FROM public.idw_battle_attempts
+   WHERE id = p_battle_id AND user_id = p.user_id FOR UPDATE;
+
+  IF b.id IS NULL     THEN RAISE EXCEPTION 'Battle not found';         END IF;
+  IF b.result <> 'started' THEN RAISE EXCEPTION 'Battle already submitted'; END IF;
+  IF now() - b.started_at > max_duration THEN RAISE EXCEPTION 'Battle expired'; END IF;
+
+  -- ── Direct RPC bypass detection ──────────────────────────────────────────
+  -- The campaign-simulate Edge Function sets simVerified=true before calling
+  -- this RPC. A missing flag means the client called this RPC directly.
+  -- Log + consume (instead of RAISE) so the anti-cheat entry commits.
+  IF NOT coalesce((b.client_report->>'simVerified')::boolean, false) THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'direct_rpc_bypass', jsonb_build_object(
+      'function',  'idw_submit_battle_result',
+      'battle_id', p_battle_id,
+      'stage_id',  b.stage_id,
+      'p_won',     p_won,
+      'reason',    'simVerified not set — Edge Function was bypassed'
+    ));
+    UPDATE public.idw_battle_attempts
+       SET result = 'rejected', finished_at = now(),
+           client_report = jsonb_build_object('rejected', true, 'reason', 'direct_rpc_bypass')
+     WHERE id = p_battle_id;
+    RETURN jsonb_build_object('reward', '{}', 'xp_gained', 0, 'first_clear', false,
+      'state', public.idw_get_state());
+  END IF;
+
+  -- ── False victory claim detection ────────────────────────────────────────
+  -- Server simulation must agree with the claimed outcome.
+  IF p_won AND NOT coalesce((b.client_report->>'simResult')::boolean, false) THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'false_victory_claim', jsonb_build_object(
+      'function',   'idw_submit_battle_result',
+      'battle_id',  p_battle_id,
+      'stage_id',   b.stage_id,
+      'p_won',      p_won,
+      'sim_result', b.client_report->>'simResult',
+      'reason',     'client claimed victory but server simulation recorded defeat'
+    ));
+    UPDATE public.idw_battle_attempts
+       SET result = 'rejected', finished_at = now(),
+           client_report = jsonb_build_object(
+             'rejected', true, 'reason', 'false_victory_claim',
+             'clientWon', p_won, 'simResult', b.client_report->'simResult')
+     WHERE id = p_battle_id;
+    RETURN jsonb_build_object('reward', '{}', 'xp_gained', 0, 'first_clear', false,
+      'state', public.idw_get_state());
+  END IF;
+
+  -- ── Normal path ──────────────────────────────────────────────────────────
+  v_duration_ok        := (now() - b.started_at >= min_duration);
+  v_server_fingerprint := public.idw_compute_gear_fingerprint(p.hero_gear);
+  v_server_cmd_stats   := public.idw_compute_commander_stats(p.hero_gear);
+
+  FOR e IN SELECT * FROM jsonb_array_elements(coalesce(p_shop_placements, '[]'::jsonb)) LOOP
+    IF e ? 'towerId' THEN
+      v_cost := public.idw_tower_shop_cost(e->>'towerId');
+    ELSIF e ? 'upgrade' THEN
+      v_cost := public.idw_upgrade_cost(e->>'upgrade', coalesce((e->>'level')::int, 1));
+    ELSIF (e->>'ascension')::boolean THEN
+      v_cost := 100;
+    ELSE
+      v_cost := 0;
+    END IF;
+    v_gold_spent := v_gold_spent + v_cost;
+  END LOOP;
+
+  v_gold_cap := public.idw_compute_gold_cap(p.research, p.market_state, p_waves);
+  v_gold_ok  := (v_gold_spent <= v_gold_cap);
+
+  v_anti_cheat := jsonb_build_object(
+    'durationOk',        v_duration_ok,
+    'battleSeconds',     round(extract(epoch FROM (now() - b.started_at))),
+    'fingerprintMatch',  (p_gear_fingerprint = '' OR v_server_fingerprint = p_gear_fingerprint),
+    'clientFingerprint', p_gear_fingerprint,
+    'serverFingerprint', v_server_fingerprint,
+    'serverCmdStats',    v_server_cmd_stats,
+    'goldSpent',         v_gold_spent,
+    'goldCap',           v_gold_cap,
+    'goldOk',            v_gold_ok,
+    'shopPlacements',    coalesce(p_shop_placements, '[]'::jsonb)
+  );
+
+  IF p_won AND p_waves >= 10 AND p_lives > 0 AND v_duration_ok AND v_gold_ok
+     AND (p_gear_fingerprint = '' OR v_server_fingerprint = p_gear_fingerprint) THEN
+    v_first_clear     := NOT (b.stage_id = ANY(p.campaign_completed));
+    v_reward          := public.idw_stage_reward(b.stage_id);
+    v_xp_gained       := coalesce((v_reward->>'xp')::int, 0);
+    v_resource_reward := v_reward - 'xp';
+    UPDATE public.idw_player_state
+       SET resources          = public.idw_apply_resource_delta(resources, v_resource_reward),
+           player_xp          = player_xp + v_xp_gained,
+           campaign_completed = (CASE WHEN b.stage_id = ANY(campaign_completed)
+                                      THEN campaign_completed
+                                      ELSE array_append(campaign_completed, b.stage_id) END),
+           updated_at         = now()
+     WHERE user_id = p.user_id;
+    UPDATE public.idw_battle_attempts
+       SET result       = 'victory',
+           reward       = v_reward,
+           finished_at  = now(),
+           client_report = jsonb_build_object('waves', p_waves, 'lives', p_lives,
+                             'clientGold', p_client_gold, 'antiCheat', v_anti_cheat)
+     WHERE id = p_battle_id;
+  ELSE
+    UPDATE public.idw_battle_attempts
+       SET result       = 'defeat',
+           finished_at  = now(),
+           client_report = jsonb_build_object('waves', p_waves, 'lives', p_lives,
+                             'clientGold', p_client_gold, 'antiCheat', v_anti_cheat)
+     WHERE id = p_battle_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'reward',      v_reward,
+    'xp_gained',   v_xp_gained,
+    'first_clear', v_first_clear,
+    'state',       public.idw_get_state()
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.idw_submit_battle_result(uuid,boolean,int,int,int,text,jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.idw_save_state(jsonb)             TO authenticated;
