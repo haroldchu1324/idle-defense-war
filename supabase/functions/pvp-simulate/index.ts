@@ -116,6 +116,18 @@ function getCommanderStats(heroGear: Record<string, unknown> | null): CommanderS
   let atk = 0, atkSpeedPct = 0, range = 0, critChance = 0, critDmg = 0;
   if (heroGear) {
     const eq = (heroGear.equippedGear as Record<string, string | null>) ?? {};
+
+    // Build the set of item IDs the player actually owns — mirrors the
+    // ownership check in campaign-simulate's computeCommanderStats().
+    // idw_save_hero_gear validates this before writing to the DB, but we
+    // re-verify here so PvP cannot be exploited if the DB state is stale.
+    const ownedIds = new Set<string>();
+    for (const inv of ['ownedWeapons', 'ownedGear'] as const) {
+      for (const item of ((heroGear[inv] as Record<string, unknown>[]) ?? [])) {
+        if (item.id) ownedIds.add(item.id as string);
+      }
+    }
+
     const slots: [string, Record<string, GearStats>][] = [
       ['mainHand', GEAR_WEAPON_STATS],
       ['offhand',  { ...GEAR_WEAPON_STATS, ...GEAR_ITEM_STATS }],
@@ -127,8 +139,11 @@ function getCommanderStats(heroGear: Record<string, unknown> | null): CommanderS
     for (const [slot, defs] of slots) {
       const itemId = eq[slot];
       if (!itemId) continue;
+      // Item must be a recognised definition for this slot
       const s = defs[itemId];
       if (!s) continue;
+      // Item must exist in the player's owned inventory
+      if (!ownedIds.has(itemId)) continue;
       atk         += s.atk        ?? 0;
       atkSpeedPct += s.atkSpeed   ?? 0;
       range       += s.range      ?? 0;

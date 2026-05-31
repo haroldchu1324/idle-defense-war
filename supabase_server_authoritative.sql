@@ -3371,3 +3371,62 @@ BEGIN
 END $$;
 GRANT EXECUTE ON FUNCTION public.idw_submit_battle_result(uuid,boolean,int,int,int,text,jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.idw_save_state(jsonb)             TO authenticated;
+
+-- ── idw_sync_power_level ──────────────────────────────────────────────────────
+-- Replaces the old syncPowerLevel() direct table write in game.js.
+-- The client computes breakdown components; the server caps each at 50 000
+-- to prevent trivial inflation, then recomputes the weighted total using the
+-- same formula as calculatePowerLevel() in game.js.
+-- Weights: accountLevel×1 + resources×0.5 + armory×2 + nodeUpgrades×1.5
+--        + siloUpgrades×1 + research×3 + campaignProgress×2
+--        + permanentBuffs×1 + commanderGear×1
+CREATE OR REPLACE FUNCTION public.idw_sync_power_level(
+  p_account_level     integer DEFAULT 0,
+  p_resources         integer DEFAULT 0,
+  p_armory            integer DEFAULT 0,
+  p_node_upgrades     integer DEFAULT 0,
+  p_silo_upgrades     integer DEFAULT 0,
+  p_research          integer DEFAULT 0,
+  p_campaign_progress integer DEFAULT 0,
+  p_permanent_buffs   integer DEFAULT 0,
+  p_commander_gear    integer DEFAULT 0
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  u     uuid    := auth.uid();
+  cap   CONSTANT integer := 50000;  -- per-component ceiling (generous but blocks trivial cheats)
+  al    integer; res integer; arm integer; nu integer; su  integer;
+  rsch  integer; cp  integer; pb  integer; cg integer;
+  total integer;
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+
+  -- Clamp every component to [0, cap]
+  al   := LEAST(GREATEST(p_account_level,     0), cap);
+  res  := LEAST(GREATEST(p_resources,          0), cap);
+  arm  := LEAST(GREATEST(p_armory,             0), cap);
+  nu   := LEAST(GREATEST(p_node_upgrades,      0), cap);
+  su   := LEAST(GREATEST(p_silo_upgrades,      0), cap);
+  rsch := LEAST(GREATEST(p_research,           0), cap);
+  cp   := LEAST(GREATEST(p_campaign_progress,  0), cap);
+  pb   := LEAST(GREATEST(p_permanent_buffs,    0), cap);
+  cg   := LEAST(GREATEST(p_commander_gear,     0), cap);
+
+  -- Mirrors calculatePowerLevel() in game.js (formula is client-side source of truth)
+  total := ROUND(al*1.0 + res*0.5 + arm*2.0 + nu*1.5 + su*1.0 + rsch*3.0 + cp*2.0 + pb*1.0 + cg*1.0);
+
+  UPDATE public.idw_player_state
+     SET power_level          = total,
+         pl_account_level     = al,
+         pl_resources         = res,
+         pl_armory            = arm,
+         pl_node_upgrades     = nu,
+         pl_silo_upgrades     = su,
+         pl_research          = rsch,
+         pl_campaign_progress = cp,
+         pl_permanent_buffs   = pb,
+         pl_commander_gear    = cg,
+         updated_at           = now()
+   WHERE user_id = u;
+END $$;
+GRANT EXECUTE ON FUNCTION public.idw_sync_power_level(integer,integer,integer,integer,integer,integer,integer,integer,integer) TO authenticated;

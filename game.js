@@ -1126,18 +1126,23 @@ function calculatePowerLevel() {
 }
 async function syncPowerLevel() {
   if(!currentUser) return;
-  const pl=calculatePowerLevel();
+  const pl = calculatePowerLevel();
   try {
-    await sb.from('idw_player_state').update({
-      power_level:pl.total, pl_account_level:Math.round(pl.accountLevel),
-      pl_resources:Math.round(pl.resources), pl_armory:Math.round(pl.armory),
-      pl_node_upgrades:Math.round(pl.nodeUpgrades), pl_silo_upgrades:Math.round(pl.siloUpgrades),
-      pl_research:Math.round(pl.research), pl_campaign_progress:Math.round(pl.campaignProgress),
-      pl_permanent_buffs:Math.round(pl.permanentBuffs),
-      pl_commander_gear:Math.round(pl.commanderGear || 0),
-      updated_at:new Date().toISOString()
-    }).eq('user_id',currentUser.id);
-  } catch(e){ console.warn('syncPowerLevel failed:',e.message); }
+    // Use the idw_sync_power_level RPC so the server caps and recomputes the
+    // total — direct table writes to idw_player_state are blocked by RLS.
+    const { error } = await sb.rpc('idw_sync_power_level', {
+      p_account_level:     Math.round(pl.accountLevel),
+      p_resources:         Math.round(pl.resources),
+      p_armory:            Math.round(pl.armory),
+      p_node_upgrades:     Math.round(pl.nodeUpgrades),
+      p_silo_upgrades:     Math.round(pl.siloUpgrades),
+      p_research:          Math.round(pl.research),
+      p_campaign_progress: Math.round(pl.campaignProgress),
+      p_permanent_buffs:   Math.round(pl.permanentBuffs),
+      p_commander_gear:    Math.round(pl.commanderGear || 0),
+    });
+    if (error) console.warn('syncPowerLevel failed:', error.message);
+  } catch(e) { console.warn('syncPowerLevel failed:', e.message); }
 }
 
 function spawnXPFloater(text,x,y){
