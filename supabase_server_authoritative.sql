@@ -645,26 +645,406 @@ begin
   return jsonb_build_object('battleId',attempt_id,'seed',(select seed from public.idw_battle_attempts where id=attempt_id),'consumedTowers',towers,'state',(select public.idw_get_state()));
 end $$;
 
-create or replace function public.idw_submit_battle_result(p_battle_id uuid, p_won boolean, p_waves int, p_lives int, p_client_gold int)
+-- ── Server-side battle purchase recording ────────────────────────────────────
+-- Each shop buy (tower, upgrade, ascension) calls this mid-battle instead of
+-- accumulating client-side. shopPlacements is now DB-generated, not client-trusted.
+
+alter table public.idw_battle_attempts
+  add column if not exists shop_purchases jsonb not null default '[]'::jsonb;
+
+create or replace function public.idw_battle_purchase(
+  p_battle_id uuid,
+  p_purchase  jsonb
+)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_result text;
+begin
+  select result into v_result
+    from public.idw_battle_attempts
+   where id = p_battle_id and user_id = v_uid;
+
+  if not found           then raise exception 'Battle not found';       end if;
+  if v_result <> 'started' then raise exception 'Battle already resolved'; end if;
+
+  update public.idw_battle_attempts
+     set shop_purchases = shop_purchases || jsonb_build_array(p_purchase)
+   where id = p_battle_id and user_id = v_uid;
+
+  return jsonb_build_object('ok', true);
+end $$;
+
+grant execute on function public.idw_battle_purchase(uuid, jsonb) to authenticated;
+
+-- ── Gold anti-cheat helpers ───────────────────────────────────────────────────
+
+-- idw_gacha_level: mirrors client _gachaHeroLevel(pts).
+-- GACHA_LV_THRESH = [0,3,8,16,30,50,80,120,180,250]; returns level 1..10.
+create or replace function public.idw_gacha_level(p_pts int)
+returns int language plpgsql immutable as $$
+declare i int;
+begin
+  for i in reverse 9..0 loop
+    if p_pts >= (array[0,3,8,16,30,50,80,120,180,250])[i+1] then return least(i+1, 10); end if;
+  end loop;
+  return 1;
+end $$;
+
+-- idw_compute_gold_cap: exact mirror of client getResearchBonuses() start_gold + wave_gold.
+-- Sources: research (p_research), pets/relics/market skills (p_market_state).
+-- Alliance buffs do not affect gold — confirmed from getAllianceBuffs() in game.js.
+-- Returns the maximum gold a player could legitimately accumulate in p_waves waves.
+-- A small rounding buffer (+50) accounts for per-wave Math.round() drift.
+create or replace function public.idw_compute_gold_cap(p_research jsonb, p_market_state jsonb, p_waves int)
+returns int language plpgsql immutable as $$
+declare
+  v_start_gold  int     := 200; -- client base (game.js line 5278: 200 + rb.start_gold)
+  v_wave_gold   numeric := 0;   -- fractional: 0.15 = 15% bonus on the 50-gold base per wave
+
+  -- market sub-objects (null-safe)
+  heroes        jsonb;
+  relics        jsonb;
+  skills        jsonb;
+  pts           int;
+  lv            int;
+  dc            int; -- disenchantCount for disenchant-scaling relics
+begin
+  -- ── Research: start_gold ──────────────────────────────────────────────────
+  -- type='start_gold': econ2_i(+25), econ2_ii(+50)
+  if coalesce((p_research->'econ2_i' ->>'done')::boolean, false) then v_start_gold := v_start_gold + 25;  end if;
+  if coalesce((p_research->'econ2_ii'->>'done')::boolean, false) then v_start_gold := v_start_gold + 50;  end if;
+  -- type='trade_mastery': econ2_iii → start_gold:100, wave_gold:0.25
+  if coalesce((p_research->'econ2_iii'->>'done')::boolean, false) then
+    v_start_gold := v_start_gold + 100;
+    v_wave_gold  := v_wave_gold  + 0.25;
+  end if;
+  -- type='empire_mastery': unified_econ_iv → start_gold:200, wave_gold:0.50
+  if coalesce((p_research->'unified_econ_iv'->>'done')::boolean, false) then
+    v_start_gold := v_start_gold + 200;
+    v_wave_gold  := v_wave_gold  + 0.50;
+  end if;
+  -- type='transcendent': transcendent_v → start_gold:300 (no wave_gold)
+  if coalesce((p_research->'transcendent_v'->>'done')::boolean, false) then
+    v_start_gold := v_start_gold + 300;
+  end if;
+  -- type='wave_gold': def4_ii → +0.15
+  if coalesce((p_research->'def4_ii'->>'done')::boolean, false) then
+    v_wave_gold := v_wave_gold + 0.15;
+  end if;
+
+  -- ── Market state: pets, relics, market skills ─────────────────────────────
+  if p_market_state is not null then
+    heroes := coalesce(p_market_state->'heroes',       '{}'::jsonb);
+    relics := coalesce(p_market_state->'relics',       '{}'::jsonb);
+    skills := coalesce(p_market_state->'marketSkills', '{}'::jsonb);
+    dc     := coalesce((p_market_state->>'disenchantCount')::int, 0);
+
+    -- ── GACHA_HEROES with passiveStat='wave_gold' ────────────────────────
+    -- ember_witch: basePerLv:0.5%
+    pts := coalesce((heroes->'ember_witch'->>'pts')::int, 0);
+    if pts > 0 then
+      lv := idw_gacha_level(pts);
+      v_wave_gold := v_wave_gold + 0.5 * lv / 100.0;
+    end if;
+    -- titan_wolf: passiveStat:'wave_gold' basePerLv:3.0%
+    pts := coalesce((heroes->'titan_wolf'->>'pts')::int, 0);
+    if pts > 0 then
+      lv := idw_gacha_level(pts);
+      v_wave_gold := v_wave_gold + 3.0 * lv / 100.0;
+    end if;
+
+    -- ── RELIC_DEFS with passiveStat/passiveStat2='wave_gold' ─────────────
+    -- copper_coin: passiveStat:'wave_gold' basePerLv:0.40
+    pts := coalesce((relics->'copper_coin'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.40 * lv / 100.0; end if;
+    -- tarnished_medal: passiveStat:'wave_gold' basePerLv:0.35
+    pts := coalesce((relics->'tarnished_medal'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.35 * lv / 100.0; end if;
+    -- dusty_scroll: passiveStat:'wave_gold' basePerLv:0.30
+    pts := coalesce((relics->'dusty_scroll'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.30 * lv / 100.0; end if;
+    -- merchants_coin: passiveStat:'wave_gold' basePerLv:0.65
+    pts := coalesce((relics->'merchants_coin'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.65 * lv / 100.0; end if;
+    -- lucky_charm: passiveStat:'wave_gold' basePerLv:0.70
+    pts := coalesce((relics->'lucky_charm'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.70 * lv / 100.0; end if;
+    -- moonstone: passiveStat:'wave_gold' basePerLv:1.00
+    pts := coalesce((relics->'moonstone'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 1.00 * lv / 100.0; end if;
+    -- golden_scale: passiveStat:'wave_gold' basePerLv:1.10
+    pts := coalesce((relics->'golden_scale'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 1.10 * lv / 100.0; end if;
+    -- traders_codex: passiveStat:'wave_gold' basePerLv:0.90
+    pts := coalesce((relics->'traders_codex'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.90 * lv / 100.0; end if;
+    -- eclipse_gem: passiveStat2:'wave_gold' basePerLv2:0.80
+    pts := coalesce((relics->'eclipse_gem'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.80 * lv / 100.0; end if;
+    -- arcane_codex: passiveStat2:'wave_gold' basePerLv2:0.70
+    pts := coalesce((relics->'arcane_codex'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.70 * lv / 100.0; end if;
+    -- emperors_seal: passiveStat2:'wave_gold' basePerLv2:2.00
+    pts := coalesce((relics->'emperors_seal'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 2.00 * lv / 100.0; end if;
+    -- celestial_map: passiveStat2:'wave_gold' basePerLv2:1.50
+    pts := coalesce((relics->'celestial_map'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 1.50 * lv / 100.0; end if;
+    -- fortune_crown: passiveStat:'wave_gold' basePerLv:3.00
+    pts := coalesce((relics->'fortune_crown'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 3.00 * lv / 100.0; end if;
+    -- eternity_stone: passiveStat2:'wave_gold' basePerLv2:2.50
+    pts := coalesce((relics->'eternity_stone'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 2.50 * lv / 100.0; end if;
+    -- scrapper_seal: disenchantStat:'wave_gold' disenchantPerItem:0.10 (per disenchanted item)
+    if dc > 0 then
+      pts := coalesce((relics->'scrapper_seal'->>'pts')::int, 0);
+      if pts > 0 then v_wave_gold := v_wave_gold + dc * 0.10 / 100.0; end if;
+    end if;
+    -- void_remnant: disenchantStat2:'wave_gold' disenchantPerItem2:0.15
+    if dc > 0 then
+      pts := coalesce((relics->'void_remnant'->>'pts')::int, 0);
+      if pts > 0 then v_wave_gold := v_wave_gold + dc * 0.15 / 100.0; end if;
+    end if;
+
+    -- ── MARKET_SKILL_DEFS with passiveStat/passiveStat2='wave_gold' ──────
+    -- sk_scavenge: passiveStat:'wave_gold' basePerLv:0.40
+    pts := coalesce((skills->'sk_scavenge'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.40 * lv / 100.0; end if;
+    -- sk_gold_finder: passiveStat:'wave_gold' basePerLv:0.70
+    pts := coalesce((skills->'sk_gold_finder'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 0.70 * lv / 100.0; end if;
+    -- sk_economic_mastery: passiveStat:'wave_gold' basePerLv:1.00
+    pts := coalesce((skills->'sk_economic_mastery'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 1.00 * lv / 100.0; end if;
+    -- sk_plunderers_mark: passiveStat:'wave_gold' basePerLv:1.60
+    pts := coalesce((skills->'sk_plunderers_mark'->>'pts')::int, 0);
+    if pts > 0 then lv := idw_gacha_level(pts); v_wave_gold := v_wave_gold + 1.60 * lv / 100.0; end if;
+  end if;
+
+  -- Total: starting gold + sum of per-wave gold across all waves cleared
+  -- Per wave: round(50 * (1 + wave_gold)) — mirrors client killEnemy() line 10658
+  -- +50 buffer for per-wave Math.round() drift across 10 waves
+  return v_start_gold + p_waves * round(50.0 * (1.0 + v_wave_gold))::int + 50;
+end $$;
+
+-- ── Commander anti-cheat helpers ─────────────────────────────────────────────
+-- idw_compute_gear_fingerprint: mirrors client _buildGearFingerprint().
+-- Produces "slot:itemId:level|..." sorted by slot from stored hero_gear.
+create or replace function public.idw_compute_gear_fingerprint(p_hero_gear jsonb)
+returns text language plpgsql immutable as $$
+declare
+  eq      jsonb;
+  all_inv jsonb;
+  slot    text;
+  item_id text;
+  lv      int;
+  parts   text[] := array[]::text[];
+  slots   text[] := array['armor','boots','helmet','mainHand','offhand','pants'];
+begin
+  if p_hero_gear is null then return ''; end if;
+  eq      := coalesce(p_hero_gear->'equippedGear', '{}'::jsonb);
+  all_inv := coalesce(p_hero_gear->'ownedWeapons', '[]'::jsonb)
+          || coalesce(p_hero_gear->'ownedGear',    '[]'::jsonb);
+  foreach slot in array slots loop
+    item_id := eq->>slot;
+    if item_id is null then continue; end if;
+    -- find level in inventory array; default 1 if not found
+    select coalesce((
+      select (e->>'level')::int
+      from jsonb_array_elements(all_inv) e
+      where e->>'id' = item_id
+      limit 1
+    ), 1) into lv;
+    parts := parts || (slot || ':' || item_id || ':' || lv::text);
+  end loop;
+  return array_to_string(parts, '|');
+end $$;
+
+-- idw_compute_commander_stats: mirrors client getFinalCommanderStats().
+-- Base stats: maxHP=300, defense=15, attackDamage=25, attackSpeed=1200ms, attackRange=2.2.
+-- Gear atk adds to attackDamage; gear atkSpeed% reduces attackSpeed cooldown.
+create or replace function public.idw_compute_commander_stats(p_hero_gear jsonb)
+returns jsonb language plpgsql immutable as $$
+declare
+  eq           jsonb;
+  all_items    jsonb;
+  slots        text[] := array['mainHand','offhand','helmet','armor','pants','boots'];
+  slot         text;
+  item_id      text;
+  item_stats   jsonb;
+  g_atk        numeric := 0;
+  g_defense    numeric := 0;
+  g_hp         numeric := 0;
+  g_atk_speed  numeric := 0;  -- percentage points (e.g. 5 = 5%)
+  g_range      numeric := 0;
+  -- gear stat tables: only the stats that affect getFinalCommanderStats()
+  -- Source of truth: GEAR_WEAPON_DEFS and GEAR_ITEM_DEFS in game.js
+  gear_stats   jsonb := jsonb_build_object(
+    'iron_sword',         '{"atk":15,"atkSpeed":5,"range":0.2}'::jsonb,
+    'shadow_dagger',      '{"atk":12,"atkSpeed":20,"range":0.1}'::jsonb,
+    'war_axe',            '{"atk":35,"atkSpeed":-10,"range":0.4}'::jsonb,
+    'elven_bow',          '{"atk":28,"atkSpeed":15,"range":1}'::jsonb,
+    'enchanted_staff',    '{"atk":50,"atkSpeed":8,"range":2}'::jsonb,
+    'stormcaller_blade',  '{"atk":80,"atkSpeed":15,"range":1}'::jsonb,
+    'mythic_staff',       '{"atk":120,"atkSpeed":20,"range":3}'::jsonb,
+    'iron_helmet',        '{"defense":8,"hp":20}'::jsonb,
+    'leather_cap',        '{"defense":6,"hp":35,"atkSpeed":5}'::jsonb,
+    'celestial_helm',     '{"defense":40,"hp":100,"atkSpeed":10}'::jsonb,
+    'chain_armor',        '{"defense":18,"hp":50}'::jsonb,
+    'iron_plate',         '{"defense":30,"hp":80}'::jsonb,
+    'divine_plate',       '{"defense":55,"hp":150}'::jsonb,
+    'linen_pants',        '{"defense":6}'::jsonb,
+    'reinforced_leggings','{"defense":15,"hp":30}'::jsonb,
+    'dragonhide_leggings','{"defense":22,"hp":50}'::jsonb,
+    'shadow_leggings',    '{"defense":35,"hp":80}'::jsonb,
+    'iron_boots',         '{"defense":5}'::jsonb,
+    'swiftwalkers',       '{"defense":8,"atkSpeed":5}'::jsonb,
+    'void_walker_boots',  '{"defense":20,"atkSpeed":10}'::jsonb,
+    'wooden_shield',      '{"defense":12,"hp":30}'::jsonb,
+    'magic_orb',          '{"atk":15,"range":1,"hp":40}'::jsonb,
+    'phoenix_shield',     '{"defense":50,"hp":120,"atk":20}'::jsonb
+  );
+begin
+  if p_hero_gear is null then
+    return jsonb_build_object('maxHP',300,'defense',15,'attackDamage',25,'attackSpeedMs',1200,'attackRange',2.2);
+  end if;
+  eq := coalesce(p_hero_gear->'equippedGear', '{}'::jsonb);
+  foreach slot in array slots loop
+    item_id := eq->>slot;
+    if item_id is null then continue; end if;
+    item_stats := gear_stats->item_id;
+    if item_stats is null then continue; end if;
+    g_atk       := g_atk       + coalesce((item_stats->>'atk')::numeric,      0);
+    g_defense   := g_defense   + coalesce((item_stats->>'defense')::numeric,   0);
+    g_hp        := g_hp        + coalesce((item_stats->>'hp')::numeric,        0);
+    g_atk_speed := g_atk_speed + coalesce((item_stats->>'atkSpeed')::numeric,  0);
+    g_range     := g_range     + coalesce((item_stats->>'range')::numeric,     0);
+  end loop;
+  return jsonb_build_object(
+    'maxHP',         300 + g_hp,
+    'defense',       15  + g_defense,
+    'attackDamage',  25  + g_atk,
+    'attackSpeedMs', greatest(200, round(1200.0 / (1 + g_atk_speed / 100.0))),
+    'attackRange',   2.2 + g_range
+  );
+end $$;
+
+-- Shop tower gold costs — mirrors client: Math.round(sum(resource costs) * 0.4)
+-- Source of truth: TOWER_DEFS cost objects in game.js
+create or replace function public.idw_tower_shop_cost(p_tower_id text)
+returns int language sql immutable as $$
+  select case p_tower_id
+    when 'archer'       then 48   -- wood:80+fiber:40=120 × 0.4
+    when 'catapult'     then 72   -- stone:120+wood:60=180 × 0.4
+    when 'crossbow'     then 108  -- wood:150+fiber:80+ore:40=270 × 0.4
+    when 'ice_tower'    then 80   -- stone:100+fiber:60+leather:40=200 × 0.4
+    when 'sniper'       then 152  -- ore:200+leather:100+wood:80=380 × 0.4
+    when 'inferno'      then 340  -- ore:350+stone:200+leather:150+fiber:100=800 × 0.4
+    when 'ballista'     then 144  -- ore:180+wood:120+leather:60=360 × 0.4
+    when 'poison_tower' then 172  -- fiber:200+leather:150+stone:80=430 × 0.4
+    when 'tesla_tower'  then 160  -- ore:250+stone:150+fiber:100=500 × 0.4
+    when 'barricade'    then 140  -- stone:200+leather:100+ore:50=350 × 0.4
+    else 0
+  end;
+$$;
+
+-- Upgrade path costs — mirrors UPGRADE_PATHS in game.js
+-- path key: 'range'(0) levels: 60/120/220 | 'speed'(1): 80/160/280 | 'damage'(2): 70/150/260
+-- Ascension cost: always 100 gold flat
+create or replace function public.idw_upgrade_cost(p_upgrade_key text, p_level int)
+returns int language sql immutable as $$
+  select case p_upgrade_key
+    when 'range'  then (array[60,120,220])[p_level]
+    when 'speed'  then (array[80,160,280])[p_level]
+    when 'damage' then (array[70,150,260])[p_level]
+    else 0
+  end;
+$$;
+
+create or replace function public.idw_submit_battle_result(p_battle_id uuid, p_won boolean, p_waves int, p_lives int, p_client_gold int, p_gear_fingerprint text default '', p_shop_placements jsonb default '[]'::jsonb)
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare
   p public.idw_player_state;
   b public.idw_battle_attempts;
-  v_reward jsonb := '{}'::jsonb;       -- renamed from 'reward' to avoid ambiguity with idw_battle_attempts.reward column
-  v_resource_reward jsonb;             -- reward minus xp key, for resource update
+  v_reward jsonb := '{}'::jsonb;
+  v_resource_reward jsonb;
   v_xp_gained int := 0;
-  max_duration interval := interval '2 hours';
+  max_duration   interval := interval '2 hours';
+  -- Minimum time a legitimate battle can complete.
+  min_duration   interval := interval '10 seconds';
   v_first_clear boolean := false;
+  v_server_fingerprint text;
+  v_server_cmd_stats   jsonb;
+  v_anti_cheat         jsonb;
+  v_gold_cap    int;
+  v_gold_spent  int := 0;
+  v_gold_ok     boolean;
+  v_duration_ok boolean;
+  e             jsonb;
+  v_cost        int;
 begin
   p := public.idw_ensure_player();
   select * into b from public.idw_battle_attempts where id=p_battle_id and user_id=p.user_id for update;
   if b.id is null then raise exception 'Battle not found'; end if;
   if b.result <> 'started' then raise exception 'Battle already submitted'; end if;
   if now() - b.started_at > max_duration then raise exception 'Battle expired'; end if;
-  if p_won and p_waves >= 10 and p_lives > 0 then
+
+  -- Require server simulation to have run — prevents clients calling this RPC directly
+  if not coalesce((b.client_report->>'simVerified')::boolean, false) then
+    raise exception 'Battle requires server-side simulation';
+  end if;
+  -- Server simulation result must match the claimed outcome
+  if p_won and not coalesce((b.client_report->>'simResult')::boolean, false) then
+    raise exception 'Server simulation determined defeat';
+  end if;
+
+  -- Fix 1: minimum battle duration — prevents instant-win RPC calls
+  v_duration_ok := (now() - b.started_at >= min_duration);
+
+  -- Anti-cheat: gear fingerprint and commander stats
+  v_server_fingerprint := public.idw_compute_gear_fingerprint(p.hero_gear);
+  v_server_cmd_stats   := public.idw_compute_commander_stats(p.hero_gear);
+
+  -- Fix 2 & 3: recompute gold spent server-side from towerId/upgrade key — never trust client cost
+  for e in select * from jsonb_array_elements(coalesce(p_shop_placements, '[]'::jsonb)) loop
+    if e ? 'towerId' then
+      -- Shop placement: cost derived from tower type
+      v_cost := public.idw_tower_shop_cost(e->>'towerId');
+    elsif e ? 'upgrade' then
+      -- Tower upgrade: cost derived from path key + level
+      v_cost := public.idw_upgrade_cost(e->>'upgrade', coalesce((e->>'level')::int, 1));
+    elsif (e->>'ascension')::boolean then
+      -- Ascension: fixed 100 gold
+      v_cost := 100;
+    else
+      v_cost := 0;
+    end if;
+    v_gold_spent := v_gold_spent + v_cost;
+  end loop;
+
+  v_gold_cap := public.idw_compute_gold_cap(p.research, p.market_state, p_waves);
+  v_gold_ok  := (v_gold_spent <= v_gold_cap);
+
+  v_anti_cheat := jsonb_build_object(
+    'durationOk',         v_duration_ok,
+    'battleSeconds',      round(extract(epoch from (now() - b.started_at))),
+    'fingerprintMatch',   (p_gear_fingerprint = '' or v_server_fingerprint = p_gear_fingerprint),
+    'clientFingerprint',  p_gear_fingerprint,
+    'serverFingerprint',  v_server_fingerprint,
+    'serverCmdStats',     v_server_cmd_stats,
+    'goldSpent',          v_gold_spent,
+    'goldCap',            v_gold_cap,
+    'goldOk',             v_gold_ok,
+    'shopPlacements',     coalesce(p_shop_placements, '[]'::jsonb)
+  );
+
+  -- Win requires: sim won + 10 waves + lives + minimum duration + gear fingerprint + gold not overspent
+  if p_won and p_waves >= 10 and p_lives > 0 and v_duration_ok and v_gold_ok
+     and (p_gear_fingerprint = '' or v_server_fingerprint = p_gear_fingerprint) then
     v_first_clear := not (b.stage_id = any(p.campaign_completed));
     v_reward := public.idw_stage_reward(b.stage_id);
-    -- Extract XP separately; apply only resources to resources column
     v_xp_gained := coalesce((v_reward->>'xp')::int, 0);
     v_resource_reward := v_reward - 'xp';
     update public.idw_player_state
@@ -675,12 +1055,12 @@ begin
       where user_id = p.user_id;
     update public.idw_battle_attempts
       set result='victory', reward=v_reward, finished_at=now(),
-          client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold)
+          client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold,'antiCheat',v_anti_cheat)
       where id=p_battle_id;
   else
     update public.idw_battle_attempts
       set result='defeat', finished_at=now(),
-          client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold)
+          client_report=jsonb_build_object('waves',p_waves,'lives',p_lives,'clientGold',p_client_gold,'antiCheat',v_anti_cheat)
       where id=p_battle_id;
   end if;
   return jsonb_build_object('reward',v_reward,'xp_gained',v_xp_gained,'first_clear',v_first_clear,'state',public.idw_get_state());
@@ -836,16 +1216,13 @@ begin
     where user_id = p.user_id;
   end if;
 
-  if p_state ? 'playerXP' then
-    update public.idw_player_state
-    set player_xp = coalesce((p_state->>'playerXP')::integer, player_xp), updated_at = now()
-    where user_id = p.user_id;
-  end if;
-
-  if p_state ? 'playerLevel' then
-    update public.idw_player_state
-    set player_level = least(greatest(coalesce((p_state->>'playerLevel')::integer, player_level), 1), case when (select email from auth.users where id = auth.uid()) is null then 9 else 2147483647 end), updated_at = now()
-    where user_id = p.user_id;
+  -- playerXP / playerLevel: BLOCKED here and in the hardened version below.
+  -- XP and level are awarded exclusively by idw_submit_battle_result,
+  -- idw_unlock_node, idw_tick_silo_upgrades, and alliance RPCs.
+  -- Silently ignore rather than raise so the client cannot probe this gate.
+  -- (The hardened idw_save_state below also blocks and logs these fields.)
+  if p_state ? 'playerXP' or p_state ? 'playerLevel' then
+    null; -- intentional no-op; hardened version logs to idw_anti_cheat_logs
   end if;
 
   if p_state ? 'armoryTowers' then
@@ -868,7 +1245,9 @@ grant execute on function public.idw_start_battle(text,int[]) to authenticated;
 grant execute on function public.idw_unlock_silo(text,int,int) to authenticated;
 grant execute on function public.idw_start_silo_upgrade(text,int,int) to authenticated;
 grant execute on function public.idw_tick_silo_upgrades(public.idw_player_state) to authenticated;
-grant execute on function public.idw_submit_battle_result(uuid,boolean,int,int,int) to authenticated;
+grant execute on function public.idw_tower_shop_cost(text) to authenticated;
+grant execute on function public.idw_upgrade_cost(text,int) to authenticated;
+grant execute on function public.idw_submit_battle_result(uuid,boolean,int,int,int,text,jsonb) to authenticated;
 grant execute on function public.idw_apply_enchantment(int,jsonb) to authenticated;
 grant execute on function public.idw_save_state(jsonb) to authenticated;
 
@@ -1126,43 +1505,130 @@ begin
 end $$;
 grant execute on function public.pvp_upgrade_base(integer) to authenticated;
 
+-- RPC: start a PvP battle — snapshots towers from armory, records battle attempt with tile_idx
+create or replace function public.pvp_start_battle(p_tile_idx integer, p_tower_indexes integer[], p_stage_id text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare
+  p           public.idw_player_state;
+  towers      jsonb := '[]'::jsonb;
+  new_armory  jsonb := '[]'::jsonb;
+  attempt_id  uuid;
+  i           integer;
+begin
+  p := public.idw_ensure_player();
+  if p_stage_id !~ '^pvp-[0-9]+$' then raise exception 'Invalid PvP stage ID'; end if;
+
+  for i in 0..greatest(jsonb_array_length(p.armory)-1, -1) loop
+    if i = any(p_tower_indexes) then
+      towers := towers || jsonb_build_array(p.armory->i);
+    else
+      new_armory := new_armory || jsonb_build_array(p.armory->i);
+    end if;
+  end loop;
+
+  update public.idw_player_state set armory=new_armory, updated_at=now() where user_id=p.user_id;
+
+  insert into public.idw_battle_attempts(user_id, stage_id, consumed_towers, client_report)
+    values(p.user_id, p_stage_id, towers, jsonb_build_object('pvpTileIdx', p_tile_idx))
+    returning id into attempt_id;
+
+  return jsonb_build_object(
+    'battleId',       attempt_id,
+    'consumedTowers', towers,
+    'state',          (select public.idw_get_state())
+  );
+end $$;
+grant execute on function public.pvp_start_battle(integer, integer[], text) to authenticated;
+
 -- RPC: record a PvP battle result — replaces direct client writes to pvp_world
-create or replace function public.pvp_battle_ended(p_tile_idx integer, p_won boolean)
+-- Fix 4: requires p_battle_id so the server verifies the battle was actually recorded
+-- as 'victory' for this user before granting the territory claim.
+-- The pvp-simulate Edge Function sets result='victory' in idw_battle_attempts;
+-- this function reads that to decide, ignoring the client-supplied p_won entirely.
+create or replace function public.pvp_battle_ended(p_tile_idx integer, p_won boolean, p_battle_id uuid default null)
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare
   p              public.idw_player_state;
   cooldown_until timestamptz := now() + interval '30 seconds';
+  v_server_won   boolean := false;
+  b_result       text;
+  b_started_at   timestamptz;
 begin
   p := public.idw_ensure_player();
 
-  if p_won then
-    -- Claim the tile for the player; preserve territory metadata via ON CONFLICT
+  -- If a battle ID is provided, verify server recorded a victory for this user.
+  -- Ignores client p_won — server result is authoritative.
+  -- Anti-cheat: battle ID is always required — the legacy no-ID path is blocked.
+  -- pvp-simulate always passes p_battle_id; old clients that call this RPC directly
+  -- without a verified battle ID would previously be able to set p_won=true freely.
+  if p_battle_id is null then
+    raise exception 'battle_id required for pvp_battle_ended';
+  end if;
+
+  select result, started_at into b_result, b_started_at
+    from public.idw_battle_attempts
+    where id = p_battle_id and user_id = p.user_id;
+
+  if b_result is null then
+    raise exception 'Battle not found or does not belong to this user';
+  end if;
+  -- Minimum duration check
+  if now() - b_started_at < interval '20 seconds' then
+    raise exception 'Battle completed too quickly';
+  end if;
+  -- Server simulation result is authoritative — p_won parameter is ignored entirely
+  v_server_won := (b_result = 'victory');
+
+  if v_server_won then
     insert into public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
     values (p_tile_idx, p.user_id, cooldown_until, now())
     on conflict (tile_idx) do update
-      set owner_id       = p.user_id,
+      set owner_id        = p.user_id,
           attacking_until = cooldown_until,
           claimed_at      = now();
   else
-    -- Loss: only stamp the cooldown, keep existing owner (or no-op if tile unclaimed)
     update public.pvp_world
       set attacking_until = cooldown_until
     where tile_idx = p_tile_idx;
   end if;
 
-  return jsonb_build_object('ok', true);
+  return jsonb_build_object('ok', true, 'won', v_server_won);
 end $$;
-grant execute on function public.pvp_battle_ended(integer, boolean) to authenticated;
+grant execute on function public.pvp_battle_ended(integer, boolean, uuid) to authenticated;
 
--- RPC: capture multiple tiles at once (chain mechanic) — replaces direct client writes
+-- RPC: capture enclosed tiles after a chain-enclosure victory (chain mechanic).
+-- Anti-cheat: requires that the calling user won a PvP battle within the last
+-- 60 seconds. Without this, any authenticated user could call this RPC from the
+-- browser console to capture up to 10 tiles with no battle played.
 create or replace function public.pvp_chain_capture(p_tile_idxs integer[])
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare
   p              public.idw_player_state;
   cooldown_until timestamptz := now() + interval '10 seconds';
   tidx           integer;
+  recent_victory boolean;
 begin
   p := public.idw_ensure_player();
+
+  -- Require a verified PvP victory within the last 60 seconds.
+  -- pvp-simulate stamps result='victory' on the battle record; chain capture is only
+  -- meaningful immediately after winning a tile, so 60s is a generous window.
+  select exists(
+    select 1 from public.idw_battle_attempts
+    where user_id    = p.user_id
+      and result     = 'victory'
+      and stage_id like 'pvp-%'
+      and finished_at >= now() - interval '60 seconds'
+  ) into recent_victory;
+
+  if not recent_victory then
+    raise exception 'Chain capture requires a recent PvP victory';
+  end if;
+
+  -- Limit tile count to prevent bulk-capture abuse
+  if array_length(p_tile_idxs, 1) > 20 then
+    raise exception 'Too many tiles in chain capture (max 20)';
+  end if;
 
   foreach tidx in array p_tile_idxs loop
     insert into public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
@@ -2155,6 +2621,16 @@ END $$;
 
 -- ── Admin helpers ────────────────────────────────────────────────────────────
 
+-- idw_craft_gem(p_gem_type text, p_amount int) → jsonb {resources, gemType, gemCount}
+--   Deducts resources and adds gems to market_state. Costs per gem:
+--   petGems: 200 wood + 100 fiber | weaponGems: 200 ore + 100 stone
+--   relicGems: 200 leather + 100 fiber | skillGems: 100 of each resource
+
+-- idw_admins table: user_ids that have admin privileges in-game.
+-- idw_check_admin() → boolean: returns true if current user is in idw_admins.
+-- idw_admin_set_level(p_level int): sets player_level and resets player_xp to 0.
+-- idw_admin_reset_account(): resets idw_player_state to default fresh-account values.
+
 -- Set gem balance for a player by email (run with service role in SQL editor)
 -- Example: SELECT public.idw_admin_set_gems('player@example.com', 1000000);
 CREATE OR REPLACE FUNCTION public.idw_admin_set_gems(p_email text, p_gems int)
@@ -2200,3 +2676,757 @@ END $$;
 -- idw_set_announcement(p_text text)
 -- Commander-only: updates alliance announcement text.
 -- Already deployed on Supabase (see alliance section above).
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ANTI-CHEAT LOGGING & HARDENED SAVE FUNCTIONS
+-- ══════════════════════════════════════════════════════════════════════════════
+-- This section hardens three previously unvalidated client-writable surfaces:
+--   1. idw_save_market_state — gems/pts could be injected freely
+--   2. idw_save_hero_gear    — unowned items could be equipped
+--   3. idw_save_state        — resources/XP/armory could be set arbitrarily
+-- It also creates idw_anti_cheat_logs to record suspicious events for review.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- Anti-cheat event log. Never grants or revokes rewards automatically.
+-- Populated when suspicious values are detected; reviewed manually.
+CREATE TABLE IF NOT EXISTS public.idw_anti_cheat_logs (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  logged_at   timestamptz NOT NULL DEFAULT now(),
+  event_type  text        NOT NULL,  -- e.g. 'gems_increase', 'unowned_gear', 'resource_inject'
+  detail      jsonb       NOT NULL DEFAULT '{}'  -- client_value, server_expected, delta, etc.
+);
+
+ALTER TABLE public.idw_anti_cheat_logs ENABLE ROW LEVEL SECURITY;
+-- Users cannot read their own cheat logs (prevents self-audit and tampering evidence).
+-- Admins use service-role access to review.
+
+-- ── Hardened idw_save_market_state ───────────────────────────────────────────
+-- Validates that:
+--   • Each gem category (petGems, weaponGems, relicGems, skillGems) can only decrease
+--     or stay the same — gems are added only via the server-side idw_craft_gem RPC.
+--   • pityCount variants are bounded to [0, GACHA_HARD_PITY=80].
+--   • epicPity variants are bounded to [0, GACHA_EPIC_PITY=10].
+--   • totalRolls can only increase.
+--   • Individual hero/relic/marketSkill pts can only increase (no pts removal).
+-- Suspicious values are clamped to valid bounds and logged rather than rejected
+-- outright, so a desync (e.g. offline play then re-sync) doesn't hard-error.
+CREATE OR REPLACE FUNCTION public.idw_save_market_state(p_market jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  u           uuid    := auth.uid();
+  stored      jsonb;  -- current server-side market_state
+  clean       jsonb   := coalesce(p_market, '{}'::jsonb);
+  suspicious  boolean := false;
+  log_detail  jsonb   := '{}'::jsonb;
+
+  -- gem categories — each can only decrease (gems are added server-side only)
+  gem_keys    text[]  := ARRAY['petGems','weaponGems','relicGems','skillGems'];
+  gk          text;
+  stored_val  int;
+  client_val  int;
+
+  -- pity bounds
+  pity_keys   text[]  := ARRAY['pityCount','gearPityCount','relicPityCount','skillPityCount'];
+  epity_keys  text[]  := ARRAY['epicPity','gearEpicPity','relicEpicPity','skillEpicPity'];
+  pk          text;
+
+  -- hero/relic/marketSkill pts: each entry's pts can only increase
+  cat_keys    text[]  := ARRAY['heroes','relics','marketSkills'];
+  cat         text;
+  stored_cat  jsonb;
+  client_cat  jsonb;
+  item_id     text;
+  stored_pts  int;
+  client_pts  int;
+  stored_rolls int;
+  client_rolls int;
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+
+  SELECT market_state INTO stored
+    FROM public.idw_player_state WHERE user_id = u;
+
+  IF stored IS NULL THEN stored := '{}'::jsonb; END IF;
+
+  -- ── 1. Clamp gems: client must not increase gem counts ─────────────────────
+  FOREACH gk IN ARRAY gem_keys LOOP
+    stored_val := coalesce((stored->>gk)::int, 0);
+    client_val := coalesce((clean->>gk)::int, 0);
+    IF client_val > stored_val THEN
+      suspicious := true;
+      log_detail := log_detail || jsonb_build_object(
+        'gems_' || gk, jsonb_build_object('stored', stored_val, 'client', client_val, 'clamped_to', stored_val)
+      );
+      -- Clamp to stored value — prevent gem injection
+      clean := jsonb_set(clean, ARRAY[gk], to_jsonb(stored_val));
+    END IF;
+    -- Ensure non-negative
+    IF coalesce((clean->>gk)::int, 0) < 0 THEN
+      clean := jsonb_set(clean, ARRAY[gk], '0'::jsonb);
+    END IF;
+  END LOOP;
+
+  -- ── 2. Clamp pity counters to valid range ──────────────────────────────────
+  FOREACH pk IN ARRAY pity_keys LOOP
+    client_val := coalesce((clean->>pk)::int, 0);
+    IF client_val < 0 OR client_val > 80 THEN
+      suspicious := true;
+      log_detail := log_detail || jsonb_build_object(
+        'pity_' || pk, jsonb_build_object('client', client_val, 'clamped_to', GREATEST(0, LEAST(80, client_val)))
+      );
+      clean := jsonb_set(clean, ARRAY[pk], to_jsonb(GREATEST(0, LEAST(80, client_val))));
+    END IF;
+  END LOOP;
+  FOREACH pk IN ARRAY epity_keys LOOP
+    client_val := coalesce((clean->>pk)::int, 0);
+    IF client_val < 0 OR client_val > 10 THEN
+      suspicious := true;
+      log_detail := log_detail || jsonb_build_object(
+        'epity_' || pk, jsonb_build_object('client', client_val, 'clamped_to', GREATEST(0, LEAST(10, client_val)))
+      );
+      clean := jsonb_set(clean, ARRAY[pk], to_jsonb(GREATEST(0, LEAST(10, client_val))));
+    END IF;
+  END LOOP;
+
+  -- ── 3. totalRolls can only increase ────────────────────────────────────────
+  stored_rolls := coalesce((stored->>'totalRolls')::int, 0);
+  client_rolls := coalesce((clean->>'totalRolls')::int, 0);
+  IF client_rolls < stored_rolls THEN
+    suspicious := true;
+    log_detail := log_detail || jsonb_build_object(
+      'totalRolls', jsonb_build_object('stored', stored_rolls, 'client', client_rolls, 'clamped_to', stored_rolls)
+    );
+    clean := jsonb_set(clean, ARRAY['totalRolls'], to_jsonb(stored_rolls));
+  END IF;
+
+  -- ── 4. Per-item pts can only increase (heroes, relics, marketSkills) ───────
+  FOREACH cat IN ARRAY cat_keys LOOP
+    stored_cat := coalesce(stored->cat, '{}'::jsonb);
+    client_cat := coalesce(clean->cat, '{}'::jsonb);
+    FOR item_id IN SELECT key FROM jsonb_object_keys(stored_cat) AS t(key) LOOP
+      stored_pts := coalesce((stored_cat->item_id->>'pts')::int, 0);
+      client_pts := coalesce((client_cat->item_id->>'pts')::int, 0);
+      IF client_pts < stored_pts THEN
+        suspicious := true;
+        log_detail := log_detail || jsonb_build_object(
+          cat || '_' || item_id || '_pts', jsonb_build_object('stored', stored_pts, 'client', client_pts, 'clamped_to', stored_pts)
+        );
+        -- Restore pts to stored value
+        clean := jsonb_set(
+          clean,
+          ARRAY[cat, item_id, 'pts'],
+          to_jsonb(stored_pts),
+          true
+        );
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  -- ── 5. Log suspicious activity ─────────────────────────────────────────────
+  IF suspicious THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (u, 'market_state_anomaly', log_detail);
+  END IF;
+
+  -- ── 6. Save the cleaned state ──────────────────────────────────────────────
+  UPDATE public.idw_player_state SET market_state = clean, updated_at = now() WHERE user_id = u;
+END $$;
+
+-- ── Hardened idw_save_hero_gear ───────────────────────────────────────────────
+-- Validates:
+--   1. Every equipped item ID exists in the player's ownedGear or ownedWeapons list.
+--      Unknown or unowned items are silently dropped from the slot and logged.
+--   2. disenchantCount can only increase, and only by at most 50 per save call.
+--      A tampered value (e.g. 9999) would give +2999% tower_dmg via disenchant-scaling
+--      relics — a critical cheat vector that this check closes.
+CREATE OR REPLACE FUNCTION public.idw_save_hero_gear(p_gear jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  u            uuid    := auth.uid();
+  eq           jsonb;
+  owned_ids    text[];
+  slot         text;
+  item_id      text;
+  clean_eq     jsonb   := '{}'::jsonb;
+  suspicious   boolean := false;
+  log_detail   jsonb   := '{}'::jsonb;
+  -- All valid gear item IDs (from GEAR_WEAPON_DEFS + GEAR_ITEM_DEFS in game.js)
+  valid_items  text[]  := ARRAY[
+    'iron_sword','shadow_dagger','war_axe','elven_bow','enchanted_staff',
+    'stormcaller_blade','mythic_staff',
+    'iron_helmet','leather_cap','celestial_helm',
+    'chain_armor','iron_plate','divine_plate',
+    'linen_pants','reinforced_leggings','dragonhide_leggings','shadow_leggings',
+    'iron_boots','swiftwalkers','void_walker_boots',
+    'wooden_shield','magic_orb','phoenix_shield'
+  ];
+  all_slots    text[]  := ARRAY['mainHand','offhand','helmet','armor','pants','boots'];
+  owned_weapons jsonb;
+  owned_gear   jsonb;
+  -- disenchantCount validation
+  stored_dc    int;
+  client_dc    int;
+  capped_dc    int;
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+
+  eq            := coalesce(p_gear->'equippedGear', '{}'::jsonb);
+  owned_weapons := coalesce(p_gear->'ownedWeapons', '[]'::jsonb);
+  owned_gear    := coalesce(p_gear->'ownedGear',    '[]'::jsonb);
+
+  -- Build set of all owned item IDs from ownedWeapons + ownedGear arrays
+  SELECT array_agg(e->>'id')
+  INTO owned_ids
+  FROM (
+    SELECT jsonb_array_elements(owned_weapons) AS e
+    UNION ALL
+    SELECT jsonb_array_elements(owned_gear)    AS e
+  ) sub
+  WHERE e->>'id' IS NOT NULL;
+
+  owned_ids := coalesce(owned_ids, ARRAY[]::text[]);
+
+  -- ── 1. Validate each equipped slot ─────────────────────────────────────────
+  FOREACH slot IN ARRAY all_slots LOOP
+    item_id := eq->>slot;
+    IF item_id IS NULL THEN CONTINUE; END IF;
+
+    -- Must be a known valid item
+    IF NOT (item_id = ANY(valid_items)) THEN
+      suspicious := true;
+      log_detail := log_detail || jsonb_build_object('unknown_item_slot_' || slot, item_id);
+      CONTINUE;
+    END IF;
+
+    -- Must exist in player's owned inventory
+    IF NOT (item_id = ANY(owned_ids)) THEN
+      suspicious := true;
+      log_detail := log_detail || jsonb_build_object('unowned_item_slot_' || slot, item_id);
+      CONTINUE;
+    END IF;
+
+    clean_eq := jsonb_set(clean_eq, ARRAY[slot], to_jsonb(item_id));
+  END LOOP;
+
+  -- ── 2. Validate disenchantCount — can only increase, bounded per call ──────
+  -- disenchantCount feeds disenchant-scaling relics (dissolution_core, void_remnant,
+  -- breakers_mark, scrapper_seal). With 9999 dc and dissolution_core at lv10:
+  --   9999 × 0.20% = +1999% tower_dmg, +999% tower_spd — a critical cheat vector.
+  SELECT coalesce((hero_gear->>'disenchantCount')::int, 0)
+  INTO stored_dc
+  FROM public.idw_player_state WHERE user_id = u;
+
+  client_dc := coalesce((p_gear->>'disenchantCount')::int, 0);
+
+  -- Must not go negative
+  IF client_dc < 0 THEN
+    suspicious := true;
+    log_detail := log_detail || '{"disenchantCount_negative":true}'::jsonb;
+    client_dc := 0;
+  END IF;
+
+  -- Max 50 new disenchants per save (a session limit; a normal session disenchants far fewer)
+  IF client_dc > stored_dc + 50 THEN
+    suspicious := true;
+    log_detail := log_detail || jsonb_build_object(
+      'disenchantCount_spike',
+      jsonb_build_object('stored', stored_dc, 'client', client_dc, 'capped_to', stored_dc + 50)
+    );
+    client_dc := stored_dc + 50;
+  END IF;
+
+  -- Hard lifetime cap: there are only ~24 gear items in the game, so even a
+  -- highly committed player will not legitimately exceed a few hundred disenchants.
+  -- 5000 is an extremely generous ceiling that no legitimate player will reach.
+  IF client_dc > 5000 THEN
+    suspicious := true;
+    log_detail := log_detail || jsonb_build_object('disenchantCount_over_cap', client_dc);
+    client_dc := 5000;
+  END IF;
+
+  capped_dc := client_dc;
+
+  -- ── 3. Log and save ─────────────────────────────────────────────────────────
+  IF suspicious THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (u, 'hero_gear_anomaly', log_detail);
+  END IF;
+
+  -- Save with validated equippedGear and capped disenchantCount.
+  -- ownedWeapons and ownedGear are passed through unchanged (ownership is verified
+  -- at equip time; the inventory lists themselves are client-managed).
+  UPDATE public.idw_player_state
+    SET hero_gear = p_gear
+                 || jsonb_build_object('equippedGear',    clean_eq)
+                 || jsonb_build_object('disenchantCount', capped_dc),
+        updated_at = now()
+  WHERE user_id = u;
+END $$;
+
+-- ── Hardened idw_save_state ───────────────────────────────────────────────────
+-- Blocks direct injection of resources, XP, and player level.
+-- Resources change only via crafting/battle-reward RPCs.
+-- XP/level change only via idw_submit_battle_result.
+-- Armory writes are preserved (needed for sync) but tower levels are capped at 30
+-- to prevent injecting impossibly high-level towers.
+CREATE OR REPLACE FUNCTION public.idw_save_state(p_state jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p           public.idw_player_state;
+  suspicious  boolean := false;
+  log_detail  jsonb   := '{}'::jsonb;
+  -- Armory level cap — towers max out at level 30 in normal gameplay
+  MAX_TOWER_LEVEL CONSTANT int := 30;
+  new_armory  jsonb;
+  tower       jsonb;
+  i           int;
+  capped_lv   int;
+BEGIN
+  p := public.idw_ensure_player();
+
+  -- Resources: BLOCKED — only battle/crafting RPCs may modify resources
+  IF p_state ? 'resources' THEN
+    suspicious := true;
+    log_detail := log_detail || '{"blocked":"direct_resource_write"}'::jsonb;
+    -- Silently ignore; do not raise so client does not know the attempt was caught
+  END IF;
+
+  -- PlayerXP / playerLevel: BLOCKED — only idw_submit_battle_result may award XP
+  IF p_state ? 'playerXP' OR p_state ? 'playerLevel' THEN
+    suspicious := true;
+    log_detail := log_detail || '{"blocked":"direct_xp_level_write"}'::jsonb;
+  END IF;
+
+  -- Armory: allowed but tower levels are capped
+  IF p_state ? 'armoryTowers' THEN
+    new_armory := '[]'::jsonb;
+    FOR i IN 0..jsonb_array_length(p_state->'armoryTowers')-1 LOOP
+      tower    := p_state->'armoryTowers'->i;
+      capped_lv := LEAST(coalesce((tower->>'level')::int, 1), MAX_TOWER_LEVEL);
+      IF coalesce((tower->>'level')::int, 1) > MAX_TOWER_LEVEL THEN
+        suspicious := true;
+        log_detail := log_detail || jsonb_build_object(
+          'tower_level_clamped', jsonb_build_object(
+            'towerId', tower->>'towerId', 'client_level', tower->>'level', 'capped_to', MAX_TOWER_LEVEL
+          )
+        );
+        tower := jsonb_set(tower, '{level}', to_jsonb(capped_lv));
+      END IF;
+      new_armory := new_armory || jsonb_build_array(tower);
+    END LOOP;
+    UPDATE public.idw_player_state
+      SET armory = new_armory, updated_at = now()
+    WHERE user_id = p.user_id;
+  END IF;
+
+  IF suspicious THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'save_state_anomaly', log_detail);
+  END IF;
+
+  RETURN public.idw_get_state();
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.idw_save_hero_gear(jsonb)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.idw_save_market_state(jsonb)      TO authenticated;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ANTI-CHEAT HARDENING v2: pvp_world RLS, battle-ID reuse, chain-capture
+-- per-battle tracking, direct-RPC-bypass logging.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- ── 1. Enable RLS on pvp_world ───────────────────────────────────────────────
+-- Without RLS an authenticated user can call
+--   supabase.from('pvp_world').update({owner_id: userId}).eq('tile_idx', X)
+-- directly from the browser console and claim any tile with no battle.
+ALTER TABLE public.pvp_world ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS pvp_world_select_all ON public.pvp_world;
+-- All users can read the map for rendering; no INSERT/UPDATE/DELETE policies —
+-- all writes must go through verified RPCs (pvp_battle_ended, pvp_chain_capture).
+CREATE POLICY pvp_world_select_all ON public.pvp_world FOR SELECT USING (true);
+
+-- ── 2. Track battle-ID consumption ──────────────────────────────────────────
+-- territory_claimed_at: stamped when pvp_battle_ended grants a tile.
+--   Prevents calling pvp_battle_ended twice with the same battle_id to claim
+--   two different tiles from a single win.
+-- chain_capture_claimed_at: stamped when pvp_chain_capture uses this battle.
+--   Prevents calling pvp_chain_capture multiple times in the 60-second window
+--   that follows a single PvP victory.
+ALTER TABLE public.idw_battle_attempts
+  ADD COLUMN IF NOT EXISTS territory_claimed_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS chain_capture_claimed_at timestamptz;
+
+-- ── 3. Harden pvp_battle_ended ───────────────────────────────────────────────
+-- Added checks:
+--   a) p_battle_id IS NULL → log (transaction commits) + return error.
+--      RAISE would roll back the log; returning keeps it durable.
+--      The pvp-simulate Edge Function always passes a valid battle_id so this
+--      path is unreachable from the normal game flow.
+--   b) territory_claimed_at IS NOT NULL → log + return error.
+--      Same reasoning: the Edge Function calls this exactly once per simulation.
+CREATE OR REPLACE FUNCTION public.pvp_battle_ended(
+  p_tile_idx  integer,
+  p_won       boolean,
+  p_battle_id uuid DEFAULT NULL
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p                    public.idw_player_state;
+  cooldown_until       timestamptz := now() + interval '30 seconds';
+  v_server_won         boolean := false;
+  b_result             text;
+  b_started_at         timestamptz;
+  b_territory_claimed  timestamptz;
+BEGIN
+  p := public.idw_ensure_player();
+
+  -- Null battle_id means a direct console call with no backing battle record.
+  -- Log + return so the anti-cheat entry commits (RAISE would roll it back).
+  IF p_battle_id IS NULL THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'pvp_battle_ended_no_battle_id', jsonb_build_object(
+      'function',   'pvp_battle_ended',
+      'p_tile_idx', p_tile_idx,
+      'p_won',      p_won,
+      'reason',     'battle_id required — direct RPC call without a battle record'
+    ));
+    RETURN jsonb_build_object('ok', false, 'error', 'battle_id_required');
+  END IF;
+
+  SELECT result, started_at, territory_claimed_at
+    INTO b_result, b_started_at, b_territory_claimed
+    FROM public.idw_battle_attempts
+   WHERE id = p_battle_id AND user_id = p.user_id;
+
+  -- Battle not found or belongs to another user.
+  IF b_result IS NULL THEN
+    RAISE EXCEPTION 'Battle not found or does not belong to this user';
+  END IF;
+
+  IF now() - b_started_at < interval '20 seconds' THEN
+    RAISE EXCEPTION 'Battle completed too quickly';
+  END IF;
+
+  -- Reuse check: the same battle_id cannot be used to claim a second tile.
+  -- The Edge Function never triggers this path; only a direct console call would.
+  IF b_territory_claimed IS NOT NULL THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'pvp_battle_id_reuse', jsonb_build_object(
+      'function',              'pvp_battle_ended',
+      'battle_id',             p_battle_id,
+      'p_tile_idx',            p_tile_idx,
+      'territory_claimed_at',  b_territory_claimed,
+      'reason',                'battle_id already used for a territory claim'
+    ));
+    RETURN jsonb_build_object('ok', false, 'error', 'battle_id_already_used');
+  END IF;
+
+  -- Server simulation result is authoritative; p_won is ignored entirely.
+  v_server_won := (b_result = 'victory');
+
+  IF v_server_won THEN
+    INSERT INTO public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
+    VALUES (p_tile_idx, p.user_id, cooldown_until, now())
+    ON CONFLICT (tile_idx) DO UPDATE
+      SET owner_id        = p.user_id,
+          attacking_until = cooldown_until,
+          claimed_at      = now();
+  ELSE
+    UPDATE public.pvp_world
+       SET attacking_until = cooldown_until
+     WHERE tile_idx = p_tile_idx;
+  END IF;
+
+  -- Mark this battle_id as consumed so it cannot be reused.
+  UPDATE public.idw_battle_attempts
+     SET territory_claimed_at = now()
+   WHERE id = p_battle_id;
+
+  RETURN jsonb_build_object('ok', true, 'won', v_server_won);
+END $$;
+GRANT EXECUTE ON FUNCTION public.pvp_battle_ended(integer, boolean, uuid) TO authenticated;
+
+-- ── 4. Harden pvp_chain_capture ──────────────────────────────────────────────
+-- Old check: any recent PvP victory in the last 60 s.
+--   A player could call pvp_chain_capture N times in that window and capture
+--   N × 20 tiles from a single win.
+-- New check: find the most recent *unclaimed* PvP victory (chain_capture_claimed_at
+--   IS NULL) and mark it used. Each win may only fuel one chain-capture call.
+CREATE OR REPLACE FUNCTION public.pvp_chain_capture(p_tile_idxs integer[])
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p              public.idw_player_state;
+  cooldown_until timestamptz := now() + interval '10 seconds';
+  tidx           integer;
+  v_claim_id     uuid;
+BEGIN
+  p := public.idw_ensure_player();
+
+  -- Require a verified, unclaimed PvP victory within the last 60 seconds.
+  -- Using a specific battle_id and marking it prevents calling this RPC
+  -- multiple times with the same underlying win.
+  SELECT id INTO v_claim_id
+    FROM public.idw_battle_attempts
+   WHERE user_id                  = p.user_id
+     AND result                   = 'victory'
+     AND stage_id                LIKE 'pvp-%'
+     AND finished_at             >= now() - interval '60 seconds'
+     AND chain_capture_claimed_at IS NULL
+   ORDER BY finished_at DESC
+   LIMIT 1;
+
+  IF v_claim_id IS NULL THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'pvp_chain_capture_no_unclaimed_victory', jsonb_build_object(
+      'function',   'pvp_chain_capture',
+      'tile_count', array_length(p_tile_idxs, 1),
+      'reason',     'no unclaimed PvP victory in the last 60 s — direct call or double-claim attempt'
+    ));
+    RAISE EXCEPTION 'Chain capture requires a recent PvP victory';
+  END IF;
+
+  IF array_length(p_tile_idxs, 1) > 20 THEN
+    RAISE EXCEPTION 'Too many tiles in chain capture (max 20)';
+  END IF;
+
+  -- Consume this victory so it cannot fuel a second chain-capture call.
+  UPDATE public.idw_battle_attempts
+     SET chain_capture_claimed_at = now()
+   WHERE id = v_claim_id;
+
+  FOREACH tidx IN ARRAY p_tile_idxs LOOP
+    INSERT INTO public.pvp_world (tile_idx, owner_id, attacking_until, claimed_at)
+    VALUES (tidx, p.user_id, cooldown_until, now())
+    ON CONFLICT (tile_idx) DO UPDATE
+      SET owner_id        = p.user_id,
+          attacking_until = cooldown_until,
+          claimed_at      = now();
+  END LOOP;
+
+  RETURN jsonb_build_object('ok', true, 'captured', array_length(p_tile_idxs, 1));
+END $$;
+GRANT EXECUTE ON FUNCTION public.pvp_chain_capture(integer[]) TO authenticated;
+
+-- ── 5. Harden idw_submit_battle_result: log direct RPC bypass ────────────────
+-- When a client calls this RPC directly (skipping the campaign-simulate Edge
+-- Function), b.client_report->>'simVerified' is null/false.
+-- Old behaviour: RAISE EXCEPTION — the exception AND the log both roll back,
+--   leaving no trace of the attempt in idw_anti_cheat_logs.
+-- New behaviour: log + consume the battle as 'rejected' + return empty reward.
+--   The transaction commits so the log entry is durable and the battle cannot
+--   be retried (result != 'started').
+-- Same pattern for a client claiming victory when the server recorded defeat.
+CREATE OR REPLACE FUNCTION public.idw_submit_battle_result(
+  p_battle_id        uuid,
+  p_won              boolean,
+  p_waves            int,
+  p_lives            int,
+  p_client_gold      int,
+  p_gear_fingerprint text    DEFAULT '',
+  p_shop_placements  jsonb   DEFAULT '[]'::jsonb
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  p                   public.idw_player_state;
+  b                   public.idw_battle_attempts;
+  v_reward            jsonb := '{}'::jsonb;
+  v_resource_reward   jsonb;
+  v_xp_gained         int := 0;
+  max_duration        interval := interval '2 hours';
+  min_duration        interval := interval '10 seconds';
+  v_first_clear       boolean := false;
+  v_server_fingerprint text;
+  v_server_cmd_stats  jsonb;
+  v_anti_cheat        jsonb;
+  v_gold_cap          int;
+  v_gold_spent        int := 0;
+  v_gold_ok           boolean;
+  v_duration_ok       boolean;
+  e                   jsonb;
+  v_cost              int;
+BEGIN
+  p := public.idw_ensure_player();
+  SELECT * INTO b FROM public.idw_battle_attempts
+   WHERE id = p_battle_id AND user_id = p.user_id FOR UPDATE;
+
+  IF b.id IS NULL     THEN RAISE EXCEPTION 'Battle not found';         END IF;
+  IF b.result <> 'started' THEN RAISE EXCEPTION 'Battle already submitted'; END IF;
+  IF now() - b.started_at > max_duration THEN RAISE EXCEPTION 'Battle expired'; END IF;
+
+  -- ── Direct RPC bypass detection ──────────────────────────────────────────
+  -- The campaign-simulate Edge Function sets simVerified=true before calling
+  -- this RPC. A missing flag means the client called this RPC directly.
+  -- Log + consume (instead of RAISE) so the anti-cheat entry commits.
+  IF NOT coalesce((b.client_report->>'simVerified')::boolean, false) THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'direct_rpc_bypass', jsonb_build_object(
+      'function',  'idw_submit_battle_result',
+      'battle_id', p_battle_id,
+      'stage_id',  b.stage_id,
+      'p_won',     p_won,
+      'reason',    'simVerified not set — Edge Function was bypassed'
+    ));
+    UPDATE public.idw_battle_attempts
+       SET result = 'rejected', finished_at = now(),
+           client_report = jsonb_build_object('rejected', true, 'reason', 'direct_rpc_bypass')
+     WHERE id = p_battle_id;
+    RETURN jsonb_build_object('reward', '{}', 'xp_gained', 0, 'first_clear', false,
+      'state', public.idw_get_state());
+  END IF;
+
+  -- ── False victory claim detection ────────────────────────────────────────
+  -- Server simulation must agree with the claimed outcome.
+  IF p_won AND NOT coalesce((b.client_report->>'simResult')::boolean, false) THEN
+    INSERT INTO public.idw_anti_cheat_logs(user_id, event_type, detail)
+    VALUES (p.user_id, 'false_victory_claim', jsonb_build_object(
+      'function',   'idw_submit_battle_result',
+      'battle_id',  p_battle_id,
+      'stage_id',   b.stage_id,
+      'p_won',      p_won,
+      'sim_result', b.client_report->>'simResult',
+      'reason',     'client claimed victory but server simulation recorded defeat'
+    ));
+    UPDATE public.idw_battle_attempts
+       SET result = 'rejected', finished_at = now(),
+           client_report = jsonb_build_object(
+             'rejected', true, 'reason', 'false_victory_claim',
+             'clientWon', p_won, 'simResult', b.client_report->'simResult')
+     WHERE id = p_battle_id;
+    RETURN jsonb_build_object('reward', '{}', 'xp_gained', 0, 'first_clear', false,
+      'state', public.idw_get_state());
+  END IF;
+
+  -- ── Normal path ──────────────────────────────────────────────────────────
+  v_duration_ok        := (now() - b.started_at >= min_duration);
+  v_server_fingerprint := public.idw_compute_gear_fingerprint(p.hero_gear);
+  v_server_cmd_stats   := public.idw_compute_commander_stats(p.hero_gear);
+
+  FOR e IN SELECT * FROM jsonb_array_elements(coalesce(p_shop_placements, '[]'::jsonb)) LOOP
+    IF e ? 'towerId' THEN
+      v_cost := public.idw_tower_shop_cost(e->>'towerId');
+    ELSIF e ? 'upgrade' THEN
+      v_cost := public.idw_upgrade_cost(e->>'upgrade', coalesce((e->>'level')::int, 1));
+    ELSIF (e->>'ascension')::boolean THEN
+      v_cost := 100;
+    ELSE
+      v_cost := 0;
+    END IF;
+    v_gold_spent := v_gold_spent + v_cost;
+  END LOOP;
+
+  v_gold_cap := public.idw_compute_gold_cap(p.research, p.market_state, p_waves);
+  v_gold_ok  := (v_gold_spent <= v_gold_cap);
+
+  v_anti_cheat := jsonb_build_object(
+    'durationOk',        v_duration_ok,
+    'battleSeconds',     round(extract(epoch FROM (now() - b.started_at))),
+    'fingerprintMatch',  (p_gear_fingerprint = '' OR v_server_fingerprint = p_gear_fingerprint),
+    'clientFingerprint', p_gear_fingerprint,
+    'serverFingerprint', v_server_fingerprint,
+    'serverCmdStats',    v_server_cmd_stats,
+    'goldSpent',         v_gold_spent,
+    'goldCap',           v_gold_cap,
+    'goldOk',            v_gold_ok,
+    'shopPlacements',    coalesce(p_shop_placements, '[]'::jsonb)
+  );
+
+  IF p_won AND p_waves >= 10 AND p_lives > 0 AND v_duration_ok AND v_gold_ok
+     AND (p_gear_fingerprint = '' OR v_server_fingerprint = p_gear_fingerprint) THEN
+    v_first_clear     := NOT (b.stage_id = ANY(p.campaign_completed));
+    v_reward          := public.idw_stage_reward(b.stage_id);
+    v_xp_gained       := coalesce((v_reward->>'xp')::int, 0);
+    v_resource_reward := v_reward - 'xp';
+    UPDATE public.idw_player_state
+       SET resources          = public.idw_apply_resource_delta(resources, v_resource_reward),
+           player_xp          = player_xp + v_xp_gained,
+           campaign_completed = (CASE WHEN b.stage_id = ANY(campaign_completed)
+                                      THEN campaign_completed
+                                      ELSE array_append(campaign_completed, b.stage_id) END),
+           updated_at         = now()
+     WHERE user_id = p.user_id;
+    UPDATE public.idw_battle_attempts
+       SET result       = 'victory',
+           reward       = v_reward,
+           finished_at  = now(),
+           client_report = jsonb_build_object('waves', p_waves, 'lives', p_lives,
+                             'clientGold', p_client_gold, 'antiCheat', v_anti_cheat)
+     WHERE id = p_battle_id;
+  ELSE
+    UPDATE public.idw_battle_attempts
+       SET result       = 'defeat',
+           finished_at  = now(),
+           client_report = jsonb_build_object('waves', p_waves, 'lives', p_lives,
+                             'clientGold', p_client_gold, 'antiCheat', v_anti_cheat)
+     WHERE id = p_battle_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'reward',      v_reward,
+    'xp_gained',   v_xp_gained,
+    'first_clear', v_first_clear,
+    'state',       public.idw_get_state()
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.idw_submit_battle_result(uuid,boolean,int,int,int,text,jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.idw_save_state(jsonb)             TO authenticated;
+
+-- ── idw_sync_power_level ──────────────────────────────────────────────────────
+-- Replaces the old syncPowerLevel() direct table write in game.js.
+-- The client computes breakdown components; the server caps each at 50 000
+-- to prevent trivial inflation, then recomputes the weighted total using the
+-- same formula as calculatePowerLevel() in game.js.
+-- Weights: accountLevel×1 + resources×0.5 + armory×2 + nodeUpgrades×1.5
+--        + siloUpgrades×1 + research×3 + campaignProgress×2
+--        + permanentBuffs×1 + commanderGear×1
+CREATE OR REPLACE FUNCTION public.idw_sync_power_level(
+  p_account_level     integer DEFAULT 0,
+  p_resources         integer DEFAULT 0,
+  p_armory            integer DEFAULT 0,
+  p_node_upgrades     integer DEFAULT 0,
+  p_silo_upgrades     integer DEFAULT 0,
+  p_research          integer DEFAULT 0,
+  p_campaign_progress integer DEFAULT 0,
+  p_permanent_buffs   integer DEFAULT 0,
+  p_commander_gear    integer DEFAULT 0
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  u     uuid    := auth.uid();
+  cap   CONSTANT integer := 50000;  -- per-component ceiling (generous but blocks trivial cheats)
+  al    integer; res integer; arm integer; nu integer; su  integer;
+  rsch  integer; cp  integer; pb  integer; cg integer;
+  total integer;
+BEGIN
+  IF u IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+
+  -- Clamp every component to [0, cap]
+  al   := LEAST(GREATEST(p_account_level,     0), cap);
+  res  := LEAST(GREATEST(p_resources,          0), cap);
+  arm  := LEAST(GREATEST(p_armory,             0), cap);
+  nu   := LEAST(GREATEST(p_node_upgrades,      0), cap);
+  su   := LEAST(GREATEST(p_silo_upgrades,      0), cap);
+  rsch := LEAST(GREATEST(p_research,           0), cap);
+  cp   := LEAST(GREATEST(p_campaign_progress,  0), cap);
+  pb   := LEAST(GREATEST(p_permanent_buffs,    0), cap);
+  cg   := LEAST(GREATEST(p_commander_gear,     0), cap);
+
+  -- Mirrors calculatePowerLevel() in game.js (formula is client-side source of truth)
+  total := ROUND(al*1.0 + res*0.5 + arm*2.0 + nu*1.5 + su*1.0 + rsch*3.0 + cp*2.0 + pb*1.0 + cg*1.0);
+
+  UPDATE public.idw_player_state
+     SET power_level          = total,
+         pl_account_level     = al,
+         pl_resources         = res,
+         pl_armory            = arm,
+         pl_node_upgrades     = nu,
+         pl_silo_upgrades     = su,
+         pl_research          = rsch,
+         pl_campaign_progress = cp,
+         pl_permanent_buffs   = pb,
+         pl_commander_gear    = cg,
+         updated_at           = now()
+   WHERE user_id = u;
+END $$;
+GRANT EXECUTE ON FUNCTION public.idw_sync_power_level(integer,integer,integer,integer,integer,integer,integer,integer,integer) TO authenticated;

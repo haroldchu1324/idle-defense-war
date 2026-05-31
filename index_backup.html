@@ -144,7 +144,7 @@
       <button class="nav-btn" id="nav-pvp" onclick="switchSection('pvp')">🌍<span class="nav-label">PVP</span></button>
       <button class="nav-btn" id="nav-alliance" onclick="switchSection('alliance')">🤝<span class="nav-label">Alliance</span></button>
       <button class="nav-btn" id="nav-sandbox" onclick="switchSection('sandbox')">🧪<span class="nav-label">Sandbox</span></button>
-      <button class="nav-btn" id="nav-hero" onclick="switchSection('hero')">🦸<span class="nav-label">My Hero</span></button>
+      <button class="nav-btn" id="nav-hero" onclick="switchSection('hero')">🪖<span class="nav-label">Commander</span></button>
       <button class="nav-btn" id="nav-market" onclick="switchSection('market')">🛒<span class="nav-label">Market</span></button>
     </nav>
 
@@ -220,6 +220,7 @@
           <div class="craft-tabs-bar">
             <button class="inv-tab active" id="crafttab-towers"  onclick="switchCraftTab('towers')">🗼 Towers</button>
             <button class="inv-tab"        id="crafttab-enchants" onclick="switchCraftTab('enchants')">✨ Enchants</button>
+            <button class="inv-tab"        id="crafttab-gems"     onclick="switchCraftTab('gems')">💎 Gems</button>
           </div>
           <div class="craft-panel active" id="craft-towers">
             <div class="tower-grid" id="tower-grid"></div>
@@ -279,8 +280,9 @@
               </div>
             </div>
           </div>
+          <div class="craft-panel" id="craft-gems"></div>
         </div>
-        <div class="panel" id="base-panel-settings"><div class="placeholder-page"><div class="ph-icon">⚙️</div><div class="ph-title">Settings</div><div class="ph-sub">Game settings, account options, and data management.</div><div class="ph-badge">Coming soon</div></div></div>
+        <div class="panel" id="base-panel-settings"></div>
       </div>
       <div id="section-campaign" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div class="campaign-header">
@@ -362,7 +364,7 @@
         <div class="campaign-header">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
             <div>
-              <div class="campaign-stage-label">🦸 My Hero</div>
+              <div class="campaign-stage-label">🪖 My Commander</div>
               <div class="campaign-stage-sub" style="margin-top:6px;">Manage your commander's equipment and skills.</div>
             </div>
           </div>
@@ -378,17 +380,27 @@
               <div class="campaign-stage-label">🛒 Market</div>
               <div class="campaign-stage-sub" style="margin-top:6px;">Summon heroes &amp; unlock global passive bonuses.</div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;background:rgba(80,160,255,0.1);border:1px solid rgba(80,160,255,0.25);border-radius:10px;padding:7px 16px;">
-              <span style="font-size:1.1rem;">💎</span>
-              <span id="market-gem-count" style="font-size:15px;font-weight:700;color:#70d4ff;">500</span>
-              <span style="font-size:11px;color:#5080a0;">Gems</span>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:4px;background:rgba(79,195,247,0.1);border:1px solid rgba(79,195,247,0.3);border-radius:8px;padding:5px 10px;">
+                <span>🔷</span><span id="gem-count-pets" style="font-size:13px;font-weight:700;color:#4fc3f7;">0</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;background:rgba(255,183,77,0.1);border:1px solid rgba(255,183,77,0.3);border-radius:8px;padding:5px 10px;">
+                <span>🔸</span><span id="gem-count-weapons" style="font-size:13px;font-weight:700;color:#ffb74d;">0</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;background:rgba(206,147,216,0.1);border:1px solid rgba(206,147,216,0.3);border-radius:8px;padding:5px 10px;">
+                <span>🟣</span><span id="gem-count-relics" style="font-size:13px;font-weight:700;color:#ce93d8;">0</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;background:rgba(255,241,118,0.1);border:1px solid rgba(255,241,118,0.3);border-radius:8px;padding:5px 10px;">
+                <span>⭐</span><span id="gem-count-skills" style="font-size:13px;font-weight:700;color:#fff176;">0</span>
+              </div>
             </div>
           </div>
         </div>
         <!-- Sub-tabs -->
         <div class="content-tabs">
-          <button class="ctab active" id="mktab-heroes" onclick="switchMarketTab('heroes')">🧬 Heroes</button>
+          <button class="ctab active" id="mktab-heroes" onclick="switchMarketTab('heroes')">🐾 Pets</button>
           <button class="ctab" id="mktab-gear"   onclick="switchMarketTab('gear')">⚔️ Weapons/Gear</button>
+          <button class="ctab" id="mktab-relics" onclick="switchMarketTab('relics')">🪬 Relics</button>
           <button class="ctab" id="mktab-skills" onclick="switchMarketTab('skills')">💫 Skills</button>
         </div>
         <!-- ── Heroes sub-tab ── -->
@@ -401,9 +413,9 @@
               <div style="position:absolute;top:0;left:0;right:0;height:80px;background:linear-gradient(to bottom,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:12px 12px 0 0;"></div>
               <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:0 0 12px 12px;"></div>
               <!-- Center highlight (selected slot) -->
-              <div style="position:absolute;top:50%;left:0;right:0;height:72px;transform:translateY(-50%);border-top:2px solid rgba(255,255,255,0.18);border-bottom:2px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.04);z-index:3;pointer-events:none;"></div>
+              <div style="position:absolute;top:50%;left:0;right:0;height:72px;transform:translateY(-50%);border-top:2px solid rgba(79,195,247,0.45);border-bottom:2px solid rgba(79,195,247,0.45);background:rgba(79,195,247,0.07);z-index:3;pointer-events:none;"></div>
               <!-- Viewport -->
-              <div id="gacha-viewport" style="width:270px;height:360px;overflow:hidden;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:#0a0d18;position:relative;z-index:1;">
+              <div id="gacha-viewport" style="width:270px;height:360px;overflow:hidden;border-radius:12px;border:1px solid rgba(79,195,247,0.4);background:#0a0d18;position:relative;z-index:1;">
                 <div id="gacha-strip" style="position:absolute;top:0;left:0;width:100%;will-change:transform;"></div>
               </div>
             </div>
@@ -411,19 +423,19 @@
             <div style="width:270px;">
               <div style="font-size:11px;color:#50607a;margin-bottom:5px;text-align:center;">Guaranteed Legendary Pity</div>
               <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-bottom:4px;">
-                <div id="pity-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#4a90d9,#9c27b0);border-radius:4px;transition:width 0.5s ease;"></div>
+                <div id="pity-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#4fc3f7,#0288d1);border-radius:4px;transition:width 0.5s ease;"></div>
               </div>
               <div id="pity-bar-label" style="font-size:11px;color:#6878a0;text-align:center;">0 / 80 rolls</div>
             </div>
             <!-- Roll buttons -->
             <div style="display:flex;gap:10px;">
               <button id="roll-btn-1"  onclick="rollGacha(1)"
-                style="background:linear-gradient(135deg,#1e3060,#2a4888);border:1px solid rgba(80,140,255,0.3);color:#b8d0ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
-                🎲 1 Roll<br><span style="font-size:11px;color:#6080b0;">1 💎</span>
+                style="background:linear-gradient(135deg,#0a2030,#0d3550);border:1px solid rgba(79,195,247,0.35);color:#b8eeff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                🎲 1 Roll<br><span style="font-size:11px;color:#4fc3f7;">1 🔷</span>
               </button>
               <button id="roll-btn-10" onclick="rollGacha(10)"
-                style="background:linear-gradient(135deg,#28205a,#3a2e80);border:1px solid rgba(140,100,255,0.3);color:#ccc0ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
-                🎲 10 Rolls<br><span style="font-size:11px;color:#7060a0;">9 💎 (−10%)</span>
+                style="background:linear-gradient(135deg,#0a2535,#0e3d5a);border:1px solid rgba(79,195,247,0.5);color:#d0f4ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                🎲 10 Rolls<br><span style="font-size:11px;color:#4fc3f7;">9 🔷 (−10%)</span>
               </button>
             </div>
             <!-- Rarity rates info -->
@@ -449,8 +461,8 @@
             <div style="position:relative;width:270px;">
               <div style="position:absolute;top:0;left:0;right:0;height:80px;background:linear-gradient(to bottom,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:12px 12px 0 0;"></div>
               <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:0 0 12px 12px;"></div>
-              <div style="position:absolute;top:50%;left:0;right:0;height:72px;transform:translateY(-50%);border-top:2px solid rgba(255,255,255,0.18);border-bottom:2px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.04);z-index:3;pointer-events:none;"></div>
-              <div id="gacha-gear-viewport" style="width:270px;height:360px;overflow:hidden;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:#0a0d18;position:relative;z-index:1;">
+              <div style="position:absolute;top:50%;left:0;right:0;height:72px;transform:translateY(-50%);border-top:2px solid rgba(255,183,77,0.45);border-bottom:2px solid rgba(255,183,77,0.45);background:rgba(255,183,77,0.07);z-index:3;pointer-events:none;"></div>
+              <div id="gacha-gear-viewport" style="width:270px;height:360px;overflow:hidden;border-radius:12px;border:1px solid rgba(255,183,77,0.4);background:#0a0d18;position:relative;z-index:1;">
                 <div id="gacha-gear-strip" style="position:absolute;top:0;left:0;width:100%;will-change:transform;"></div>
               </div>
             </div>
@@ -458,19 +470,19 @@
             <div style="width:270px;">
               <div style="font-size:11px;color:#50607a;margin-bottom:5px;text-align:center;">Guaranteed Legendary Pity</div>
               <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-bottom:4px;">
-                <div id="gear-pity-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#4a90d9,#9c27b0);border-radius:4px;transition:width 0.5s ease;"></div>
+                <div id="gear-pity-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#ffb74d,#e65100);border-radius:4px;transition:width 0.5s ease;"></div>
               </div>
               <div id="gear-pity-bar-label" style="font-size:11px;color:#6878a0;text-align:center;">0 / 80 rolls</div>
             </div>
             <!-- Roll buttons -->
             <div style="display:flex;gap:10px;">
               <button id="gear-roll-btn-1" onclick="rollGachaGear(1)"
-                style="background:linear-gradient(135deg,#1e3060,#2a4888);border:1px solid rgba(80,140,255,0.3);color:#b8d0ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
-                🎲 1 Roll<br><span style="font-size:11px;color:#6080b0;">1 💎</span>
+                style="background:linear-gradient(135deg,#2a1a00,#3d2600);border:1px solid rgba(255,183,77,0.35);color:#ffe0a0;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                🎲 1 Roll<br><span style="font-size:11px;color:#ffb74d;">1 🔸</span>
               </button>
               <button id="gear-roll-btn-10" onclick="rollGachaGear(10)"
-                style="background:linear-gradient(135deg,#28205a,#3a2e80);border:1px solid rgba(140,100,255,0.3);color:#ccc0ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
-                🎲 10 Rolls<br><span style="font-size:11px;color:#7060a0;">9 💎 (−10%)</span>
+                style="background:linear-gradient(135deg,#331f00,#4a2e00);border:1px solid rgba(255,183,77,0.5);color:#ffd080;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                🎲 10 Rolls<br><span style="font-size:11px;color:#ffb74d;">9 🔸 (−10%)</span>
               </button>
             </div>
             <!-- Rarity rates -->
@@ -489,11 +501,99 @@
           <!-- Collection grid (rendered by JS) -->
           <div id="gacha-gear-collection"></div>
         </div>
-        <!-- ── Skills sub-tab (placeholder) ── -->
-        <div id="market-tab-skills" style="display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:0.75rem;color:#50607a;">
-          <span style="font-size:2.5rem;">💫</span>
-          <div style="font-size:1rem;font-weight:600;color:#7888a8;">Skills — Coming Soon</div>
-          <div style="font-size:13px;text-align:center;max-width:260px;line-height:1.6;">Unlock and upgrade active abilities for your hero using Skill Shards.</div>
+        <!-- ── Relics sub-tab ── -->
+        <div id="market-tab-relics" style="display:none;flex:1;overflow-y:auto;padding:1.5rem 1.25rem;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;max-width:480px;margin:0 auto;">
+            <!-- Vertical slot wheel -->
+            <div style="position:relative;width:270px;">
+              <div style="position:absolute;top:0;left:0;right:0;height:80px;background:linear-gradient(to bottom,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:12px 12px 0 0;"></div>
+              <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:0 0 12px 12px;"></div>
+              <div style="position:absolute;top:50%;left:0;right:0;height:72px;transform:translateY(-50%);border-top:2px solid rgba(206,147,216,0.45);border-bottom:2px solid rgba(206,147,216,0.45);background:rgba(206,147,216,0.07);z-index:3;pointer-events:none;"></div>
+              <div id="gacha-relic-viewport" style="width:270px;height:360px;overflow:hidden;border-radius:12px;border:1px solid rgba(206,147,216,0.4);background:#0a0d18;position:relative;z-index:1;">
+                <div id="gacha-relic-strip" style="position:absolute;top:0;left:0;width:100%;will-change:transform;"></div>
+              </div>
+            </div>
+            <!-- Pity progress bar -->
+            <div style="width:270px;">
+              <div style="font-size:11px;color:#50607a;margin-bottom:5px;text-align:center;">Guaranteed Legendary Pity</div>
+              <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-bottom:4px;">
+                <div id="relic-pity-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#ce93d8,#7b1fa2);border-radius:4px;transition:width 0.5s ease;"></div>
+              </div>
+              <div id="relic-pity-bar-label" style="font-size:11px;color:#6878a0;text-align:center;">0 / 80 rolls</div>
+            </div>
+            <!-- Roll buttons -->
+            <div style="display:flex;gap:10px;">
+              <button id="relic-roll-btn-1"  onclick="rollGachaRelic(1)"
+                style="background:linear-gradient(135deg,#1a0a2e,#2d1250);border:1px solid rgba(206,147,216,0.35);color:#f0d0ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                🪬 1 Roll<br><span style="font-size:11px;color:#ce93d8;">1 🟣</span>
+              </button>
+              <button id="relic-roll-btn-10" onclick="rollGachaRelic(10)"
+                style="background:linear-gradient(135deg,#220d3a,#3a1660);border:1px solid rgba(206,147,216,0.5);color:#f8e0ff;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                🪬 10 Rolls<br><span style="font-size:11px;color:#ce93d8;">9 🟣 (−10%)</span>
+              </button>
+            </div>
+            <!-- Rarity rates info -->
+            <div style="width:270px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;">
+              <div style="font-size:10px;color:#50607a;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;">Base Rates</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;">
+                <span style="color:#8a8a8a;">◆ Common 55%</span>
+                <span style="color:#2dba4e;">◆ Uncommon 25%</span>
+                <span style="color:#1e90ff;">◆ Rare 12%</span>
+                <span style="color:#b94cff;">◆ Epic 5%</span>
+                <span style="color:#f0a020;">◆ Legendary 2.5%</span>
+                <span style="color:#ff3d7f;">◆ Mystic 0.5%</span>
+              </div>
+            </div>
+          </div>
+          <!-- Collection grid (rendered by JS) -->
+          <div id="relic-collection"></div>
+        </div>
+        <!-- ── Skills sub-tab ── -->
+        <div id="market-tab-skills" style="display:none;flex:1;overflow-y:auto;padding:1.5rem 1.25rem;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;max-width:480px;margin:0 auto;">
+            <!-- Vertical slot wheel -->
+            <div style="position:relative;width:270px;">
+              <div style="position:absolute;top:0;left:0;right:0;height:80px;background:linear-gradient(to bottom,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:12px 12px 0 0;"></div>
+              <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,#0e1220ee,transparent);z-index:4;pointer-events:none;border-radius:0 0 12px 12px;"></div>
+              <div style="position:absolute;top:50%;left:0;right:0;height:72px;transform:translateY(-50%);border-top:2px solid rgba(255,241,118,0.45);border-bottom:2px solid rgba(255,241,118,0.45);background:rgba(255,241,118,0.07);z-index:3;pointer-events:none;"></div>
+              <div id="gacha-skill-viewport" style="width:270px;height:360px;overflow:hidden;border-radius:12px;border:1px solid rgba(255,241,118,0.4);background:#0a0d18;position:relative;z-index:1;">
+                <div id="gacha-skill-strip" style="position:absolute;top:0;left:0;width:100%;will-change:transform;"></div>
+              </div>
+            </div>
+            <!-- Pity progress bar -->
+            <div style="width:270px;">
+              <div style="font-size:11px;color:#50607a;margin-bottom:5px;text-align:center;">Guaranteed Legendary Pity</div>
+              <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-bottom:4px;">
+                <div id="skill-pity-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#fff176,#f9a825);border-radius:4px;transition:width 0.5s ease;"></div>
+              </div>
+              <div id="skill-pity-bar-label" style="font-size:11px;color:#6878a0;text-align:center;">0 / 80 rolls</div>
+            </div>
+            <!-- Roll buttons -->
+            <div style="display:flex;gap:10px;">
+              <button id="skill-roll-btn-1"  onclick="rollGachaSkill(1)"
+                style="background:linear-gradient(135deg,#242000,#363000);border:1px solid rgba(255,241,118,0.35);color:#fffac0;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                💫 1 Roll<br><span style="font-size:11px;color:#fff176;">1 ⭐</span>
+              </button>
+              <button id="skill-roll-btn-10" onclick="rollGachaSkill(10)"
+                style="background:linear-gradient(135deg,#2e2800,#443c00);border:1px solid rgba(255,241,118,0.5);color:#fffd90;padding:12px 22px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;line-height:1.4;text-align:center;">
+                💫 10 Rolls<br><span style="font-size:11px;color:#fff176;">9 ⭐ (−10%)</span>
+              </button>
+            </div>
+            <!-- Rarity rates info -->
+            <div style="width:270px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;">
+              <div style="font-size:10px;color:#50607a;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;">Base Rates</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;">
+                <span style="color:#8a8a8a;">◆ Common 55%</span>
+                <span style="color:#2dba4e;">◆ Uncommon 25%</span>
+                <span style="color:#1e90ff;">◆ Rare 12%</span>
+                <span style="color:#b94cff;">◆ Epic 5%</span>
+                <span style="color:#f0a020;">◆ Legendary 2.5%</span>
+                <span style="color:#ff3d7f;">◆ Mystic 0.5%</span>
+              </div>
+            </div>
+          </div>
+          <!-- Collection grid (rendered by JS) -->
+          <div id="skill-market-collection"></div>
         </div>
       </div>
       <!-- ── END MARKET SECTION ── -->
@@ -638,14 +738,7 @@
                  background:rgba(240,192,64,0.07);border:1px solid rgba(240,192,64,0.25);
                  border-radius:10px;padding:5px 10px;min-width:120px;">
         </div>
-        <!-- Hero HUD widget — shown when a hero is selected -->
-        <div id="hud-hero-widget" style="display:none;align-items:center;gap:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:5px 10px;">
-          <span id="hud-hero-icon-wd" style="font-size:18px;">⚔️</span>
-          <div style="display:flex;flex-direction:column;gap:3px;width:56px;">
-            <div style="height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;"><div id="hud-hero-hp-fill" style="height:100%;width:100%;background:#44dd44;border-radius:3px;"></div></div>
-          </div>
-          <div id="hud-hero-status" style="font-size:13px;min-width:18px;text-align:center;"></div>
-        </div>
+
         <div class="hud-stage-pill" id="hud-stage-name">Stage 1-1</div>
       </div>
     </div>
@@ -655,17 +748,16 @@
 
     <!-- Commander placement overlay — shown until Commander is placed -->
     <div id="commander-placement-overlay"
-      style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;
-             pointer-events:none;z-index:20;
-             align-items:flex-end;justify-content:center;padding-bottom:72px;">
-      <div style="background:rgba(8,12,24,0.88);border:1px solid rgba(240,192,64,0.45);
-                  border-radius:14px;padding:12px 24px;
-                  display:flex;align-items:center;gap:12px;
-                  box-shadow:0 0 30px rgba(240,192,64,0.2);">
-        <span style="font-size:1.6rem;animation:cmdPulse 1.4s ease-in-out infinite;">⚔️</span>
+      style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);
+             pointer-events:none;z-index:20;white-space:nowrap;">
+      <div style="background:rgba(8,12,24,0.92);border:1px solid rgba(240,192,64,0.45);
+                  border-radius:12px;padding:10px 20px;
+                  display:flex;align-items:center;gap:10px;
+                  box-shadow:0 4px 24px rgba(240,192,64,0.18);">
+        <span style="font-size:1.4rem;animation:cmdPulse 1.4s ease-in-out infinite;">⚔️</span>
         <div>
-          <div style="font-size:14px;font-weight:700;color:#f0c040;">Place your Commander</div>
-          <div style="font-size:11px;color:#8090b0;margin-top:2px;">Click anywhere on the <b style="color:#e0e8ff;">road</b> — your defense stat determines how far enemies can travel behind you.</div>
+          <div style="font-size:13px;font-weight:700;color:#f0c040;">Place your Commander</div>
+          <div style="font-size:10px;color:#8090b0;margin-top:1px;">Click anywhere on the <b style="color:#e0e8ff;">road</b> — defense stat determines safe zone length.</div>
         </div>
       </div>
       <style>
@@ -710,7 +802,13 @@
     <!-- ── Overlays ── -->
     <div class="place-hint" id="place-hint" style="display:none;">Click to place · Right-click to cancel</div>
     <div class="pending-towers-bar" id="pending-towers-bar" style="display:none;">
-      <div class="pending-towers-label">📦 Place your towers:</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:1.1rem;animation:cmdPulse 1.4s ease-in-out infinite;">🏹</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#3ecf8e;">Place your towers</div>
+          <div style="font-size:10px;color:#8090b0;margin-top:1px;">Click each tower below to select it, then click the map to place.</div>
+        </div>
+      </div>
       <div class="pending-towers-list" id="pending-towers-list"></div>
     </div>
     <div class="result-overlay" id="result-overlay" style="display:none;">
