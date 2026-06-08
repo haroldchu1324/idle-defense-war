@@ -27,7 +27,70 @@
       "Bash(git pull *)",
       "Bash(start *)",
       "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__list_projects",
-      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__get_logs"
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__get_logs",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__execute_sql",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__apply_migration",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(gh pr *)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npx playwright *)",
+      "PowerShell(npm run *)",
+      "PowerShell(npx playwright install)",
+      "PowerShell(npm test *)",
+      "Bash(npm test *)",
+      "Bash(grep -rn \"rnode\" \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\\" --include=\"*.html\" --include=\"*.css\" 2>/dev/null | head -40)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(powershell -Command '[System.Drawing.Image]::FromFile\\('\\\\''__TRACKED_VAR__\\\\witch.png'\\\\''\\) | Select-Object Width, Height')",
+      "Bash(identify witch.png)",
+      "Bash(python3)",
+      "PowerShell(git push origin campaign-balance 2>&1)",
+      "Bash(copy \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\index.html\" \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\index_backup.html\")",
+      "Bash(git -C /c/Users/harol/Downloads/idle-defense-war-server-authoritative1/idle-defense-war-server-authoritative diff HEAD --stat)",
+      "Bash(npx serve *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5100/)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\\")",
+      "Bash(git log *)",
+      "Bash(Get-ChildItem -Recurse -Depth 2)",
+      "Bash(Select-Object FullName)",
+      "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\\\\game.js' -Pattern 'const TOWER_DEFS' | Select-Object -First 1 -ExpandProperty LineNumber\")",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__deploy_edge_function",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__get_project_url",
+      "Bash(xargs ls -la)",
+      "mcp__e32e45b0-e48f-43ab-a382-84c2bb2da296__list_edge_functions",
+      "Bash(supabase --version)",
+      "Bash(supabase projects *)",
+      "Bash(npx supabase *)",
+      "Bash(npx supabase functions deploy *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\" -Recurse -File)",
+      "Bash(Select-Object -First 50)",
+      "Bash(cat netlify.toml)",
+      "Bash(cat vercel.json)",
+      "Bash(npx netlify-cli *)",
+      "Bash(npx vercel *)",
+      "Bash(awk '/ANTI-CHEAT HARDENING v2/,0' supabase_server_authoritative.sql)",
+      "Bash(awk 'NR>=3038' supabase_server_authoritative.sql)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\harol\\\\Downloads\\\\idle-defense-war-server-authoritative1\\\\idle-defense-war-server-authoritative\" -Filter \"*.js\" -File)",
+      "Bash(Select-Object -First 20)",
+      "Bash(gh repo *)",
+      "Bash(cp \"index.html\" \"index_backup.html\")"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'FILE=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"; if [[ \"$FILE\" == *\"supabase/functions/campaign-simulate\"* ]]; then echo \"[auto-deploy] Deploying campaign-simulate...\"; npx supabase functions deploy campaign-simulate --project-ref gdlkslptehtxudfghhqh; fi'"
+          }
+        ]
+      }
     ]
   }
 }

@@ -819,6 +819,10 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Shared combat config mirror (must load before game.js) -->
+<script src="shared/combat-config.js"></script>
 <script src="game.js"></script>
+<!-- Desync validator — run CombatDesyncValidator.runAll() in the browser console -->
+<script src="shared/desync-validator.js"></script>
 </body>
 </html>

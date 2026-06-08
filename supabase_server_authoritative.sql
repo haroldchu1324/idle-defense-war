@@ -3334,13 +3334,30 @@ BEGIN
 
   IF p_won AND p_waves >= 10 AND p_lives > 0 AND v_duration_ok AND v_gold_ok
      AND (p_gear_fingerprint = '' OR v_server_fingerprint = p_gear_fingerprint) THEN
-    v_first_clear     := NOT (b.stage_id = ANY(p.campaign_completed));
-    v_reward          := public.idw_stage_reward(b.stage_id);
+    v_first_clear := NOT (b.stage_id = ANY(p.campaign_completed));
+    -- Strip elite: prefix for reward table lookup; apply 3× multiplier on first elite clear
+    DECLARE
+      v_base_stage_id  text    := CASE WHEN b.stage_id LIKE 'elite:%'
+                                        THEN substring(b.stage_id FROM 7)
+                                        ELSE b.stage_id END;
+      v_is_elite       boolean := b.stage_id LIKE 'elite:%';
+      v_reward_mult    int     := CASE WHEN v_is_elite AND v_first_clear THEN 3 ELSE 1 END;
+      v_base_reward    jsonb   := public.idw_stage_reward(v_base_stage_id);
+    BEGIN
+      -- Scale each reward field by v_reward_mult (only on first clear; replays get nothing)
+      IF v_first_clear THEN
+        SELECT coalesce(jsonb_object_agg(kv.key, round(kv.value::numeric * v_reward_mult)::int), '{}'::jsonb)
+          INTO v_reward FROM jsonb_each(v_base_reward) kv;
+      ELSE
+        v_reward := '{}'::jsonb;
+      END IF;
+    END;
     v_xp_gained       := coalesce((v_reward->>'xp')::int, 0);
     v_resource_reward := v_reward - 'xp';
     UPDATE public.idw_player_state
        SET resources          = public.idw_apply_resource_delta(resources, v_resource_reward),
            player_xp          = player_xp + v_xp_gained,
+           -- Track using full stage_id so elite:1-5 and 1-5 are separate completions
            campaign_completed = (CASE WHEN b.stage_id = ANY(campaign_completed)
                                       THEN campaign_completed
                                       ELSE array_append(campaign_completed, b.stage_id) END),
